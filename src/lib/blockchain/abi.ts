@@ -1,0 +1,23 @@
+export const trustTicketAbi = [
+  "function addOrganizer(address organizer)",
+  "function addValidator(address validator)",
+  "function addEventValidator(uint256 eventId, address validator)",
+  "function createEvent(string eventName,uint256 eventTimestamp,uint256 ticketPrice,uint256 totalTicketCount,uint256 primarySaleStart,uint256 primarySaleEnd,bool resaleAllowed,uint256 maxResalePriceRate,uint256 resaleStart,uint256 resaleEnd) returns (uint256)",
+  "function setEventStatus(uint256 eventId, bool active)",
+  "function mintTicket(uint256 eventId, string seatInfo) returns (uint256)",
+  "function purchaseTicket(uint256 tokenId) payable",
+  "function listTicket(uint256 tokenId, uint256 resalePrice)",
+  "function cancelListing(uint256 tokenId)",
+  "function purchaseResaleTicket(uint256 tokenId) payable",
+  "function useTicket(uint256 tokenId)",
+  "function getEventInfo(uint256 eventId) view returns ((uint256 eventId,address organizer,string eventName,uint256 eventTimestamp,uint256 ticketPrice,uint256 totalTicketCount,uint256 remainingTicketCount,uint256 primarySaleStart,uint256 primarySaleEnd,bool resaleAllowed,uint256 maxResalePriceRate,uint256 resaleStart,uint256 resaleEnd,bool active))",
+  "function getTicketInfo(uint256 tokenId) view returns ((uint256 tokenId,uint256 eventId,string seatInfo,uint256 originalPrice,bool used,bool listed))",
+  "function getListingInfo(uint256 tokenId) view returns ((uint256 tokenId,address seller,uint256 price,bool active))",
+  "function getTicketsByEvent(uint256 eventId) view returns (uint256[])",
+  "function getTicketsByOwner(address owner) view returns (uint256[])",
+  "function ownerOf(uint256 tokenId) view returns (address)",
+  "function isTicketValid(uint256 tokenId) view returns (bool)",
+  "function isTicketListed(uint256 tokenId) view returns (bool)",
+  "function getTicketCheckInMessageHash(uint256 tokenId, address claimedOwner, uint256 expiresAt) view returns (bytes32)",
+  "function verifySignedTicket(uint256 tokenId, address claimedOwner, uint256 expiresAt, bytes signature) view returns (bool)"
+] as const;

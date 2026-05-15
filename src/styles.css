@@ -1,0 +1,191 @@
+@import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Noto+Sans+KR:wght@400;500;700&display=swap");
+
+:root {
+  --bg-0: #0c121f;
+  --bg-1: #1b2d4e;
+  --panel: rgba(255, 255, 255, 0.08);
+  --border: rgba(255, 255, 255, 0.18);
+  --txt-main: #f6f9ff;
+  --txt-sub: #c9d5ee;
+  --accent: #ffb347;
+  --accent-2: #ff6f61;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: "Noto Sans KR", "Space Grotesk", sans-serif;
+  background: radial-gradient(circle at 20% 20%, #314f84 0%, var(--bg-0) 45%),
+    linear-gradient(145deg, var(--bg-0), var(--bg-1));
+  color: var(--txt-main);
+  min-height: 100vh;
+}
+
+.app-shell {
+  max-width: 1160px;
+  margin: 0 auto;
+  padding: 1.25rem;
+}
+
+.topbar {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 1rem;
+}
+
+.brand {
+  text-decoration: none;
+  letter-spacing: 0.18em;
+  color: var(--txt-main);
+  font-family: "Space Grotesk", sans-serif;
+  font-weight: 700;
+}
+
+.content {
+  display: grid;
+  gap: 1rem;
+  animation: enter 450ms ease;
+}
+
+.nav-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.7rem;
+  margin-bottom: 1rem;
+}
+
+.nav-chip {
+  text-decoration: none;
+  color: var(--txt-main);
+  border: 1px solid var(--border);
+  background: var(--panel);
+  border-radius: 999px;
+  padding: 0.6rem 1rem;
+  text-align: center;
+}
+
+.hero,
+.panel {
+  border: 1px solid var(--border);
+  background: var(--panel);
+  border-radius: 24px;
+  padding: 1rem;
+  backdrop-filter: blur(16px);
+}
+
+.hero h1 {
+  font-family: "Space Grotesk", sans-serif;
+  font-size: clamp(1.6rem, 3vw, 3rem);
+  margin: 0.2rem 0;
+}
+
+.eyebrow {
+  margin: 0;
+  color: var(--accent);
+  font-size: 0.85rem;
+  letter-spacing: 0.1em;
+}
+
+.lead {
+  color: var(--txt-sub);
+  max-width: 52ch;
+}
+
+.action-row,
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin-top: 0.75rem;
+}
+
+.button {
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--txt-main);
+  text-decoration: none;
+  border-radius: 10px;
+  padding: 0.52rem 0.9rem;
+  cursor: pointer;
+}
+
+.button.primary {
+  border-color: transparent;
+  color: #1e0f09;
+  background: linear-gradient(120deg, var(--accent), var(--accent-2));
+  font-weight: 700;
+}
+
+.form {
+  display: grid;
+  gap: 0.6rem;
+}
+
+input {
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  padding: 0.56rem 0.72rem;
+  color: var(--txt-main);
+  background: rgba(0, 0, 0, 0.22);
+}
+
+input::placeholder {
+  color: #b8c5e0;
+}
+
+.card-grid {
+  margin-top: 0.8rem;
+  display: grid;
+  gap: 0.7rem;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.event-card {
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: rgba(0, 0, 0, 0.28);
+  padding: 0.8rem;
+  text-decoration: none;
+  color: inherit;
+}
+
+.event-card h3 {
+  margin-top: 0;
+}
+
+.code {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 0.85rem;
+  font-family: "Courier New", monospace;
+  color: #dce6ff;
+}
+
+.error {
+  color: #ffd5d5;
+}
+
+@keyframes enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 768px) {
+  .nav-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .app-shell {
+    padding: 0.8rem;
+  }
+}
