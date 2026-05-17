@@ -43,13 +43,22 @@ export default function AuthPage({ navigation, route }: any) {
   };
 
   const navigateByRole = (roles: string[]) => {
-    if (roles.includes('ADMIN')) {
-      Alert.alert('관리자 계정', '관리자 기능은 웹에서 이용해 주세요.');
+    console.log('Navigating with roles:', roles);
+    
+    // roles가 없거나 배열이 아닌 경우에 대한 방어 코드
+    const safeRoles = Array.isArray(roles) ? roles : [];
+
+    if (safeRoles.includes('ADMIN')) {
+      const msg = '관리자 계정입니다. 관리자 기능은 웹(Admin Portal)에서 이용해 주세요.';
+      if (Platform.OS === 'web') alert(msg);
+      else Alert.alert('관리자 계정', msg);
       return;
     }
-    if (roles.includes('ORGANIZER')) {
+
+    if (safeRoles.includes('ORGANIZER')) {
       navigation.replace('Organizer');
     } else {
+      // 기본적으로 USER 페이지로 이동
       navigation.replace('Main');
     }
   };
