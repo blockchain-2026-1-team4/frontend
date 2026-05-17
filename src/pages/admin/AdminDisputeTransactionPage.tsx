@@ -1,11 +1,13 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import { AdminPagination } from "../../components/AdminPagination";
 import { backendApi } from "../../lib/backend";
 import type { DisputeRecord, ResaleTransactionRecord } from "../../types/api";
 
 type DisputeStatusFilter = "ALL" | "OPEN" | "REVIEWING" | "RESOLVED" | "REJECTED";
 type ResaleStatusFilter = "ALL" | "ACTIVE" | "SOLD" | "CANCELED";
 type ReviewStatus = "REVIEWING" | "RESOLVED" | "REJECTED";
+const PAGE_SIZE = 20;
 
 const DISPUTE_STATUS_LABEL: Record<string, string> = {
   OPEN: "접수",
@@ -94,6 +96,14 @@ export function AdminDisputeTransactionPage() {
   const [transactions, setTransactions] = useState<ResaleTransactionRecord[]>([]);
   const [disputeStatus, setDisputeStatus] = useState<DisputeStatusFilter>("ALL");
   const [transactionStatus, setTransactionStatus] = useState<ResaleStatusFilter>("ALL");
+  const [disputePage, setDisputePage] = useState(0);
+  const [transactionPage, setTransactionPage] = useState(0);
+  const [disputeTotalElements, setDisputeTotalElements] = useState<number | undefined>();
+  const [disputeTotalPages, setDisputeTotalPages] = useState<number | undefined>();
+  const [disputeHasNext, setDisputeHasNext] = useState(false);
+  const [transactionTotalElements, setTransactionTotalElements] = useState<number | undefined>();
+  const [transactionTotalPages, setTransactionTotalPages] = useState<number | undefined>();
+  const [transactionHasNext, setTransactionHasNext] = useState(false);
   const [query, setQuery] = useState("");
   const [selectedDisputeId, setSelectedDisputeId] = useState<string | null>(null);
   const [reviewNote, setReviewNote] = useState("");
@@ -109,16 +119,30 @@ export function AdminDisputeTransactionPage() {
       const [disputeData, transactionData] = await Promise.all([
         backendApi.getDisputes({
           status: disputeStatus !== "ALL" ? disputeStatus : undefined,
-          size: 50,
+          page: disputePage,
+          size: PAGE_SIZE,
         }),
         backendApi.getResaleTransactions({
           status: transactionStatus !== "ALL" ? transactionStatus : undefined,
-          size: 50,
+          page: transactionPage,
+          size: PAGE_SIZE,
         }),
       ]);
       setDisputes(disputeData.items ?? []);
       setTransactions(transactionData.items ?? []);
+      setDisputeTotalElements(disputeData.totalElements);
+      setDisputeTotalPages(disputeData.totalPages);
+      setDisputeHasNext(disputeData.hasNext ?? false);
+      setTransactionTotalElements(transactionData.totalElements);
+      setTransactionTotalPages(transactionData.totalPages);
+      setTransactionHasNext(transactionData.hasNext ?? false);
     } catch (cause) {
+      setDisputeTotalElements(undefined);
+      setDisputeTotalPages(undefined);
+      setDisputeHasNext(false);
+      setTransactionTotalElements(undefined);
+      setTransactionTotalPages(undefined);
+      setTransactionHasNext(false);
       setError(buildError(cause));
     } finally {
       setLoading(false);
@@ -127,7 +151,7 @@ export function AdminDisputeTransactionPage() {
 
   useEffect(() => {
     void load();
-  }, [disputeStatus, transactionStatus]);
+  }, [disputeStatus, transactionStatus, disputePage, transactionPage]);
 
   const selectedDispute = useMemo(
     () => disputes.find((item) => item.id === selectedDisputeId) ?? disputes[0],
@@ -310,7 +334,10 @@ export function AdminDisputeTransactionPage() {
                   <button
                     key={tab.value}
                     className={`dt-tab${disputeStatus === tab.value ? " active" : ""}`}
-                    onClick={() => setDisputeStatus(tab.value)}
+                    onClick={() => {
+                      setDisputePage(0);
+                      setDisputeStatus(tab.value);
+                    }}
                     type="button"
                   >
                     {tab.label}
@@ -347,6 +374,15 @@ export function AdminDisputeTransactionPage() {
                 })
               )}
             </div>
+            <AdminPagination
+              page={disputePage}
+              size={PAGE_SIZE}
+              totalElements={disputeTotalElements}
+              totalPages={disputeTotalPages}
+              hasNext={disputeHasNext}
+              loading={loading}
+              onPageChange={setDisputePage}
+            />
           </section>
 
           <section className="dt-panel">
@@ -437,7 +473,10 @@ export function AdminDisputeTransactionPage() {
                 <button
                   key={tab.value}
                   className={`dt-tab${transactionStatus === tab.value ? " active" : ""}`}
-                  onClick={() => setTransactionStatus(tab.value)}
+                  onClick={() => {
+                    setTransactionPage(0);
+                    setTransactionStatus(tab.value);
+                  }}
                   type="button"
                 >
                   {tab.label}
@@ -498,6 +537,15 @@ export function AdminDisputeTransactionPage() {
               </tbody>
             </table>
           </div>
+          <AdminPagination
+            page={transactionPage}
+            size={PAGE_SIZE}
+            totalElements={transactionTotalElements}
+            totalPages={transactionTotalPages}
+            hasNext={transactionHasNext}
+            loading={loading}
+            onPageChange={setTransactionPage}
+          />
         </section>
       </div>
     </>

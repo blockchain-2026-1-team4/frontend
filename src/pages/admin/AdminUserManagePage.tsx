@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import { AdminPagination } from "../../components/AdminPagination";
 import { backendApi } from "../../lib/backend";
 import type { UserAdminRecord } from "../../types/api";
 
@@ -18,6 +19,7 @@ const ROLE_LABEL: Record<string, string> = {
 };
 
 type UserStatusFilter = "ALL" | "ACTIVE" | "SUSPENDED" | "DELETED";
+const PAGE_SIZE = 20;
 
 function formatDate(value?: string) {
   if (!value) {
@@ -68,6 +70,10 @@ export function AdminUserManagePage() {
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
   const [filterStatus, setFilterStatus] = useState<UserStatusFilter>("ALL");
+  const [page, setPage] = useState(0);
+  const [totalElements, setTotalElements] = useState<number | undefined>();
+  const [totalPages, setTotalPages] = useState<number | undefined>();
+  const [hasNext, setHasNext] = useState(false);
   const [actionUserId, setActionUserId] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -85,12 +91,20 @@ export function AdminUserManagePage() {
       }
 
       const data = await backendApi.getUsers({
+        page,
+        size: PAGE_SIZE,
         status: filterStatus !== "ALL" ? filterStatus : undefined,
       });
       setItems(data.items ?? []);
+      setTotalElements(data.totalElements);
+      setTotalPages(data.totalPages);
+      setHasNext(data.hasNext ?? false);
       setHasLoaded(true);
     } catch (cause) {
       setItems([]);
+      setTotalElements(undefined);
+      setTotalPages(undefined);
+      setHasNext(false);
       setHasLoaded(false);
       setError(buildLoadError(cause));
     } finally {
@@ -100,7 +114,7 @@ export function AdminUserManagePage() {
 
   useEffect(() => {
     void load();
-  }, [filterStatus]);
+  }, [filterStatus, page]);
 
   const filteredItems = useMemo(() => {
     const keyword = query.trim().toLowerCase();
@@ -245,7 +259,10 @@ export function AdminUserManagePage() {
               <button
                 key={tab.value}
                 className={`user-filter-tab${filterStatus === tab.value ? " active" : ""}`}
-                onClick={() => setFilterStatus(tab.value)}
+                onClick={() => {
+                  setPage(0);
+                  setFilterStatus(tab.value);
+                }}
                 type="button"
               >
                 {tab.label}
@@ -379,6 +396,15 @@ export function AdminUserManagePage() {
               </table>
             </div>
           )}
+          <AdminPagination
+            page={page}
+            size={PAGE_SIZE}
+            totalElements={totalElements}
+            totalPages={totalPages}
+            hasNext={hasNext}
+            loading={loading}
+            onPageChange={setPage}
+          />
         </div>
       </div>
     </>

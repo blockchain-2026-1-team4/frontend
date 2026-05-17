@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import { AdminPagination } from "../../components/AdminPagination";
 import { backendApi } from "../../lib/backend";
 import type { OrganizerApplication } from "../../types/api";
 
 type StatusFilter = "ALL" | "PENDING" | "APPROVED" | "REJECTED";
+const PAGE_SIZE = 20;
 
 const STATUS_LABEL: Record<string, string> = {
   PENDING: "승인 대기",
@@ -59,6 +61,10 @@ function buildError(cause: unknown) {
 export function OrganizerApprovalsPage() {
   const [items, setItems] = useState<OrganizerApplication[]>([]);
   const [filterStatus, setFilterStatus] = useState<StatusFilter>("PENDING");
+  const [page, setPage] = useState(0);
+  const [totalElements, setTotalElements] = useState<number | undefined>();
+  const [totalPages, setTotalPages] = useState<number | undefined>();
+  const [hasNext, setHasNext] = useState(false);
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [reviewingId, setReviewingId] = useState<string | null>(null);
@@ -71,11 +77,18 @@ export function OrganizerApprovalsPage() {
     try {
       const data = await backendApi.getOrganizerApplications({
         status: filterStatus !== "ALL" ? filterStatus : undefined,
-        size: 50,
+        page,
+        size: PAGE_SIZE,
       });
       setItems(data.items ?? []);
+      setTotalElements(data.totalElements);
+      setTotalPages(data.totalPages);
+      setHasNext(data.hasNext ?? false);
     } catch (cause) {
       setItems([]);
+      setTotalElements(undefined);
+      setTotalPages(undefined);
+      setHasNext(false);
       setError(buildError(cause));
     } finally {
       setLoading(false);
@@ -84,7 +97,7 @@ export function OrganizerApprovalsPage() {
 
   useEffect(() => {
     void load();
-  }, [filterStatus]);
+  }, [filterStatus, page]);
 
   const filteredItems = useMemo(() => {
     const keyword = query.trim().toLowerCase();
@@ -217,7 +230,10 @@ export function OrganizerApprovalsPage() {
                 <button
                   key={tab.value}
                   className={`oa-tab${filterStatus === tab.value ? " active" : ""}`}
-                  onClick={() => setFilterStatus(tab.value)}
+                  onClick={() => {
+                    setPage(0);
+                    setFilterStatus(tab.value);
+                  }}
                   type="button"
                 >
                   {tab.label}
@@ -310,6 +326,15 @@ export function OrganizerApprovalsPage() {
               </tbody>
             </table>
           </div>
+          <AdminPagination
+            page={page}
+            size={PAGE_SIZE}
+            totalElements={totalElements}
+            totalPages={totalPages}
+            hasNext={hasNext}
+            loading={loading}
+            onPageChange={setPage}
+          />
         </div>
       </section>
     </>

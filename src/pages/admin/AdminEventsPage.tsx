@@ -1,9 +1,11 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import { AdminPagination } from "../../components/AdminPagination";
 import { backendApi } from "../../lib/backend";
 import type { EventDetail } from "../../types/api";
 
 type FilterStatus = "ALL" | "ACTIVE" | "INACTIVE" | "CANCELED";
+const PAGE_SIZE = 20;
 
 const STATUS_LABEL: Record<string, string> = {
   ACTIVE: "진행중",
@@ -44,6 +46,10 @@ export function AdminEventsPage() {
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
   const [filterStatus, setFilterStatus] = useState<FilterStatus>("ALL");
+  const [page, setPage] = useState(0);
+  const [totalElements, setTotalElements] = useState<number | undefined>();
+  const [totalPages, setTotalPages] = useState<number | undefined>();
+  const [hasNext, setHasNext] = useState(false);
   const [flaggingId, setFlaggingId] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -61,13 +67,21 @@ export function AdminEventsPage() {
       }
 
       const data = await backendApi.getAdminEvents({
+        page,
+        size: PAGE_SIZE,
         query: query || undefined,
         status: filterStatus !== "ALL" ? filterStatus : undefined,
       });
       setItems(data.items ?? []);
+      setTotalElements(data.totalElements);
+      setTotalPages(data.totalPages);
+      setHasNext(data.hasNext ?? false);
       setHasLoaded(true);
     } catch (cause) {
       setItems([]);
+      setTotalElements(undefined);
+      setTotalPages(undefined);
+      setHasNext(false);
       setHasLoaded(false);
       setError(buildError(cause));
     } finally {
@@ -77,7 +91,7 @@ export function AdminEventsPage() {
 
   useEffect(() => {
     void load();
-  }, [filterStatus]);
+  }, [filterStatus, page]);
 
   const visibleItems = useMemo(() => {
     const keyword = query.trim().toLowerCase();
@@ -120,6 +134,7 @@ export function AdminEventsPage() {
 
   function handleSearch(event: FormEvent) {
     event.preventDefault();
+    setPage(0);
     void load();
   }
 
@@ -192,7 +207,10 @@ export function AdminEventsPage() {
               <button
                 key={tab.value}
                 className={`ae-tab${filterStatus === tab.value ? " active" : ""}`}
-                onClick={() => setFilterStatus(tab.value)}
+                onClick={() => {
+                  setPage(0);
+                  setFilterStatus(tab.value);
+                }}
                 type="button"
               >
                 {tab.label}
@@ -290,6 +308,15 @@ export function AdminEventsPage() {
               </table>
             </div>
           )}
+          <AdminPagination
+            page={page}
+            size={PAGE_SIZE}
+            totalElements={totalElements}
+            totalPages={totalPages}
+            hasNext={hasNext}
+            loading={loading}
+            onPageChange={setPage}
+          />
         </div>
       </div>
     </>
