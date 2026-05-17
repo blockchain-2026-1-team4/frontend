@@ -46,12 +46,24 @@ export type AuthTokens = {
 
 export type EventSummary = {
   id: string;
+  organizerId?: string;
+  contractEventId?: string;
   title?: string;
   name?: string;
   description?: string;
   venue: string;
   eventDateTime?: string;
   eventAt?: string;
+  ticketPriceWei?: string;
+  primarySaleStart?: string;
+  primarySaleEnd?: string;
+  resaleAllowed?: boolean;
+  maxResalePriceRate?: number;
+  resaleStart?: string;
+  resaleEnd?: string;
+  flagged?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
   status: string;
   category?: string;
   soldOut?: boolean;
@@ -76,16 +88,22 @@ export type EventDetail = EventSummary & {
 
 export type TicketDetail = {
   id?: string;
-  ticketId: number | string;
+  ticketId?: number | string;
   eventId: string;
-  eventName: string;
+  eventName?: string;
   eventTitle?: string;
   venue?: string;
   eventDateTime?: string;
   seatInfo: string;
   status: string;
   priceWei?: string;
+  originalPriceWei?: string;
   ownerAddress?: string;
+  ownerWalletAddress?: string;
+  contractTokenId?: string;
+  usedAt?: string;
+  createdAt?: string;
+  updatedAt?: string;
   qrImageUrl?: string;
 };
 
@@ -131,7 +149,10 @@ export type BlockchainTransactionRecord = {
 export type CheckInRecord = {
   id?: string;
   ticketId?: string;
+  validatorId?: string;
   status?: string;
+  result?: string;
+  checkedInAt?: string;
   createdAt?: string;
   memo?: string;
   [key: string]: unknown;

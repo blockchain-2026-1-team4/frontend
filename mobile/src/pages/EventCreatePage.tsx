@@ -51,16 +51,45 @@ export default function EventCreatePage({ navigation }: any) {
   const [resaleAllowed, setResaleAllowed] = useState(true);
   const [maxResaleRate, setMaxResaleRate] = useState('120');
   const [submitting, setSubmitting] = useState(false);
+  const [created, setCreated] = useState(false);
 
   const createEvent = async () => {
-    if (!name.trim() || !category.trim() || !venue.trim()) {
-      Alert.alert('입력 필요', '이벤트명, 카테고리, 장소를 입력해 주세요.');
+    if (!name.trim()) {
+      Alert.alert('입력 필요', '이벤트명을 입력해야 등록할 수 있습니다.');
+      return;
+    }
+    if (!category.trim()) {
+      Alert.alert('입력 필요', '카테고리를 입력해야 등록할 수 있습니다.');
+      return;
+    }
+    if (!venue.trim()) {
+      Alert.alert('입력 필요', '장소를 입력해야 등록할 수 있습니다.');
+      return;
+    }
+    if (!eventAt.trim()) {
+      Alert.alert('입력 필요', '이벤트 일시를 입력해야 등록할 수 있습니다.');
+      return;
+    }
+    if (!ticketPriceEth.trim()) {
+      Alert.alert('입력 필요', '티켓 가격을 입력해야 등록할 수 있습니다.');
+      return;
+    }
+    if (!totalTicketCount.trim()) {
+      Alert.alert('입력 필요', '총 티켓 수를 입력해야 등록할 수 있습니다.');
       return;
     }
 
     const count = Number(totalTicketCount);
     if (!Number.isInteger(count) || count <= 0) {
       Alert.alert('입력 오류', '티켓 수량은 1 이상의 정수여야 합니다.');
+      return;
+    }
+    if (Number.isNaN(Number(ticketPriceEth)) || Number(ticketPriceEth) < 0) {
+      Alert.alert('입력 오류', '티켓 가격은 0 이상의 숫자여야 합니다.');
+      return;
+    }
+    if (Number.isNaN(Number(maxResaleRate)) || Number(maxResaleRate) < 100) {
+      Alert.alert('입력 오류', '최대 리셀 가격 비율은 100 이상이어야 합니다.');
       return;
     }
 
@@ -81,7 +110,7 @@ export default function EventCreatePage({ navigation }: any) {
 
       const maxResalePriceRate = Math.max(10000, Math.round(Number(maxResaleRate || '100') * 100));
 
-      await backendApi.createEvent({
+      const createdEvent = await backendApi.createEvent({
         name: name.trim(),
         category: category.trim().toUpperCase(),
         venue: venue.trim(),
@@ -98,8 +127,9 @@ export default function EventCreatePage({ navigation }: any) {
         resaleEnd: resaleAllowed ? saleEnd.toISOString() : null,
       });
 
+      setCreated(true);
       Alert.alert('등록 완료', '이벤트가 등록되었습니다.', [
-        { text: '확인', onPress: () => navigation.navigate('MyEvents') },
+        { text: '티켓 발행으로 이동', onPress: () => navigation.replace('TicketIssue', { eventId: createdEvent.id }) },
       ]);
     } catch (error: any) {
       Alert.alert('등록 실패', error.message || '이벤트를 등록하지 못했습니다.');
@@ -170,11 +200,11 @@ export default function EventCreatePage({ navigation }: any) {
         </View>
 
         <TouchableOpacity
-          style={[styles.primaryButton, submitting && styles.disabledButton]}
-          disabled={submitting}
+          style={[styles.primaryButton, (submitting || created) && styles.disabledButton]}
+          disabled={submitting || created}
           onPress={createEvent}
         >
-          <Text style={styles.primaryButtonText}>{submitting ? '등록 중...' : '이벤트 등록'}</Text>
+          <Text style={styles.primaryButtonText}>{submitting ? '등록 중...' : created ? '등록 완료' : '이벤트 등록'}</Text>
         </TouchableOpacity>
       </ScrollView>
     </KeyboardAvoidingView>

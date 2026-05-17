@@ -1,4 +1,5 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   ActivityIndicator,
   Alert,
@@ -24,6 +25,18 @@ function eventDate(event: EventSummary) {
   return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString('ko-KR');
 }
 
+const APPLICATION_LABEL: Record<string, string> = {
+  PENDING: '승인 대기',
+  APPROVED: '승인 완료',
+  REJECTED: '거절됨',
+};
+
+function applicationTime(application: OrganizerApplication) {
+  const value = String(application.updatedAt || application.createdAt || '');
+  const time = new Date(value).getTime();
+  return Number.isNaN(time) ? 0 : time;
+}
+
 export default function OrganizerDashboardPage({ navigation }: any) {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [applications, setApplications] = useState<OrganizerApplication[]>([]);
@@ -37,6 +50,8 @@ export default function OrganizerDashboardPage({ navigation }: any) {
 
   const isOrganizer = profile?.roles?.includes('ORGANIZER') || profile?.roles?.includes('ADMIN');
   const latestApplication = applications[0];
+  const latestStatus = latestApplication?.status ?? null;
+  const canApply = !latestApplication || latestStatus === 'REJECTED';
   const activeEvents = events.filter((event) => event.status === 'ACTIVE').length;
   const soldTickets = events.reduce((sum, event) => sum + (event.soldTicketCount ?? 0), 0);
 
@@ -47,7 +62,7 @@ export default function OrganizerDashboardPage({ navigation }: any) {
       setContactEmail((current) => current || me.email || '');
 
       const myApplications = await backendApi.getMyOrganizerApplications().catch(() => []);
-      setApplications(myApplications ?? []);
+      setApplications([...(myApplications ?? [])].sort((a, b) => applicationTime(b) - applicationTime(a)));
 
       if (me.roles?.includes('ORGANIZER') || me.roles?.includes('ADMIN')) {
         const eventPage = await backendApi.getMyEvents({ page: 0, size: 5 });
@@ -63,9 +78,11 @@ export default function OrganizerDashboardPage({ navigation }: any) {
     }
   }, []);
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  useFocusEffect(
+    useCallback(() => {
+      void load();
+    }, [load]),
+  );
 
   const refresh = () => {
     setRefreshing(true);
@@ -112,11 +129,16 @@ export default function OrganizerDashboardPage({ navigation }: any) {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}
     >
       <View style={styles.header}>
-        <Text style={styles.eyebrow}>Organizer Console</Text>
-        <Text style={styles.title}>주최자 센터</Text>
-        <Text style={styles.subtitle}>
-          이벤트 등록, 판매 현황 확인, 주최자 승인 신청을 한 곳에서 처리합니다.
-        </Text>
+        <View style={styles.headerTop}>
+          <View style={styles.headerCopy}>
+            <Text style={styles.eyebrow}>Organizer Console</Text>
+            <Text style={styles.title}>주최자 센터</Text>
+          </View>
+          <TouchableOpacity style={styles.profileButton} onPress={() => navigation.navigate('OrganizerProfile')}>
+            <Text style={styles.profileButtonText}>내 정보</Text>
+          </TouchableOpacity>
+        </View>
+        <Text style={styles.subtitle}>이벤트 등록, 판매 현황 확인, 주최자 승인 신청을 한 곳에서 처리합니다.</Text>
       </View>
 
       {!isOrganizer ? (
@@ -129,40 +151,50 @@ export default function OrganizerDashboardPage({ navigation }: any) {
           {latestApplication ? (
             <View style={styles.statusBox}>
               <Text style={styles.statusLabel}>최근 신청 상태</Text>
-              <Text style={styles.statusValue}>{latestApplication.status ?? 'PENDING'}</Text>
+              <Text style={styles.statusValue}>{APPLICATION_LABEL[latestStatus ?? 'PENDING'] ?? latestStatus}</Text>
               <Text style={styles.statusMeta}>{latestApplication.businessName ?? businessName}</Text>
+              {latestStatus === 'PENDING' ? (
+                <Text style={styles.statusHelp}>관리자 승인 전까지 새 신청을 보낼 수 없습니다. 아래로 당겨 새로고침하면 최신 상태를 확인합니다.</Text>
+              ) : null}
+              {latestStatus === 'REJECTED' ? (
+                <Text style={styles.statusHelp}>거절되었습니다. 내용을 보완해서 다시 신청해 주세요.</Text>
+              ) : null}
             </View>
           ) : null}
 
-          <TextInput
-            style={styles.input}
-            value={businessName}
-            onChangeText={setBusinessName}
-            placeholder="상호명"
-          />
-          <TextInput
-            style={styles.input}
-            value={contactEmail}
-            onChangeText={setContactEmail}
-            placeholder="연락 이메일"
-            autoCapitalize="none"
-            keyboardType="email-address"
-          />
-          <TextInput
-            style={[styles.input, styles.textArea]}
-            value={description}
-            onChangeText={setDescription}
-            placeholder="활동 계획 또는 소개"
-            multiline
-          />
+          {canApply ? (
+            <>
+              <TextInput
+                style={styles.input}
+                value={businessName}
+                onChangeText={setBusinessName}
+                placeholder="상호명"
+              />
+              <TextInput
+                style={styles.input}
+                value={contactEmail}
+                onChangeText={setContactEmail}
+                placeholder="연락 이메일"
+                autoCapitalize="none"
+                keyboardType="email-address"
+              />
+              <TextInput
+                style={[styles.input, styles.textArea]}
+                value={description}
+                onChangeText={setDescription}
+                placeholder="활동 계획 또는 소개"
+                multiline
+              />
 
-          <TouchableOpacity
-            style={[styles.primaryButton, submitting && styles.disabledButton]}
-            disabled={submitting}
-            onPress={submitApplication}
-          >
-            <Text style={styles.primaryButtonText}>{submitting ? '신청 중...' : '승인 신청하기'}</Text>
-          </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.primaryButton, submitting && styles.disabledButton]}
+                disabled={submitting}
+                onPress={submitApplication}
+              >
+                <Text style={styles.primaryButtonText}>{submitting ? '신청 중...' : '승인 신청하기'}</Text>
+              </TouchableOpacity>
+            </>
+          ) : null}
         </View>
       ) : (
         <>
@@ -202,13 +234,13 @@ export default function OrganizerDashboardPage({ navigation }: any) {
               <Text style={styles.emptyText}>아직 등록한 이벤트가 없습니다.</Text>
             ) : (
               events.map((event) => (
-                <View key={event.id} style={styles.eventRow}>
+                <TouchableOpacity key={event.id} style={styles.eventRow} onPress={() => navigation.navigate('OrganizerEventDetail', { eventId: event.id })}>
                   <View style={styles.eventInfo}>
                     <Text style={styles.eventTitle}>{eventTitle(event)}</Text>
                     <Text style={styles.eventMeta}>{event.venue} · {eventDate(event)}</Text>
                   </View>
                   <Text style={styles.badge}>{event.status}</Text>
-                </View>
+                </TouchableOpacity>
               ))
             )}
           </View>
@@ -224,6 +256,10 @@ const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20, backgroundColor: '#F4F7FB' },
   loadingText: { marginTop: 12, color: '#64748B' },
   header: { marginBottom: 16 },
+  headerTop: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 },
+  headerCopy: { flex: 1 },
+  profileButton: { borderWidth: 1, borderColor: '#CBD5E1', backgroundColor: '#FFFFFF', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 9 },
+  profileButtonText: { color: '#0F172A', fontWeight: '900' },
   eyebrow: { color: '#2563EB', fontWeight: '800', fontSize: 12, letterSpacing: 0.5 },
   title: { marginTop: 4, fontSize: 28, fontWeight: '900', color: '#0F172A' },
   subtitle: { marginTop: 8, color: '#64748B', fontSize: 14, lineHeight: 21 },
@@ -234,6 +270,7 @@ const styles = StyleSheet.create({
   statusLabel: { color: '#2563EB', fontSize: 12, fontWeight: '800' },
   statusValue: { marginTop: 4, fontSize: 18, fontWeight: '900', color: '#1E40AF' },
   statusMeta: { marginTop: 3, color: '#475569' },
+  statusHelp: { marginTop: 8, color: '#475569', fontSize: 12, lineHeight: 18 },
   input: { borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 12, padding: 12, marginTop: 10, backgroundColor: '#FFFFFF', color: '#0F172A' },
   textArea: { minHeight: 96, textAlignVertical: 'top' },
   primaryButton: { backgroundColor: '#2563EB', borderRadius: 14, paddingVertical: 14, alignItems: 'center', marginTop: 12 },

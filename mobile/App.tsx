@@ -16,6 +16,10 @@ import TicketResaleCreatePage from './src/pages/TicketResaleCreatePage';
 import OrganizerDashboardPage from './src/pages/OrganizerDashboardPage';
 import EventCreatePage from './src/pages/EventCreatePage';
 import MyEventsPage from './src/pages/MyEventsPage';
+import TicketIssuePage from './src/pages/TicketIssuePage';
+import OrganizerEventDetailPage from './src/pages/OrganizerEventDetailPage';
+import OrganizerProfilePage from './src/pages/OrganizerProfilePage';
+import OrganizerLogoutPage from './src/pages/OrganizerLogoutPage';
 
 const Stack = createStackNavigator();
 
@@ -38,6 +42,10 @@ export default function App() {
           <Stack.Screen name="Organizer" component={OrganizerDashboardPage} options={{ title: '주최자 센터' }} />
           <Stack.Screen name="EventCreate" component={EventCreatePage} options={{ title: '이벤트 등록' }} />
           <Stack.Screen name="MyEvents" component={MyEventsPage} options={{ title: '내 이벤트' }} />
+          <Stack.Screen name="TicketIssue" component={TicketIssuePage} options={{ title: '티켓 발행' }} />
+          <Stack.Screen name="OrganizerEventDetail" component={OrganizerEventDetailPage} options={{ title: '이벤트 운영' }} />
+          <Stack.Screen name="OrganizerProfile" component={OrganizerProfilePage} options={{ title: '내 정보 보기' }} />
+          <Stack.Screen name="OrganizerLogout" component={OrganizerLogoutPage} options={{ title: '로그아웃' }} />
         </Stack.Navigator>
       </NavigationContainer>
     </SafeAreaProvider>

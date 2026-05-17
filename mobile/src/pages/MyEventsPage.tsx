@@ -1,4 +1,5 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   ActivityIndicator,
   Alert,
@@ -50,9 +51,11 @@ export default function MyEventsPage({ navigation }: any) {
     }
   }, []);
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  useFocusEffect(
+    useCallback(() => {
+      void load(0, false);
+    }, [load]),
+  );
 
   const refresh = () => {
     setRefreshing(true);
@@ -70,7 +73,7 @@ export default function MyEventsPage({ navigation }: any) {
     const remaining = item.remainingTicketCount ?? Math.max(total - sold, 0);
 
     return (
-      <View style={styles.card}>
+      <TouchableOpacity style={styles.card} onPress={() => navigation.navigate('OrganizerEventDetail', { eventId: item.id })}>
         <View style={styles.cardHead}>
           <View style={styles.cardTitleWrap}>
             <Text style={styles.eventTitle}>{eventTitle(item)}</Text>
@@ -93,7 +96,7 @@ export default function MyEventsPage({ navigation }: any) {
             <Text style={styles.statValue}>{total || '-'}</Text>
           </View>
         </View>
-      </View>
+      </TouchableOpacity>
     );
   };
 

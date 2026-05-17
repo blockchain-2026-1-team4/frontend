@@ -1,7 +1,36 @@
-import React from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useState } from 'react';
+import { ActivityIndicator, Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { getAccessToken } from '../lib/auth';
+import { backendApi } from '../lib/backend';
 
 export default function LandingPage({ navigation }: any) {
+  const [checkingRole, setCheckingRole] = useState<'USER' | 'ORGANIZER' | null>(null);
+
+  const start = async (role: 'USER' | 'ORGANIZER') => {
+    setCheckingRole(role);
+    try {
+      const token = await getAccessToken();
+      if (!token) {
+        navigation.navigate('Auth', { initialRole: role });
+        return;
+      }
+
+      const profile = await backendApi.getMe();
+      const roles = profile.roles ?? [];
+      if (role === 'ORGANIZER') {
+        navigation.navigate(roles.includes('ORGANIZER') || roles.includes('ADMIN') ? 'Organizer' : 'Organizer');
+        return;
+      }
+
+      navigation.navigate(roles.includes('ORGANIZER') || roles.includes('ADMIN') ? 'Organizer' : 'Main');
+    } catch (error: any) {
+      Alert.alert('세션 확인 실패', error.message || '다시 로그인해 주세요.');
+      navigation.navigate('Auth', { initialRole: role });
+    } finally {
+      setCheckingRole(null);
+    }
+  };
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -15,16 +44,18 @@ export default function LandingPage({ navigation }: any) {
       <View style={styles.buttonContainer}>
         <TouchableOpacity
           style={[styles.button, styles.userButton]}
-          onPress={() => navigation.navigate('Auth', { initialRole: 'USER' })}
+          disabled={checkingRole !== null}
+          onPress={() => start('USER')}
         >
-          <Text style={styles.buttonText}>사용자로 시작하기</Text>
+          {checkingRole === 'USER' ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.buttonText}>사용자로 시작하기</Text>}
         </TouchableOpacity>
 
         <TouchableOpacity
           style={[styles.button, styles.organizerButton]}
-          onPress={() => navigation.navigate('Auth', { initialRole: 'ORGANIZER' })}
+          disabled={checkingRole !== null}
+          onPress={() => start('ORGANIZER')}
         >
-          <Text style={styles.buttonTextDark}>주최자로 시작하기</Text>
+          {checkingRole === 'ORGANIZER' ? <ActivityIndicator color="#2563EB" /> : <Text style={styles.buttonTextDark}>주최자로 시작하기</Text>}
         </TouchableOpacity>
       </View>
 
