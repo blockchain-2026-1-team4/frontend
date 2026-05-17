@@ -46,6 +46,9 @@ export function LandingPage() {
         <Link className="button" to="/register">
           회원가입
         </Link>
+        <Link className="button" to="/admin">
+          관리자 포털
+        </Link>
       </div>
     </section>
   );
