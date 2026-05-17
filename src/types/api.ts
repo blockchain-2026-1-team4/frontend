@@ -44,6 +44,13 @@ export type AuthTokens = {
   user?: UserProfile;
 };
 
+export type AdminDashboardSummary = {
+  activeEventCount: number;
+  soldTicketCount: number;
+  usedTicketCount: number;
+  activeResaleListingCount: number;
+};
+
 export type EventSummary = {
   id: string;
   title: string;
@@ -61,6 +68,9 @@ export type EventDetail = EventSummary & {
   imageUrl?: string;
   venueDetail?: string;
   description?: string;
+  organizerId?: string;
+  organizerName?: string;
+  flagged?: boolean;
   totalTicketCount?: number;
   soldTicketCount?: number;
   remainingTicketCount?: number;
@@ -113,11 +123,14 @@ export type DisputeRecord = {
 
 export type BlockchainTransactionRecord = {
   id?: string;
+  transactionHash?: string;
   txHash?: string;
   status?: string;
   action?: string;
   contractAddress?: string;
+  errorMessage?: string;
   createdAt?: string;
+  updatedAt?: string;
   [key: string]: unknown;
 };
 

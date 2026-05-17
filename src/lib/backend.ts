@@ -1,5 +1,6 @@
 import type {
   AuthTokens,
+  AdminDashboardSummary,
   BlockchainTransactionRecord,
   CheckInRecord,
   DisputeRecord,
@@ -144,7 +145,7 @@ export const backendApi = {
   },
 
   async getAdminDashboard() {
-    return unwrap<Record<string, unknown>>(http.get("/admin/dashboard"));
+    return unwrap<AdminDashboardSummary>(http.get("/admin/dashboard"));
   },
 
   async getAdminEvents(params?: { page?: number; size?: number; status?: string; category?: string; query?: string; flagged?: boolean }) {

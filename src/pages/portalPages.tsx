@@ -13,8 +13,10 @@ import type {
 } from "../types/api";
 import { LandingPage as BaseLandingPage } from "./LandingPage";
 import { LoginPage } from "./LoginPage";
+import { AdminBlockchainLogPage as BaseAdminBlockchainLogPage } from "./admin/AdminBlockchainLogPage";
 import { AdminDashboardPage as BaseAdminDashboardPage } from "./admin/AdminDashboardPage";
 import { AdminDisputeTransactionPage as BaseAdminDisputeTransactionPage } from "./admin/AdminDisputeTransactionPage";
+import { AdminEventsPage as BaseAdminEventsPage } from "./admin/AdminEventsPage";
 import { AdminUserManagePage as BaseAdminUserManagePage } from "./admin/AdminUserManagePage";
 import { OrganizerApprovalsPage as BaseOrganizerApprovalsPage } from "./admin/OrganizerApprovalsPage";
 import { EventCreatePage as BaseEventCreatePage } from "./organizer/EventCreatePage";
@@ -120,6 +122,8 @@ export const AdminDashboardPage = BaseAdminDashboardPage;
 export const OrganizerApprovalPage = BaseOrganizerApprovalsPage;
 export const AdminUserManagePage = BaseAdminUserManagePage;
 export const AdminDisputeTransactionPage = BaseAdminDisputeTransactionPage;
+export const AdminEventManagePage = BaseAdminEventsPage;
+export const AdminBlockchainLogPage = BaseAdminBlockchainLogPage;
 
 export function UserMyPage() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -518,7 +522,7 @@ export function OrganizerProfilePage() {
   );
 }
 
-export function AdminEventManagePage() {
+export function LegacyAdminEventManagePage() {
   const [items, setItems] = useState<EventDetail[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
@@ -764,7 +768,7 @@ export function LegacyAdminUserManagePage() {
   );
 }
 
-export function AdminBlockchainLogPage() {
+export function LegacyAdminBlockchainLogPage() {
   const [items, setItems] = useState<BlockchainTransactionRecord[]>([]);
 
   useEffect(() => {

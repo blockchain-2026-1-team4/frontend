@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { backendApi } from "../../lib/backend";
 import type { DisputeRecord, ResaleTransactionRecord } from "../../types/api";
 
@@ -216,7 +217,8 @@ export function AdminDisputeTransactionPage() {
         .dt-metric { border: 1px solid var(--border); border-radius: 14px; padding: 0.7rem 0.85rem; background: #f8fafc; }
         .dt-metric span { display: block; color: var(--txt-sub); font-size: 0.78rem; font-weight: 700; }
         .dt-metric strong { display: block; margin-top: 0.25rem; font-size: 1.25rem; color: var(--txt-main); }
-        .dt-alert { background: #fff5f5; border: 1px solid #ffcdd2; color: #c62828; border-radius: 12px; padding: 0.75rem 1rem; font-weight: 700; }
+        .dt-alert { background: #fff5f5; border: 1px solid #ffcdd2; color: #c62828; border-radius: 12px; padding: 0.75rem 1rem; font-weight: 700; display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; flex-wrap: wrap; }
+        .dt-alert .button { border-color: #ffcdd2; background: #fff; color: #c62828; padding: 0.35rem 0.65rem; }
         .dt-toast { background: #e8f5e9; border: 1px solid #a5d6a7; color: #2e7d32; border-radius: 12px; padding: 0.75rem 1rem; font-weight: 700; }
         .dt-workspace { display: grid; grid-template-columns: minmax(360px, 0.95fr) minmax(420px, 1.15fr); gap: 1rem; align-items: start; }
         .dt-panel { background: var(--panel); border: 1px solid var(--border); border-radius: 20px; box-shadow: var(--shadow); overflow: hidden; }
@@ -284,7 +286,14 @@ export function AdminDisputeTransactionPage() {
           </div>
         </header>
 
-        {error ? <div className="dt-alert">{error}</div> : null}
+        {error ? (
+          <div className="dt-alert">
+            <span>{error}</span>
+            <Link className="button" to="/login">
+              다시 로그인
+            </Link>
+          </div>
+        ) : null}
         {message ? <div className="dt-toast">{message}</div> : null}
 
         <div className="dt-workspace">
