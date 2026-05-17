@@ -118,6 +118,17 @@ export function AdminUserManagePage() {
   }, [items, query]);
 
   async function runAction(userId: string, action: "suspend" | "activate" | "delete" | "validator") {
+    const confirmMessages: Record<typeof action, string> = {
+      suspend: "이 사용자를 정지하시겠습니까?",
+      activate: "이 사용자를 활성화하시겠습니까?",
+      delete: "이 사용자를 삭제 처리하시겠습니까?",
+      validator: "이 사용자에게 검증자 권한을 부여하시겠습니까?",
+    };
+
+    if (!window.confirm(confirmMessages[action])) {
+      return;
+    }
+
     setActionUserId(userId);
     setError(null);
     try {

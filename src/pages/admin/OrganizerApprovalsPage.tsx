@@ -106,6 +106,11 @@ export function OrganizerApprovalsPage() {
   const rejectedCount = items.filter((item) => item.status === "REJECTED").length;
 
   async function review(id: string, decision: "APPROVED" | "REJECTED") {
+    const message = decision === "APPROVED" ? "이 주최자 신청을 승인하시겠습니까?" : "이 주최자 신청을 거절하시겠습니까?";
+    if (!window.confirm(message)) {
+      return;
+    }
+
     setReviewingId(id);
     setError(null);
     try {

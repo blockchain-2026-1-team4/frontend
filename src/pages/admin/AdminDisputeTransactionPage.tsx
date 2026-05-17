@@ -171,6 +171,10 @@ export function AdminDisputeTransactionPage() {
       return;
     }
 
+    if (!window.confirm(`분쟁 상태를 ${DISPUTE_STATUS_LABEL[status]}로 변경하시겠습니까?`)) {
+      return;
+    }
+
     setReviewingId(selectedDispute.id);
     setError(null);
     try {

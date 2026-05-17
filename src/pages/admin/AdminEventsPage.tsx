@@ -94,6 +94,11 @@ export function AdminEventsPage() {
   }, [items, query]);
 
   async function handleFlag(eventId: string, currentlyFlagged: boolean) {
+    const message = currentlyFlagged ? "이벤트 플래그를 해제하시겠습니까?" : "이 이벤트에 플래그를 설정하시겠습니까?";
+    if (!window.confirm(message)) {
+      return;
+    }
+
     setFlaggingId(eventId);
     setError(null);
     try {
