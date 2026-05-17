@@ -13,13 +13,21 @@ import {
 import { accountStatusMessage, errorMessage } from '../lib/account';
 import { backendApi } from '../lib/backend';
 
-function toLocalInputDate(date: Date) {
+function toLocalDate(date: Date) {
   const pad = (value: number) => String(value).padStart(2, '0');
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 }
 
-function toIso(value: string) {
-  const date = new Date(value);
+function toLocalTime(date: Date) {
+  const pad = (value: number) => String(value).padStart(2, '0');
+  return `${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+function toIso(dateValue: string, timeValue: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateValue) || !/^\d{2}:\d{2}$/.test(timeValue)) {
+    throw new Error('날짜는 YYYY-MM-DD, 시간은 HH:mm 형식으로 입력해 주세요.');
+  }
+  const date = new Date(`${dateValue}T${timeValue}`);
   if (Number.isNaN(date.getTime())) {
     throw new Error('날짜 형식이 올바르지 않습니다.');
   }
@@ -43,6 +51,8 @@ const EVENT_CATEGORIES = [
   { value: 'ETC', label: '기타' },
 ];
 
+const QUICK_TIMES = ['14:00', '18:00', '19:00', '20:00'];
+
 export default function EventCreatePage({ navigation }: any) {
   const tomorrow = useMemo(() => {
     const date = new Date();
@@ -55,7 +65,8 @@ export default function EventCreatePage({ navigation }: any) {
   const [category, setCategory] = useState('CONCERT');
   const [venue, setVenue] = useState('');
   const [description, setDescription] = useState('');
-  const [eventAt, setEventAt] = useState(toLocalInputDate(tomorrow));
+  const [eventDate, setEventDate] = useState(toLocalDate(tomorrow));
+  const [eventTime, setEventTime] = useState(toLocalTime(tomorrow));
   const [ticketPriceEth, setTicketPriceEth] = useState('0.01');
   const [totalTicketCount, setTotalTicketCount] = useState('100');
   const [resaleAllowed, setResaleAllowed] = useState(true);
@@ -83,8 +94,12 @@ export default function EventCreatePage({ navigation }: any) {
       showError('입력 필요', '장소를 입력해야 등록할 수 있습니다.');
       return;
     }
-    if (!eventAt.trim()) {
-      showError('입력 필요', '이벤트 일시를 입력해야 등록할 수 있습니다.');
+    if (!eventDate.trim()) {
+      showError('입력 필요', '이벤트 날짜를 입력해야 등록할 수 있습니다.');
+      return;
+    }
+    if (!eventTime.trim()) {
+      showError('입력 필요', '이벤트 시간을 입력해야 등록할 수 있습니다.');
       return;
     }
     if (!ticketPriceEth.trim()) {
@@ -119,10 +134,10 @@ export default function EventCreatePage({ navigation }: any) {
         return;
       }
 
-      const eventDate = new Date(toIso(eventAt));
+      const eventDateTime = new Date(toIso(eventDate, eventTime));
       const saleStart = new Date();
       saleStart.setMinutes(saleStart.getMinutes() + 5);
-      const saleEnd = new Date(eventDate);
+      const saleEnd = new Date(eventDateTime);
       saleEnd.setHours(saleEnd.getHours() - 1);
 
       if (saleEnd <= saleStart) {
@@ -140,7 +155,7 @@ export default function EventCreatePage({ navigation }: any) {
         venue: venue.trim(),
         description: description.trim() || null,
         imageUrl: null,
-        eventAt: eventDate.toISOString(),
+        eventAt: eventDateTime.toISOString(),
         ticketPriceWei: ethToWei(ticketPriceEth),
         totalTicketCount: count,
         primarySaleStart: saleStart.toISOString(),
@@ -207,8 +222,32 @@ export default function EventCreatePage({ navigation }: any) {
           <Text style={styles.label}>장소</Text>
           <TextInput style={styles.input} value={venue} onChangeText={setVenue} placeholder="예: 서울 올림픽공원" />
 
-          <Text style={styles.label}>일시</Text>
-          <TextInput style={styles.input} value={eventAt} onChangeText={setEventAt} placeholder="YYYY-MM-DDTHH:mm" />
+          <Text style={styles.label}>이벤트 날짜</Text>
+          <TextInput
+            style={styles.input}
+            value={eventDate}
+            onChangeText={setEventDate}
+            placeholder="YYYY-MM-DD"
+            inputMode="numeric"
+          />
+          <Text style={styles.helpText}>예: 2026-05-18</Text>
+
+          <Text style={styles.label}>이벤트 시간</Text>
+          <TextInput
+            style={styles.input}
+            value={eventTime}
+            onChangeText={setEventTime}
+            placeholder="HH:mm"
+            inputMode="numeric"
+          />
+          <View style={styles.quickTimeRow}>
+            {QUICK_TIMES.map((time) => (
+              <TouchableOpacity key={time} style={[styles.timeChip, eventTime === time && styles.activeTimeChip]} onPress={() => setEventTime(time)}>
+                <Text style={[styles.timeChipText, eventTime === time && styles.activeTimeChipText]}>{time}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          <Text style={styles.helpText}>24시간 형식으로 입력합니다. 예: 19:30</Text>
 
           <Text style={styles.label}>티켓 가격 (ETH)</Text>
           <TextInput
@@ -285,6 +324,12 @@ const styles = StyleSheet.create({
   categoryChipText: { color: '#475569', fontWeight: '800', fontSize: 13 },
   activeCategoryChipText: { color: '#2563EB' },
   input: { borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 12, padding: 12, backgroundColor: '#FFFFFF', color: '#0F172A' },
+  helpText: { marginTop: 6, color: '#64748B', fontSize: 12, lineHeight: 18 },
+  quickTimeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
+  timeChip: { borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7, backgroundColor: '#FFFFFF' },
+  activeTimeChip: { borderColor: '#2563EB', backgroundColor: '#EFF6FF' },
+  timeChipText: { color: '#475569', fontWeight: '800', fontSize: 12 },
+  activeTimeChipText: { color: '#2563EB' },
   textArea: { minHeight: 100, textAlignVertical: 'top' },
   toggleRow: { marginTop: 14, borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 12, padding: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   toggleLabel: { color: '#0F172A', fontWeight: '800' },
