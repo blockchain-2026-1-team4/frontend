@@ -10,6 +10,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { accountStatusMessage, errorMessage } from '../lib/account';
 import { backendApi } from '../lib/backend';
 
 function toLocalInputDate(date: Date) {
@@ -95,6 +96,13 @@ export default function EventCreatePage({ navigation }: any) {
 
     setSubmitting(true);
     try {
+      const profile = await backendApi.getMe();
+      const statusMessage = accountStatusMessage(profile.status);
+      if (statusMessage) {
+        Alert.alert('등록 불가', statusMessage);
+        return;
+      }
+
       const eventDate = new Date(toIso(eventAt));
       const saleStart = new Date();
       saleStart.setMinutes(saleStart.getMinutes() + 5);
@@ -132,7 +140,7 @@ export default function EventCreatePage({ navigation }: any) {
         { text: '티켓 발행으로 이동', onPress: () => navigation.replace('TicketIssue', { eventId: createdEvent.id }) },
       ]);
     } catch (error: any) {
-      Alert.alert('등록 실패', error.message || '이벤트를 등록하지 못했습니다.');
+      Alert.alert('등록 실패', errorMessage(error, '이벤트를 등록하지 못했습니다.'));
     } finally {
       setSubmitting(false);
     }

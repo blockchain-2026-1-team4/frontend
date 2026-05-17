@@ -10,6 +10,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { accountStatusMessage, errorMessage, routeForEntry } from '../lib/account';
 import { backendApi } from '../lib/backend';
 
 export default function AuthPage({ navigation, route }: any) {
@@ -22,20 +23,6 @@ export default function AuthPage({ navigation, route }: any) {
 
   const targetLabel = useMemo(() => (initialRole === 'ORGANIZER' ? '주최자' : '사용자'), [initialRole]);
 
-  const moveAfterLogin = (roles: string[]) => {
-    if (roles.includes('ORGANIZER') || roles.includes('ADMIN')) {
-      navigation.replace('Organizer');
-      return;
-    }
-
-    if (initialRole === 'ORGANIZER') {
-      navigation.replace('Organizer');
-      return;
-    }
-
-    navigation.replace('Main');
-  };
-
   const handleEmailAuth = async () => {
     if (!email.trim() || !password) {
       Alert.alert('입력 필요', '이메일과 비밀번호를 입력해 주세요.');
@@ -46,20 +33,28 @@ export default function AuthPage({ navigation, route }: any) {
     try {
       if (isLogin) {
         const result = await backendApi.loginEmail({ email: email.trim(), password });
-        let roles = result.user?.roles ?? [];
-        if (roles.length === 0) {
-          const profile = await backendApi.getMe();
-          roles = profile.roles ?? [];
+        const profile = result.user ?? await backendApi.getMe();
+        const statusMessage = accountStatusMessage(profile.status);
+        if (statusMessage) {
+          Alert.alert('로그인 실패', statusMessage);
+          return;
         }
-        moveAfterLogin(roles);
+
+        navigation.replace(routeForEntry(profile, initialRole));
       } else {
-        await backendApi.registerEmail({ email: email.trim(), password, displayName: displayName.trim() });
-        Alert.alert('회원가입 완료', '가입되었습니다. 주최자 신청은 다음 화면에서 진행할 수 있습니다.', [
-          { text: '확인', onPress: () => navigation.replace(initialRole === 'ORGANIZER' ? 'Organizer' : 'Main') },
+        if (!displayName.trim()) {
+          Alert.alert('입력 필요', '이름을 입력해 주세요.');
+          return;
+        }
+
+        const result = await backendApi.registerEmail({ email: email.trim(), password, displayName: displayName.trim() });
+        const profile = result.user ?? await backendApi.getMe();
+        Alert.alert('회원가입 완료', initialRole === 'ORGANIZER' ? '가입되었습니다. 주최자 신청을 이어서 진행해 주세요.' : '가입되었습니다.', [
+          { text: '확인', onPress: () => navigation.replace(routeForEntry(profile, initialRole)) },
         ]);
       }
     } catch (error: any) {
-      Alert.alert('인증 실패', error.message || '요청을 처리하지 못했습니다.');
+      Alert.alert(isLogin ? '로그인 실패' : '회원가입 실패', errorMessage(error, '요청을 처리하지 못했습니다.'));
     } finally {
       setLoading(false);
     }

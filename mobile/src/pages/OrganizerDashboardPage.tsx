@@ -11,6 +11,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { accountStatusMessage, errorMessage } from '../lib/account';
 import { backendApi } from '../lib/backend';
 import type { EventSummary, OrganizerApplication, UserProfile } from '../types/api';
 
@@ -49,6 +50,7 @@ export default function OrganizerDashboardPage({ navigation }: any) {
   const [submitting, setSubmitting] = useState(false);
 
   const isOrganizer = profile?.roles?.includes('ORGANIZER') || profile?.roles?.includes('ADMIN');
+  const blockedMessage = accountStatusMessage(profile?.status);
   const latestApplication = applications[0];
   const latestStatus = latestApplication?.status ?? null;
   const canApply = !latestApplication || latestStatus === 'REJECTED';
@@ -71,7 +73,7 @@ export default function OrganizerDashboardPage({ navigation }: any) {
         setEvents([]);
       }
     } catch (error: any) {
-      Alert.alert('주최자 정보 로드 실패', error.message || '로그인이 필요합니다.');
+      Alert.alert('주최자 정보 로드 실패', errorMessage(error, '로그인이 필요합니다.'));
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -81,6 +83,11 @@ export default function OrganizerDashboardPage({ navigation }: any) {
   useFocusEffect(
     useCallback(() => {
       void load();
+      const timer = setInterval(() => {
+        void load();
+      }, 7000);
+
+      return () => clearInterval(timer);
     }, [load]),
   );
 
@@ -141,7 +148,15 @@ export default function OrganizerDashboardPage({ navigation }: any) {
         <Text style={styles.subtitle}>이벤트 등록, 판매 현황 확인, 주최자 승인 신청을 한 곳에서 처리합니다.</Text>
       </View>
 
-      {!isOrganizer ? (
+      {blockedMessage ? (
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>계정 사용 불가</Text>
+          <Text style={styles.cardText}>{blockedMessage}</Text>
+          <TouchableOpacity style={styles.secondaryButton} onPress={() => navigation.navigate('OrganizerLogout')}>
+            <Text style={styles.secondaryButtonText}>로그아웃</Text>
+          </TouchableOpacity>
+        </View>
+      ) : !isOrganizer ? (
         <View style={styles.card}>
           <Text style={styles.cardTitle}>주최자 승인 신청</Text>
           <Text style={styles.cardText}>

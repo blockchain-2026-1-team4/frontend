@@ -11,6 +11,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { accountStatusMessage, errorMessage } from '../lib/account';
 import { backendApi } from '../lib/backend';
 import type { CheckInRecord, EventDetail, TicketDetail } from '../types/api';
 
@@ -59,6 +60,14 @@ export default function OrganizerEventDetailPage({ navigation, route }: any) {
   const load = useCallback(async () => {
     if (!eventId) return;
     try {
+      const profile = await backendApi.getMe();
+      const statusMessage = accountStatusMessage(profile.status);
+      if (statusMessage) {
+        Alert.alert('이벤트 관리 불가', statusMessage);
+        navigation.goBack();
+        return;
+      }
+
       const detail = await backendApi.getEvent(eventId);
       const eventTickets = await backendApi.getEventTickets(eventId).catch(() => []);
       const histories = await Promise.all(
@@ -74,12 +83,12 @@ export default function OrganizerEventDetailPage({ navigation, route }: any) {
       setDescription(detail.description || '');
       setEventAt((detail.eventAt || detail.eventDateTime || '').slice(0, 16));
     } catch (error: any) {
-      Alert.alert('이벤트 로드 실패', error.message || '이벤트 정보를 불러오지 못했습니다.');
+      Alert.alert('이벤트 로드 실패', errorMessage(error, '이벤트 정보를 불러오지 못했습니다.'));
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [eventId]);
+  }, [eventId, navigation]);
 
   useFocusEffect(
     useCallback(() => {
@@ -107,7 +116,7 @@ export default function OrganizerEventDetailPage({ navigation, route }: any) {
       Alert.alert('저장 완료', '이벤트 정보가 수정되었습니다.');
       await load();
     } catch (error: any) {
-      Alert.alert('저장 실패', error.message || '이벤트 정보를 수정하지 못했습니다.');
+      Alert.alert('저장 실패', errorMessage(error, '이벤트 정보를 수정하지 못했습니다.'));
     } finally {
       setSaving(false);
     }
@@ -120,7 +129,7 @@ export default function OrganizerEventDetailPage({ navigation, route }: any) {
       await backendApi.updateEventStatus(event.id, { status });
       await load();
     } catch (error: any) {
-      Alert.alert('상태 변경 실패', error.message || '상태를 변경하지 못했습니다.');
+      Alert.alert('상태 변경 실패', errorMessage(error, '상태를 변경하지 못했습니다.'));
     } finally {
       setSaving(false);
     }
@@ -138,7 +147,7 @@ export default function OrganizerEventDetailPage({ navigation, route }: any) {
       setValidatorId('');
       Alert.alert('등록 완료', '체크인 검증자를 등록했습니다.');
     } catch (error: any) {
-      Alert.alert('검증자 등록 실패', error.message || '검증자를 등록하지 못했습니다.');
+      Alert.alert('검증자 등록 실패', errorMessage(error, '검증자를 등록하지 못했습니다.'));
     } finally {
       setSaving(false);
     }

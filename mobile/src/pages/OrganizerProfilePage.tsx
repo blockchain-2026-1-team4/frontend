@@ -10,6 +10,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { errorMessage } from '../lib/account';
 import { backendApi } from '../lib/backend';
 import type { UserProfile } from '../types/api';
 
@@ -25,7 +26,7 @@ export default function OrganizerProfilePage({ navigation }: any) {
       setProfile(me);
       setDisplayName(me.displayName || '');
     } catch (error: any) {
-      Alert.alert('내 정보 로드 실패', error.message || '내 정보를 불러오지 못했습니다.');
+      Alert.alert('내 정보 로드 실패', errorMessage(error, '내 정보를 불러오지 못했습니다.'));
     } finally {
       setLoading(false);
     }
@@ -44,7 +45,7 @@ export default function OrganizerProfilePage({ navigation }: any) {
       setProfile(updated);
       Alert.alert('저장 완료', '내 정보가 수정되었습니다.');
     } catch (error: any) {
-      Alert.alert('저장 실패', error.message || '내 정보를 수정하지 못했습니다.');
+      Alert.alert('저장 실패', errorMessage(error, '내 정보를 수정하지 못했습니다.'));
     } finally {
       setSaving(false);
     }

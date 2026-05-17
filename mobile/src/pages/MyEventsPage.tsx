@@ -10,6 +10,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { errorMessage } from '../lib/account';
 import { backendApi } from '../lib/backend';
 import type { EventSummary } from '../types/api';
 
@@ -44,7 +45,7 @@ export default function MyEventsPage({ navigation }: any) {
       setPage(data.page ?? targetPage);
       setHasNext(data.hasNext ?? false);
     } catch (error: any) {
-      Alert.alert('이벤트 로드 실패', error.message || '내 이벤트를 불러오지 못했습니다.');
+      Alert.alert('이벤트 로드 실패', errorMessage(error, '내 이벤트를 불러오지 못했습니다.'));
     } finally {
       setLoading(false);
       setRefreshing(false);

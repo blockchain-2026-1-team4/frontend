@@ -1,6 +1,7 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import { ActivityIndicator, Alert, RefreshControl, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { accountStatusMessage, errorMessage } from '../lib/account';
 import { backendApi } from '../lib/backend';
 import type { EventDetail, TicketDetail } from '../types/api';
 
@@ -22,6 +23,14 @@ export default function TicketIssuePage({ navigation, route }: any) {
   const load = useCallback(async () => {
     if (!eventId) return;
     try {
+      const profile = await backendApi.getMe();
+      const statusMessage = accountStatusMessage(profile.status);
+      if (statusMessage) {
+        Alert.alert('티켓 발행 불가', statusMessage);
+        navigation.goBack();
+        return;
+      }
+
       const [eventDetail, issuedTickets] = await Promise.all([
         backendApi.getEvent(eventId),
         backendApi.getEventTickets(eventId).catch(() => []),
@@ -34,7 +43,7 @@ export default function TicketIssuePage({ navigation, route }: any) {
         if (guessedPrefix) setPrefix((current) => (current === 'A' ? guessedPrefix : current));
       }
     } catch (error: any) {
-      Alert.alert('티켓 정보 로드 실패', error.message || '현재 발행 정보를 불러오지 못했습니다.');
+      Alert.alert('티켓 정보 로드 실패', errorMessage(error, '현재 발행 정보를 불러오지 못했습니다.'));
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -84,13 +93,20 @@ export default function TicketIssuePage({ navigation, route }: any) {
 
     setIssuing(true);
     try {
+      const profile = await backendApi.getMe();
+      const statusMessage = accountStatusMessage(profile.status);
+      if (statusMessage) {
+        Alert.alert('티켓 발행 불가', statusMessage);
+        return;
+      }
+
       const issued = await backendApi.issueTickets(eventId, { seatInfos });
       Alert.alert('티켓 발행 완료', `${issued.length}장의 티켓을 발행했습니다.`, [
         { text: '이벤트 관리로 이동', onPress: () => navigation.replace('OrganizerEventDetail', { eventId }) },
       ]);
       await load();
     } catch (error: any) {
-      Alert.alert('티켓 발행 실패', error.message || '티켓을 발행하지 못했습니다.');
+      Alert.alert('티켓 발행 실패', errorMessage(error, '티켓을 발행하지 못했습니다.'));
     } finally {
       setIssuing(false);
     }

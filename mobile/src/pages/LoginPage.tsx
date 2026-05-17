@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Alert, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { accountStatusMessage, errorMessage, routeForEntry } from '../lib/account';
 import { backendApi } from '../lib/backend';
 
 export default function LoginPage({ navigation }: any) {
@@ -16,14 +17,15 @@ export default function LoginPage({ navigation }: any) {
     setLoading(true);
     try {
       const tokens = await backendApi.loginEmail({ email: email.trim(), password });
-      let roles = tokens.user?.roles ?? [];
-      if (roles.length === 0) {
-        const profile = await backendApi.getMe();
-        roles = profile.roles ?? [];
+      const profile = tokens.user ?? await backendApi.getMe();
+      const statusMessage = accountStatusMessage(profile.status);
+      if (statusMessage) {
+        Alert.alert('로그인 실패', statusMessage);
+        return;
       }
-      navigation.replace(roles.includes('ORGANIZER') || roles.includes('ADMIN') ? 'Organizer' : 'Main');
+      navigation.replace(routeForEntry(profile, 'USER'));
     } catch (error: any) {
-      Alert.alert('로그인 실패', error.message || '로그인할 수 없습니다.');
+      Alert.alert('로그인 실패', errorMessage(error, '로그인할 수 없습니다.'));
     } finally {
       setLoading(false);
     }

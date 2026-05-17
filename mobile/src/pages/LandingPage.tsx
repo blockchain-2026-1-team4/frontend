@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { ActivityIndicator, Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { accountStatusMessage, errorMessage, routeForEntry } from '../lib/account';
 import { getAccessToken } from '../lib/auth';
 import { backendApi } from '../lib/backend';
 
@@ -16,15 +17,15 @@ export default function LandingPage({ navigation }: any) {
       }
 
       const profile = await backendApi.getMe();
-      const roles = profile.roles ?? [];
-      if (role === 'ORGANIZER') {
-        navigation.navigate(roles.includes('ORGANIZER') || roles.includes('ADMIN') ? 'Organizer' : 'Organizer');
+      const statusMessage = accountStatusMessage(profile.status);
+      if (statusMessage) {
+        Alert.alert('계정 사용 불가', statusMessage);
         return;
       }
 
-      navigation.navigate(roles.includes('ORGANIZER') || roles.includes('ADMIN') ? 'Organizer' : 'Main');
+      navigation.navigate(routeForEntry(profile, role));
     } catch (error: any) {
-      Alert.alert('세션 확인 실패', error.message || '다시 로그인해 주세요.');
+      Alert.alert('세션 확인 실패', errorMessage(error, '다시 로그인해 주세요.'));
       navigation.navigate('Auth', { initialRole: role });
     } finally {
       setCheckingRole(null);
