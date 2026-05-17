@@ -1,4 +1,5 @@
-import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
+import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { clearAccessToken } from "../lib/auth";
 
 const adminLinks = [
   { to: "/admin", label: "관리자 대시보드", end: true },
@@ -11,7 +12,13 @@ const adminLinks = [
 
 export function Layout() {
   const { pathname } = useLocation();
+  const navigate = useNavigate();
   const isAdminRoute = pathname.startsWith("/admin");
+
+  function handleLogout() {
+    clearAccessToken();
+    navigate("/login", { replace: true });
+  }
 
   if (isAdminRoute) {
     return (
@@ -41,9 +48,9 @@ export function Layout() {
               <p className="eyebrow">관리자 웹 포털</p>
               <h1>관리자 대시보드</h1>
             </div>
-            <Link className="button" to="/login">
-              로그인
-            </Link>
+            <button className="button" onClick={handleLogout} type="button">
+              로그아웃
+            </button>
           </header>
 
           <main className="content admin-content">
