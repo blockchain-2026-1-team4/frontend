@@ -14,6 +14,7 @@ import type {
 import { LandingPage as BaseLandingPage } from "./LandingPage";
 import { LoginPage } from "./LoginPage";
 import { AdminDashboardPage as BaseAdminDashboardPage } from "./admin/AdminDashboardPage";
+import { AdminDisputeTransactionPage as BaseAdminDisputeTransactionPage } from "./admin/AdminDisputeTransactionPage";
 import { AdminUserManagePage as BaseAdminUserManagePage } from "./admin/AdminUserManagePage";
 import { OrganizerApprovalsPage as BaseOrganizerApprovalsPage } from "./admin/OrganizerApprovalsPage";
 import { EventCreatePage as BaseEventCreatePage } from "./organizer/EventCreatePage";
@@ -118,6 +119,7 @@ export const OrganizerEventListPage = BaseMyEventsPage;
 export const AdminDashboardPage = BaseAdminDashboardPage;
 export const OrganizerApprovalPage = BaseOrganizerApprovalsPage;
 export const AdminUserManagePage = BaseAdminUserManagePage;
+export const AdminDisputeTransactionPage = BaseAdminDisputeTransactionPage;
 
 export function UserMyPage() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -782,7 +784,7 @@ export function AdminBlockchainLogPage() {
   );
 }
 
-export function AdminDisputeTransactionPage() {
+export function LegacyAdminDisputeTransactionPage() {
   const disputes = useAsyncValue(async () => backendApi.getDisputes(), []);
   const resaleTransactions = useAsyncValue(async () => backendApi.getResaleTransactions(), []);
   const [reviewNote, setReviewNote] = useState("");

@@ -101,6 +101,8 @@ export type DisputeRecord = {
   reporterId?: string;
   reviewedBy?: string;
   reviewedAt?: string;
+  createdAt?: string;
+  updatedAt?: string;
   [key: string]: unknown;
 };
 
@@ -132,4 +134,20 @@ export type ResaleListing = {
   price: string;
   sellerDisplayName?: string;
   status: string;
+};
+
+export type ResaleTransactionRecord = {
+  listingId?: string;
+  id?: string;
+  ticketId?: string | number;
+  eventId?: string;
+  sellerId?: string;
+  buyerId?: string;
+  priceWei?: string | number;
+  price?: string;
+  status?: string;
+  purchasedAt?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  [key: string]: unknown;
 };

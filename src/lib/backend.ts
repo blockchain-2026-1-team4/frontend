@@ -8,6 +8,7 @@ import type {
   OrganizerApplication,
   PageResult,
   ResaleListing,
+  ResaleTransactionRecord,
   TicketDetail,
   UserAdminRecord,
   UserProfile,
@@ -199,7 +200,7 @@ export const backendApi = {
   },
 
   async getResaleTransactions(params?: { page?: number; size?: number; status?: string }) {
-    return unwrap<PageResult<ResaleListing>>(http.get("/admin/resale-transactions", { params }));
+    return unwrap<PageResult<ResaleTransactionRecord>>(http.get("/admin/resale-transactions", { params }));
   },
 
   async getDisputes(params?: { page?: number; size?: number; status?: string }) {
