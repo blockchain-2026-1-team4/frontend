@@ -18,21 +18,21 @@ export function UserHomePage() {
 
   return (
     <section className="panel">
-      <h2>User Main</h2>
-      <p className="lead">Search events, browse categories, and jump to your page.</p>
+      <h2>사용자 메인</h2>
+      <p className="lead">이벤트를 검색하고, 카테고리를 둘러보고, 내 페이지로 이동합니다.</p>
       <div className="row">
         <input
           value={keyword}
           onChange={(e) => setKeyword(e.target.value)}
-          placeholder="Search events"
+          placeholder="이벤트 검색"
         />
         <button className="button" onClick={() => void loadEvents(keyword)}>
-          Search
+          검색
         </button>
       </div>
       <div className="card-grid">
         {events.map((event) => (
-          <Link key={event.id} className="event-card" to={`/user/events/${event.id}`}>
+          <Link key={event.id} className="event-card" to={`/app/events/${event.id}`}>
             <h3>{event.title}</h3>
             <p>{event.venue}</p>
             <p>{new Date(event.eventDateTime).toLocaleString()}</p>
@@ -42,16 +42,16 @@ export function UserHomePage() {
       </div>
       <div className="action-row">
         <Link className="button" to="/app/events">
-          Event list
+          이벤트 목록
         </Link>
         <Link className="button" to="/app/resale">
-          Resale market
+          리셀 마켓
         </Link>
         <Link className="button" to="/app/me">
-          My page
+          내 페이지
         </Link>
         <Link className="button" to="/app/tickets">
-          My tickets
+          내 티켓
         </Link>
       </div>
     </section>

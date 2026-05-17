@@ -15,12 +15,12 @@ export function EventDetailPage() {
   }, [eventId]);
 
   async function onPrimaryPurchase() {
-    const ticketIdValue = prompt("ticketId");
+    const ticketIdValue = prompt("티켓 ID를 입력하세요");
     if (!ticketIdValue) {
       return;
     }
     await backendApi.purchasePrimary(ticketIdValue);
-    setMessage("Primary purchase request sent.");
+    setMessage("1차 구매 요청을 전송했습니다.");
   }
 
   return (

@@ -1,6 +1,7 @@
 import type { RouteObject } from "react-router-dom";
 import { Layout } from "./components/Layout";
-import { MobileLayout } from "./components/MobileLayout";
+import { OrganizerAppLayout } from "./components/OrganizerAppLayout";
+import { UserAppLayout } from "./components/UserAppLayout";
 import { LandingPage } from "./pages/LandingPage";
 import { LoginPage } from "./pages/LoginPage";
 import { RegisterPage } from "./pages/RegisterPage";
@@ -50,7 +51,7 @@ export const appRoutes: RouteObject[] = [
       { path: "register", element: <RegisterPage /> },
       {
         path: "app",
-        element: <MobileLayout />,
+        element: <UserAppLayout />,
         children: [
           { index: true, element: <UserLandingPage /> },
           { path: "auth", element: <UserAuthPage /> },
@@ -71,7 +72,7 @@ export const appRoutes: RouteObject[] = [
       },
       {
         path: "organizer",
-        element: <MobileLayout />,
+        element: <OrganizerAppLayout />,
         children: [
           { path: "start", element: <OrganizerLandingPage /> },
           { path: "auth", element: <OrganizerAuthPage /> },

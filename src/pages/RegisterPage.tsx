@@ -17,28 +17,28 @@ export function RegisterPage() {
       await backendApi.registerEmail({ displayName, email, password });
       navigate(await resolveRolePath());
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Register failed");
+      setError(e instanceof Error ? e.message : "회원가입에 실패했습니다.");
     }
   }
 
   return (
     <section className="panel">
-      <h2>Sign up</h2>
+      <h2>회원가입</h2>
       <form className="form" onSubmit={onSubmit}>
         <input
           value={displayName}
           onChange={(e) => setDisplayName(e.target.value)}
-          placeholder="Display name"
+          placeholder="표시 이름"
         />
-        <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" />
+        <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="이메일" />
         <input
           type="password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          placeholder="Password"
+          placeholder="비밀번호"
         />
         <button className="button primary" type="submit">
-          Create account
+          계정 만들기
         </button>
       </form>
       {error ? <p className="error">{error}</p> : null}

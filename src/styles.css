@@ -284,6 +284,4 @@ input::placeholder {
   font-weight: 600;
 }
 
-@media (min-width: 769px) {
-  .mobile-bottom-nav { display: none; }
-}
+/* Mobile app shell styles end */

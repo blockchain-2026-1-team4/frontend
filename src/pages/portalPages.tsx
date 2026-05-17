@@ -154,11 +154,11 @@ export function UserMyPage() {
       }
     >
       <form className="form" onSubmit={onSave}>
-        <input value={profile?.email ?? ""} disabled placeholder="Email" />
+        <input value={profile?.email ?? ""} disabled placeholder="이메일" />
         <input
           value={displayName}
           onChange={(event) => setDisplayName(event.target.value)}
-          placeholder="Display name"
+          placeholder="표시 이름"
         />
         <button className="button primary" type="submit">
           프로필 저장
@@ -310,9 +310,9 @@ export function TicketQrPage() {
   return (
     <Panel title="QR / 바코드 표시" description="입장용 QR 이미지와 서명 데이터를 생성합니다.">
       <form className="form" onSubmit={onCreate}>
-        <input value={claimedOwner} onChange={(event) => setClaimedOwner(event.target.value)} placeholder="claimedOwner" />
-        <input value={expiresAt} onChange={(event) => setExpiresAt(event.target.value)} placeholder="expiresAt" />
-        <input value={signature} onChange={(event) => setSignature(event.target.value)} placeholder="signature" />
+        <input value={claimedOwner} onChange={(event) => setClaimedOwner(event.target.value)} placeholder="소유자" />
+        <input value={expiresAt} onChange={(event) => setExpiresAt(event.target.value)} placeholder="만료 시각" />
+        <input value={signature} onChange={(event) => setSignature(event.target.value)} placeholder="서명" />
         <button className="button primary" type="submit">
           QR 생성
         </button>
@@ -405,21 +405,21 @@ export function EventSettingsPage() {
   return (
     <Panel title="이벤트 설정" description="기본 정보와 리셀 정책을 수정합니다.">
       <form className="form" onSubmit={onSave}>
-        <input value={name} onChange={(event) => setName(event.target.value)} placeholder="name" />
-        <input value={category} onChange={(event) => setCategory(event.target.value)} placeholder="category" />
-        <input value={venue} onChange={(event) => setVenue(event.target.value)} placeholder="venue" />
-        <input value={description} onChange={(event) => setDescription(event.target.value)} placeholder="description" />
-        <input value={imageUrl} onChange={(event) => setImageUrl(event.target.value)} placeholder="imageUrl" />
-        <input value={status} onChange={(event) => setStatus(event.target.value)} placeholder="status" />
+        <input value={name} onChange={(event) => setName(event.target.value)} placeholder="이벤트명" />
+        <input value={category} onChange={(event) => setCategory(event.target.value)} placeholder="카테고리" />
+        <input value={venue} onChange={(event) => setVenue(event.target.value)} placeholder="장소" />
+        <input value={description} onChange={(event) => setDescription(event.target.value)} placeholder="설명" />
+        <input value={imageUrl} onChange={(event) => setImageUrl(event.target.value)} placeholder="이미지 URL" />
+        <input value={status} onChange={(event) => setStatus(event.target.value)} placeholder="상태" />
         <input
           value={String(resaleAllowed)}
           onChange={(event) => setResaleAllowed(event.target.value === "true")}
-          placeholder="resaleAllowed"
+          placeholder="리셀 허용"
         />
         <input
           value={String(maxResalePriceRate)}
           onChange={(event) => setMaxResalePriceRate(Number(event.target.value))}
-          placeholder="maxResalePriceRate"
+          placeholder="최대 리셀 비율"
         />
         <button className="button primary" type="submit">
           저장
@@ -466,11 +466,11 @@ export function CheckInManagePage() {
   return (
     <Panel title="체크인 관리" description="QR 또는 서명 메시지로 입장 처리를 수행합니다.">
       <form className="form" onSubmit={onSubmit}>
-        <input value={ticketId} onChange={(event) => setTicketId(event.target.value)} placeholder="ticketId" />
-        <input value={claimedOwner} onChange={(event) => setClaimedOwner(event.target.value)} placeholder="claimedOwner" />
-        <input value={expiresAt} onChange={(event) => setExpiresAt(event.target.value)} placeholder="expiresAt" />
-        <input value={signature} onChange={(event) => setSignature(event.target.value)} placeholder="signature" />
-        <input value={memo} onChange={(event) => setMemo(event.target.value)} placeholder="memo" />
+        <input value={ticketId} onChange={(event) => setTicketId(event.target.value)} placeholder="티켓 ID" />
+        <input value={claimedOwner} onChange={(event) => setClaimedOwner(event.target.value)} placeholder="소유자" />
+        <input value={expiresAt} onChange={(event) => setExpiresAt(event.target.value)} placeholder="만료 시각" />
+        <input value={signature} onChange={(event) => setSignature(event.target.value)} placeholder="서명" />
+        <input value={memo} onChange={(event) => setMemo(event.target.value)} placeholder="메모" />
         <button className="button primary" type="submit">
           입장 처리
         </button>
@@ -505,7 +505,7 @@ export function OrganizerProfilePage() {
           setProfile(await backendApi.updateMe({ displayName }));
         }}
       >
-        <input value={displayName} onChange={(event) => setDisplayName(event.target.value)} placeholder="displayName" />
+        <input value={displayName} onChange={(event) => setDisplayName(event.target.value)} placeholder="표시 이름" />
         <button className="button primary" type="submit">
           저장
         </button>

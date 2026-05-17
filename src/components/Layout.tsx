@@ -8,8 +8,7 @@ const links = [
 
 export function Layout() {
   const { pathname } = useLocation();
-  const hideShell =
-    pathname.startsWith("/app") || pathname.startsWith("/organizer") || pathname.startsWith("/user");
+  const hideShell = pathname.startsWith("/app") || pathname.startsWith("/organizer");
 
   return (
     <div className="app-shell">
