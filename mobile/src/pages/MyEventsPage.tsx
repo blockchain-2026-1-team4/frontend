@@ -31,6 +31,16 @@ const STATUS_LABEL: Record<string, string> = {
   CANCELED: '취소',
 };
 
+function sortCanceledLast<T extends { status?: string; eventAt?: string; eventDateTime?: string }>(items: T[]) {
+  return [...items].sort((a, b) => {
+    if (a.status === 'CANCELED' && b.status !== 'CANCELED') return 1;
+    if (a.status !== 'CANCELED' && b.status === 'CANCELED') return -1;
+    const aTime = new Date(a.eventAt || a.eventDateTime || '').getTime();
+    const bTime = new Date(b.eventAt || b.eventDateTime || '').getTime();
+    return (Number.isNaN(bTime) ? 0 : bTime) - (Number.isNaN(aTime) ? 0 : aTime);
+  });
+}
+
 export default function MyEventsPage({ navigation }: any) {
   const [events, setEvents] = useState<EventSummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -41,7 +51,7 @@ export default function MyEventsPage({ navigation }: any) {
   const load = useCallback(async (targetPage = 0, append = false) => {
     try {
       const data = await backendApi.getMyEvents({ page: targetPage, size: 12 });
-      setEvents((current) => (append ? [...current, ...(data.items ?? [])] : data.items ?? []));
+      setEvents((current) => sortCanceledLast(append ? [...current, ...(data.items ?? [])] : data.items ?? []));
       setPage(data.page ?? targetPage);
       setHasNext(data.hasNext ?? false);
     } catch (error: any) {

@@ -26,6 +26,16 @@ function eventDate(event: EventSummary) {
   return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString('ko-KR');
 }
 
+function sortCanceledLast(events: EventSummary[]) {
+  return [...events].sort((a, b) => {
+    if (a.status === 'CANCELED' && b.status !== 'CANCELED') return 1;
+    if (a.status !== 'CANCELED' && b.status === 'CANCELED') return -1;
+    const aTime = new Date(a.eventAt || a.eventDateTime || '').getTime();
+    const bTime = new Date(b.eventAt || b.eventDateTime || '').getTime();
+    return (Number.isNaN(bTime) ? 0 : bTime) - (Number.isNaN(aTime) ? 0 : aTime);
+  });
+}
+
 const APPLICATION_LABEL: Record<string, string> = {
   PENDING: '승인 대기',
   APPROVED: '승인 완료',
@@ -68,7 +78,7 @@ export default function OrganizerDashboardPage({ navigation }: any) {
 
       if (me.roles?.includes('ORGANIZER') || me.roles?.includes('ADMIN')) {
         const eventPage = await backendApi.getMyEvents({ page: 0, size: 5 });
-        setEvents(eventPage.items ?? []);
+        setEvents(sortCanceledLast(eventPage.items ?? []));
       } else {
         setEvents([]);
       }

@@ -40,6 +40,16 @@ function shortId(value?: string) {
   return value.slice(0, 8);
 }
 
+function sortCanceledLast(events: EventDetail[]) {
+  return [...events].sort((a, b) => {
+    if (a.status === "CANCELED" && b.status !== "CANCELED") return 1;
+    if (a.status !== "CANCELED" && b.status === "CANCELED") return -1;
+    const aTime = new Date(a.eventAt ?? a.eventDateTime ?? "").getTime();
+    const bTime = new Date(b.eventAt ?? b.eventDateTime ?? "").getTime();
+    return (Number.isNaN(bTime) ? 0 : bTime) - (Number.isNaN(aTime) ? 0 : aTime);
+  });
+}
+
 export function AdminEventsPage() {
   const [items, setItems] = useState<EventDetail[]>([]);
   const [hasLoaded, setHasLoaded] = useState(false);
@@ -51,6 +61,7 @@ export function AdminEventsPage() {
   const [totalPages, setTotalPages] = useState<number | undefined>();
   const [hasNext, setHasNext] = useState(false);
   const [flaggingId, setFlaggingId] = useState<string | null>(null);
+  const [cancelingId, setCancelingId] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -72,7 +83,7 @@ export function AdminEventsPage() {
         query: query || undefined,
         status: filterStatus !== "ALL" ? filterStatus : undefined,
       });
-      setItems(data.items ?? []);
+      setItems(sortCanceledLast(data.items ?? []));
       setTotalElements(data.totalElements);
       setTotalPages(data.totalPages);
       setHasNext(data.hasNext ?? false);
@@ -95,16 +106,14 @@ export function AdminEventsPage() {
 
   const visibleItems = useMemo(() => {
     const keyword = query.trim().toLowerCase();
-    if (!keyword) {
-      return items;
-    }
-    return items.filter((event) =>
+    const filtered = !keyword ? items : items.filter((event) =>
       [event.title, event.name, event.venue, event.venueDetail, event.organizerName, event.organizerId, event.id]
         .filter(Boolean)
         .join(" ")
         .toLowerCase()
         .includes(keyword),
     );
+    return sortCanceledLast(filtered);
   }, [items, query]);
 
   async function handleFlag(eventId: string, currentlyFlagged: boolean) {
@@ -128,6 +137,25 @@ export function AdminEventsPage() {
       setError(buildError(cause));
     } finally {
       setFlaggingId(null);
+      window.setTimeout(() => setActionMessage(null), 3000);
+    }
+  }
+
+  async function handleCancel(eventId: string) {
+    if (!window.confirm("이 이벤트를 취소 처리하시겠습니까? 취소된 이벤트는 목록에 남고 상태가 CANCELED로 변경됩니다.")) {
+      return;
+    }
+
+    setCancelingId(eventId);
+    setError(null);
+    try {
+      await backendApi.updateEventStatus(eventId, { status: "CANCELED" });
+      setActionMessage("이벤트를 취소 처리했습니다.");
+      await load();
+    } catch (cause) {
+      setError(buildError(cause));
+    } finally {
+      setCancelingId(null);
       window.setTimeout(() => setActionMessage(null), 3000);
     }
   }
@@ -185,7 +213,9 @@ export function AdminEventsPage() {
         .ae-tickets span { color: var(--txt-sub); font-size: 0.82rem; }
         .ae-action { border: 1px solid #ffcdd2; background: #fff5f5; color: #c62828; border-radius: 8px; padding: 0.4rem 0.72rem; font-size: 0.8rem; font-weight: 800; cursor: pointer; }
         .ae-action.neutral { border-color: var(--border); background: var(--panel-soft); color: var(--txt-sub); }
+        .ae-action.danger { border-color: #ffb4b4; background: #fff1f1; color: #b91c1c; }
         .ae-action:disabled { opacity: 0.5; cursor: not-allowed; }
+        .ae-actions { display: flex; gap: 0.4rem; flex-wrap: wrap; }
         .ae-empty { text-align: center; padding: 3rem 1rem; color: var(--txt-sub); }
       `}</style>
 
@@ -280,25 +310,35 @@ export function AdminEventsPage() {
                             </span>
                           </td>
                           <td>
-                            {isFlagged ? (
+                            <div className="ae-actions">
+                              {isFlagged ? (
+                                <button
+                                  className="ae-action neutral"
+                                  disabled={flaggingId === event.id}
+                                  onClick={() => void handleFlag(event.id, true)}
+                                  type="button"
+                                >
+                                  {flaggingId === event.id ? "처리중..." : "플래그 해제"}
+                                </button>
+                              ) : (
+                                <button
+                                  className="ae-action"
+                                  disabled={flaggingId === event.id}
+                                  onClick={() => void handleFlag(event.id, false)}
+                                  type="button"
+                                >
+                                  {flaggingId === event.id ? "처리중..." : "플래그"}
+                                </button>
+                              )}
                               <button
-                                className="ae-action neutral"
-                                disabled={flaggingId === event.id}
-                                onClick={() => void handleFlag(event.id, true)}
+                                className="ae-action danger"
+                                disabled={cancelingId === event.id || event.status === "CANCELED"}
+                                onClick={() => void handleCancel(event.id)}
                                 type="button"
                               >
-                                {flaggingId === event.id ? "처리중..." : "플래그 해제"}
+                                {cancelingId === event.id ? "취소중..." : event.status === "CANCELED" ? "취소됨" : "취소"}
                               </button>
-                            ) : (
-                              <button
-                                className="ae-action"
-                                disabled={flaggingId === event.id}
-                                onClick={() => void handleFlag(event.id, false)}
-                                type="button"
-                              >
-                                {flaggingId === event.id ? "처리중..." : "플래그"}
-                              </button>
-                            )}
+                            </div>
                           </td>
                         </tr>
                       );

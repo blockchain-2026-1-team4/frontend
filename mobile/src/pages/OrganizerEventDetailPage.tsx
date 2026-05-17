@@ -9,6 +9,7 @@ import {
   Text,
   TouchableOpacity,
   View,
+  Platform,
 } from 'react-native';
 import { accountStatusMessage, errorMessage } from '../lib/account';
 import { backendApi } from '../lib/backend';
@@ -92,6 +93,22 @@ export default function OrganizerEventDetailPage({ navigation, route }: any) {
     }
   };
 
+  const cancelEvent = () => {
+    if (!event || event.status === 'CANCELED') return;
+    if (Platform.OS === 'web') {
+      const confirmed = window.confirm('이 이벤트를 취소 처리하시겠습니까? 취소된 이벤트는 목록에 남고 상태가 CANCELED로 변경됩니다.');
+      if (confirmed) {
+        void changeStatus('CANCELED');
+      }
+      return;
+    }
+
+    Alert.alert('이벤트 취소', '이 이벤트를 취소 처리하시겠습니까? 취소된 이벤트는 목록에 남고 상태가 CANCELED로 변경됩니다.', [
+      { text: '아니오', style: 'cancel' },
+      { text: '취소 처리', style: 'destructive', onPress: () => void changeStatus('CANCELED') },
+    ]);
+  };
+
   if (loading) {
     return (
       <View style={styles.center}>
@@ -140,6 +157,9 @@ export default function OrganizerEventDetailPage({ navigation, route }: any) {
         </TouchableOpacity>
         <TouchableOpacity style={styles.secondaryButton} onPress={() => changeStatus(event.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE')} disabled={saving}>
           <Text style={styles.secondaryButtonText}>{event.status === 'ACTIVE' ? '비활성화' : '활성화'}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.dangerButton} onPress={cancelEvent} disabled={saving || event.status === 'CANCELED'}>
+          <Text style={styles.dangerButtonText}>{event.status === 'CANCELED' ? '취소됨' : '이벤트 취소'}</Text>
         </TouchableOpacity>
       </View>
 
@@ -212,6 +232,8 @@ const styles = StyleSheet.create({
   primaryButtonText: { color: '#FFFFFF', fontSize: 16, fontWeight: '900' },
   secondaryButton: { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 14, paddingVertical: 14, alignItems: 'center', marginTop: 10 },
   secondaryButtonText: { color: '#0F172A', fontSize: 16, fontWeight: '900' },
+  dangerButton: { backgroundColor: '#FEF2F2', borderWidth: 1, borderColor: '#FECACA', borderRadius: 14, paddingVertical: 14, alignItems: 'center', marginTop: 10 },
+  dangerButtonText: { color: '#DC2626', fontSize: 16, fontWeight: '900' },
   disabledButton: { opacity: 0.55 },
   ticketRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 12, borderTopWidth: 1, borderTopColor: '#F1F5F9' },
   ticketInfo: { flex: 1, paddingRight: 10 },
