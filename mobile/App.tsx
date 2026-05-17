@@ -24,6 +24,7 @@ import SalesStatusPage from './src/pages/SalesStatusPage';
 import CheckInStatusPage from './src/pages/CheckInStatusPage';
 import EventSettingsPage from './src/pages/EventSettingsPage';
 import CheckInManagePage from './src/pages/CheckInManagePage';
+import CheckInScanPage from './src/pages/CheckInScanPage';
 
 const Stack = createStackNavigator();
 
@@ -52,6 +53,7 @@ export default function App() {
           <Stack.Screen name="CheckInStatus" component={CheckInStatusPage} options={{ title: '체크인 현황' }} />
           <Stack.Screen name="EventSettings" component={EventSettingsPage} options={{ title: '이벤트 정보 수정' }} />
           <Stack.Screen name="CheckInManage" component={CheckInManagePage} options={{ title: '체크인 관리' }} />
+          <Stack.Screen name="CheckInScan" component={CheckInScanPage} options={{ title: 'QR 스캔' }} />
           <Stack.Screen name="OrganizerProfile" component={OrganizerProfilePage} options={{ title: '내 정보 보기' }} />
           <Stack.Screen name="OrganizerLogout" component={OrganizerLogoutPage} options={{ title: '로그아웃' }} />
         </Stack.Navigator>

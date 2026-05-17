@@ -19,8 +19,9 @@ function normalizeExpiresAt(value?: string | number) {
   return String(value);
 }
 
-export default function CheckInManagePage({ route }: any) {
+export default function CheckInManagePage({ navigation, route }: any) {
   const eventId = route?.params?.eventId as string;
+  const scannedPayload = route?.params?.scannedPayload as string | undefined;
   const [validatorId, setValidatorId] = useState('');
   const [validators, setValidators] = useState<Record<string, unknown>[]>([]);
   const [ticketId, setTicketId] = useState('');
@@ -46,6 +47,23 @@ export default function CheckInManagePage({ route }: any) {
   }, [eventId]);
 
   useFocusEffect(useCallback(() => { void load(); }, [load]));
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!scannedPayload) return;
+      setQrPayload(scannedPayload);
+      try {
+        const parsed = JSON.parse(scannedPayload.trim()) as QrPayload;
+        setTicketId(parsed.ticketId || '');
+        setClaimedOwner(parsed.claimedOwner || '');
+        setExpiresAt(normalizeExpiresAt(parsed.expiresAt));
+        setSignature(parsed.signature || '');
+        setFeedback({ type: 'success', message: '스캔한 QR 정보를 입력 폼에 반영했습니다.' });
+      } catch {
+        setFeedback({ type: 'error', message: '스캔한 QR 내용이 JSON 형식이 아닙니다.' });
+      }
+    }, [scannedPayload]),
+  );
 
   const addValidator = async () => {
     if (!validatorId.trim()) {
@@ -133,7 +151,10 @@ export default function CheckInManagePage({ route }: any) {
 
       <View style={styles.card}>
         <Text style={styles.cardTitle}>QR/바코드 입력</Text>
-        <Text style={styles.cardText}>현재 앱에는 카메라 스캔 패키지가 없어 QR 내용을 붙여넣는 방식으로 처리합니다.</Text>
+        <Text style={styles.cardText}>카메라로 QR을 스캔하거나 QR payload를 직접 붙여넣을 수 있습니다.</Text>
+        <TouchableOpacity style={styles.primaryButton} onPress={() => navigation.navigate('CheckInScan', { eventId })}>
+          <Text style={styles.primaryButtonText}>QR 스캔</Text>
+        </TouchableOpacity>
         <TextInput style={[styles.input, styles.textArea]} value={qrPayload} onChangeText={setQrPayload} placeholder='{"ticketId":"...","claimedOwner":"0x...","expiresAt":"...","signature":"..."}' multiline />
         <TouchableOpacity style={styles.secondaryButton} onPress={applyPayload}>
           <Text style={styles.secondaryButtonText}>QR 내용 반영</Text>
