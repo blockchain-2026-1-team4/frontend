@@ -135,8 +135,8 @@ a {
 .panel h2,
 .hero h1 {
   margin: 0.15rem 0 0;
-  font-family: "Space Grotesk", sans-serif;
-  letter-spacing: -0.03em;
+  font-family: "Noto Sans KR", sans-serif;
+  letter-spacing: 0;
 }
 
 .admin-content {

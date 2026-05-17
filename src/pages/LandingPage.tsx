@@ -21,7 +21,7 @@ export function LandingPage() {
           </div>
 
           <div className="mobile-footer">
-            <Link to="/app/me">내 페이지</Link>
+            <Link to="/app/me">마이페이지</Link>
           </div>
         </main>
       </div>
@@ -32,8 +32,12 @@ export function LandingPage() {
     <section className="hero">
       <div>
         <p className="eyebrow">Trust Ticket</p>
-        <h1>온체인 신뢰로 운영하는 티켓 플랫폼</h1>
-        <p className="lead">사용자와 주최자는 모바일 앱으로, 운영은 관리자 웹 포털로 분리합니다.</p>
+        <h1>블록체인 기반 티켓 예매·관리 플랫폼</h1>
+        <p className="lead">
+          사용자는 모바일 앱에서 티켓을 예매하고, 주최자는 이벤트를 관리하며,
+          <br />
+          관리자는 웹 포털에서 승인·감독 업무를 처리합니다.
+        </p>
       </div>
       <div className="action-row">
         <Link className="button primary" to="/login">
@@ -41,9 +45,6 @@ export function LandingPage() {
         </Link>
         <Link className="button" to="/register">
           회원가입
-        </Link>
-        <Link className="button" to="/admin">
-          관리자 웹
         </Link>
       </div>
     </section>
