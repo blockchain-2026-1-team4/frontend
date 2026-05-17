@@ -516,36 +516,209 @@ export function OrganizerProfilePage() {
 
 export function AdminEventManagePage() {
   const [items, setItems] = useState<EventDetail[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [query, setQuery] = useState("");
+  const [filterStatus, setFilterStatus] = useState<"ALL" | "ACTIVE" | "CANCELLED" | "ENDED">("ALL");
+  const [flaggingId, setFlaggingId] = useState<string | null>(null);
+  const [actionMessage, setActionMessage] = useState<string | null>(null);
 
   async function load() {
-    const data = await backendApi.getAdminEvents();
-    setItems(data.items ?? []);
+    setLoading(true);
+    try {
+      const data = await backendApi.getAdminEvents({
+        query: query || undefined,
+        status: filterStatus !== "ALL" ? filterStatus : undefined,
+      });
+      setItems(data.items ?? []);
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => {
     void load();
-  }, []);
+  }, [filterStatus]);
+
+  async function handleFlag(eventId: string, currentlyFlagged: boolean) {
+    setFlaggingId(eventId);
+    try {
+      if (currentlyFlagged) {
+        await backendApi.unflagAdminEvent(eventId);
+        setActionMessage("플래그를 해제했습니다.");
+      } else {
+        await backendApi.flagAdminEvent(eventId);
+        setActionMessage("이벤트에 플래그를 설정했습니다.");
+      }
+      await load();
+    } finally {
+      setFlaggingId(null);
+      setTimeout(() => setActionMessage(null), 3000);
+    }
+  }
+
+  const STATUS_LABEL: Record<string, string> = {
+    ACTIVE: "진행중", CANCELLED: "취소됨", ENDED: "종료됨", PENDING: "대기중", FLAGGED: "플래그",
+  };
+
+  const filterTabs = [
+    { label: "전체", value: "ALL" as const },
+    { label: "진행중", value: "ACTIVE" as const },
+    { label: "종료됨", value: "ENDED" as const },
+    { label: "취소됨", value: "CANCELLED" as const },
+  ];
 
   return (
-    <Panel title="이벤트 감독" description="전체 이벤트를 조회하고 플래그 처리합니다.">
-      <div className="card-grid">
-        {items.map((event) => (
-          <article key={event.id} className="event-card">
-            <h3>{event.title}</h3>
-            <p>{event.venue}</p>
-            <p>{event.status}</p>
-            <div className="action-row">
-              <button className="button primary" onClick={() => void backendApi.flagAdminEvent(event.id).then(load)}>
-                플래그
-              </button>
-              <button className="button" onClick={() => void backendApi.unflagAdminEvent(event.id).then(load)}>
-                플래그 해제
-              </button>
+    <>
+      <style>{`
+        .ev-page { display: grid; gap: 1rem; }
+        .ev-header { background: var(--panel); border: 1px solid var(--border); border-radius: 20px; padding: 1.2rem 1.4rem; box-shadow: var(--shadow); }
+        .ev-toprow { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+        .ev-title-group { display: grid; gap: 0.2rem; }
+        .ev-title-group .eyebrow { margin: 0; }
+        .ev-title-group h2 { margin: 0; font-size: 1.4rem; }
+        .ev-search-form { display: flex; gap: 0.5rem; align-items: center; }
+        .ev-search-input { border-radius: 10px; border: 1px solid var(--border-strong); padding: 0.5rem 0.75rem; font-size: 0.9rem; width: 220px; color: var(--txt-main); background: #fff; }
+        .ev-search-input::placeholder { color: #8a97a8; }
+        .ev-search-btn { border: 1px solid var(--border); background: var(--panel); color: var(--txt-main); border-radius: 10px; padding: 0.5rem 0.85rem; cursor: pointer; font-size: 0.9rem; font-weight: 600; }
+        .ev-search-btn:hover { background: var(--bg-1); }
+        .ev-filter-tabs { display: flex; gap: 0.4rem; margin-top: 1rem; flex-wrap: wrap; }
+        .ev-filter-tab { border: 1px solid var(--border); background: var(--panel-soft); color: var(--txt-sub); border-radius: 999px; padding: 0.38rem 0.9rem; font-size: 0.83rem; font-weight: 600; cursor: pointer; }
+        .ev-filter-tab:hover { background: var(--bg-1); color: var(--txt-main); }
+        .ev-filter-tab.active { background: linear-gradient(135deg, #eaf2ff, #f0f6ff); border-color: #cfe0ff; color: var(--accent-2); }
+        .ev-toast { background: #e8f5e9; border: 1px solid #a5d6a7; color: #2e7d32; border-radius: 10px; padding: 0.6rem 1rem; font-size: 0.88rem; font-weight: 600; margin-top: 0.75rem; }
+        .ev-table-shell { background: var(--panel); border: 1px solid var(--border); border-radius: 20px; box-shadow: var(--shadow); overflow: hidden; }
+        .ev-table-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 1rem 1.25rem; border-bottom: 1px solid var(--border); background: linear-gradient(180deg, #fff, #f7f9fc); }
+        .ev-table-head h3 { margin: 0; font-size: 0.95rem; font-weight: 700; }
+        .ev-count-badge { background: #e8f1ff; color: var(--accent-2); border-radius: 999px; padding: 0.28rem 0.7rem; font-size: 0.78rem; font-weight: 700; }
+        .ev-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+        .ev-table thead tr { background: #f8fafc; border-bottom: 1px solid var(--border); }
+        .ev-table th { padding: 0.7rem 1rem; text-align: left; font-size: 0.78rem; font-weight: 700; color: var(--txt-sub); letter-spacing: 0.04em; white-space: nowrap; }
+        .ev-table td { padding: 0.85rem 1rem; border-bottom: 1px solid var(--border); vertical-align: middle; color: var(--txt-main); }
+        .ev-table tbody tr:last-child td { border-bottom: 0; }
+        .ev-table tbody tr:hover { background: #fafcff; }
+        .ev-id { font-family: "Courier New", monospace; font-size: 0.78rem; color: var(--txt-sub); white-space: nowrap; }
+        .ev-name { font-weight: 600; }
+        .ev-venue { font-weight: 400; font-size: 0.8rem; color: var(--txt-sub); margin-top: 0.15rem; }
+        .ev-organizer { color: var(--txt-sub); font-size: 0.85rem; }
+        .ev-status { display: inline-flex; align-items: center; border-radius: 999px; padding: 0.28rem 0.65rem; font-size: 0.75rem; font-weight: 700; white-space: nowrap; }
+        .ev-status.active { background: #e8f5e9; color: #2e7d32; }
+        .ev-status.ended { background: #f3f3f3; color: #555; }
+        .ev-status.cancelled { background: #fff3e0; color: #e65100; }
+        .ev-status.pending { background: #e8f1ff; color: var(--accent-2); }
+        .ev-status.flagged { background: #fce4ec; color: #c62828; }
+        .ev-flag-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #ef5350; margin-right: 5px; vertical-align: middle; }
+        .ev-tickets { text-align: right; font-variant-numeric: tabular-nums; }
+        .ev-tickets-sold { font-weight: 700; }
+        .ev-tickets-total { color: var(--txt-sub); font-size: 0.82rem; }
+        .ev-flag-btn { border: 1px solid #ffcdd2; background: #fff5f5; color: #c62828; border-radius: 8px; padding: 0.38rem 0.75rem; font-size: 0.8rem; font-weight: 700; cursor: pointer; }
+        .ev-flag-btn:hover { background: #ffebee; }
+        .ev-flag-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .ev-unflag-btn { border: 1px solid var(--border); background: var(--panel-soft); color: var(--txt-sub); border-radius: 8px; padding: 0.38rem 0.75rem; font-size: 0.8rem; font-weight: 700; cursor: pointer; }
+        .ev-unflag-btn:hover { background: var(--bg-1); }
+        .ev-unflag-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .ev-empty { text-align: center; padding: 3rem 1rem; color: var(--txt-sub); }
+        .ev-loading td { text-align: center; padding: 3rem; color: var(--txt-sub); }
+      `}</style>
+
+      <div className="ev-page">
+        <div className="ev-header">
+          <div className="ev-toprow">
+            <div className="ev-title-group">
+              <p className="eyebrow">이벤트 관리</p>
+              <h2>이벤트 감독</h2>
             </div>
-          </article>
-        ))}
+            <form className="ev-search-form" onSubmit={(e) => { e.preventDefault(); void load(); }}>
+              <input
+                className="ev-search-input"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="이벤트명 또는 주최자 검색"
+              />
+              <button className="ev-search-btn" type="submit">검색</button>
+            </form>
+          </div>
+          <div className="ev-filter-tabs">
+            {filterTabs.map((tab) => (
+              <button
+                key={tab.value}
+                className={`ev-filter-tab${filterStatus === tab.value ? " active" : ""}`}
+                onClick={() => setFilterStatus(tab.value)}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+          {actionMessage && <div className="ev-toast">{actionMessage}</div>}
+        </div>
+
+        <div className="ev-table-shell">
+          <div className="ev-table-head">
+            <h3>전체 이벤트 목록</h3>
+            <span className="ev-count-badge">{items.length}건</span>
+          </div>
+          {items.length === 0 && !loading ? (
+            <div className="ev-empty"><p>조건에 맞는 이벤트가 없습니다.</p></div>
+          ) : (
+            <table className="ev-table">
+              <thead>
+                <tr>
+                  <th>이벤트 ID</th>
+                  <th>이벤트명 / 장소</th>
+                  <th>주최자</th>
+                  <th>판매 현황</th>
+                  <th>상태</th>
+                  <th>관리</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr className="ev-loading"><td colSpan={6}>불러오는 중...</td></tr>
+                ) : (
+                  items.map((event) => {
+                    const isFlagged = (event as any).flagged === true;
+                    const rawStatus = event.status ?? "ACTIVE";
+                    const statusKey = isFlagged ? "flagged" : rawStatus.toLowerCase();
+                    return (
+                      <tr key={event.id}>
+                        <td className="ev-id">#{String(event.id).slice(0, 8)}</td>
+                        <td>
+                          <div className="ev-name">{event.title ?? (event as any).name}</div>
+                          <div className="ev-venue">{event.venue ?? (event as any).venueDetail ?? "-"}</div>
+                        </td>
+                        <td className="ev-organizer">
+                          {(event as any).organizerName ?? (event as any).organizer ?? "-"}
+                        </td>
+                        <td className="ev-tickets">
+                          <span className="ev-tickets-sold">{event.soldTicketCount ?? "-"}</span>
+                          <span className="ev-tickets-total"> / {event.totalTicketCount ?? "-"}</span>
+                        </td>
+                        <td>
+                          <span className={`ev-status ${statusKey}`}>
+                            {isFlagged && <span className="ev-flag-dot" />}
+                            {STATUS_LABEL[isFlagged ? "FLAGGED" : rawStatus] ?? rawStatus}
+                          </span>
+                        </td>
+                        <td>
+                          {isFlagged ? (
+                            <button className="ev-unflag-btn" disabled={flaggingId === event.id} onClick={() => void handleFlag(event.id, true)}>
+                              {flaggingId === event.id ? "처리중..." : "플래그 해제"}
+                            </button>
+                          ) : (
+                            <button className="ev-flag-btn" disabled={flaggingId === event.id} onClick={() => void handleFlag(event.id, false)}>
+                              {flaggingId === event.id ? "처리중..." : "플래그"}
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          )}
+        </div>
       </div>
-    </Panel>
+    </>
   );
 }
 
