@@ -230,20 +230,6 @@ export default function TicketIssuePage({ navigation, route }: any) {
         {Number(issueCount) > 8 ? <Text style={styles.helpText}>외 {Number(issueCount) - 8}장이 이어서 생성됩니다.</Text> : null}
       </View>
 
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>최근 발행 좌석</Text>
-        {tickets.length === 0 ? (
-          <Text style={styles.emptyText}>아직 발행된 티켓이 없습니다.</Text>
-        ) : (
-          tickets.slice(-8).reverse().map((ticket) => (
-            <View key={ticketKey(ticket)} style={styles.ticketRow}>
-              <Text style={styles.ticketSeat}>{ticket.seatInfo}</Text>
-              <Text style={styles.ticketStatus}>{ticket.status}</Text>
-            </View>
-          ))
-        )}
-      </View>
-
       <TouchableOpacity style={[styles.primaryButton, (issuing || remainingCount <= 0) && styles.disabledButton]} disabled={issuing || remainingCount <= 0} onPress={issue}>
         <Text style={styles.primaryButtonText}>{issuing ? '발행 중...' : remainingCount <= 0 ? '발행 완료' : '티켓 발행'}</Text>
       </TouchableOpacity>
@@ -251,6 +237,20 @@ export default function TicketIssuePage({ navigation, route }: any) {
       <TouchableOpacity style={styles.secondaryButton} onPress={() => navigation.replace('OrganizerEventDetail', { eventId })}>
         <Text style={styles.secondaryButtonText}>이벤트 관리로 이동</Text>
       </TouchableOpacity>
+
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>최근 발행 좌석</Text>
+        {tickets.length === 0 ? (
+          <Text style={styles.emptyText}>아직 발행된 티켓이 없습니다.</Text>
+        ) : (
+          tickets.slice(-4).reverse().map((ticket) => (
+            <View key={ticketKey(ticket)} style={styles.ticketRow}>
+              <Text style={styles.ticketSeat}>{ticket.seatInfo}</Text>
+              <Text style={styles.ticketStatus}>{ticket.status}</Text>
+            </View>
+          ))
+        )}
+      </View>
     </ScrollView>
   );
 }
