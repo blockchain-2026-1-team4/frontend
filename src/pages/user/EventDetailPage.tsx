@@ -19,7 +19,7 @@ export function EventDetailPage() {
     if (!ticketIdValue) {
       return;
     }
-    await backendApi.purchasePrimary(Number(ticketIdValue));
+    await backendApi.purchasePrimary(ticketIdValue);
     setMessage("Primary purchase request sent.");
   }
 

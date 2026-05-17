@@ -23,7 +23,7 @@ export function EventCreatePage() {
       resaleEnd: Math.floor(Date.now() / 1000) + 86400 * 7,
     };
     const result = await backendApi.createEvent(payload);
-    setMessage(`Created eventId: ${result.eventId}`);
+    setMessage(`Created eventId: ${result.id ?? result.eventId}`);
   }
 
   return (

@@ -51,7 +51,7 @@ export async function withWalletContract() {
     throw new Error("Ethereum wallet not found");
   }
 
-  const provider = new BrowserProvider(ethereum);
+  const provider = new BrowserProvider(ethereum as any);
   await provider.send("eth_requestAccounts", []);
   const signer = await provider.getSigner();
   const contract = new Contract(getAddress(), trustTicketAbi, signer);

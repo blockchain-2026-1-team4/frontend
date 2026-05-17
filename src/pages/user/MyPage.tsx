@@ -7,7 +7,7 @@ export function MyPage() {
   const [tickets, setTickets] = useState<TicketDetail[]>([]);
 
   useEffect(() => {
-    backendApi.getMyTickets().then((data) => setTickets(data.items ?? []));
+    backendApi.getMyTickets().then((data) => setTickets(data));
   }, []);
 
   return (
@@ -18,7 +18,7 @@ export function MyPage() {
           <Link
             key={ticket.ticketId}
             className="event-card"
-            to={`/user/tickets/${ticket.ticketId}`}
+            to={`/app/tickets/${ticket.ticketId}`}
           >
             <h3>{ticket.eventName}</h3>
             <p>{ticket.seatInfo}</p>

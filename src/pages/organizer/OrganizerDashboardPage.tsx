@@ -12,6 +12,12 @@ export function OrganizerDashboardPage() {
         <Link className="button" to="/organizer/events">
           My events
         </Link>
+        <Link className="button" to="/organizer/me">
+          My profile
+        </Link>
+        <Link className="button" to="/organizer/start">
+          Start screen
+        </Link>
       </div>
     </section>
   );

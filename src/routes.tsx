@@ -3,18 +3,41 @@ import { Layout } from "./components/Layout";
 import { LandingPage } from "./pages/LandingPage";
 import { LoginPage } from "./pages/LoginPage";
 import { RegisterPage } from "./pages/RegisterPage";
-import { AdminDashboardPage } from "./pages/admin/AdminDashboardPage";
-import { DisputesPage } from "./pages/admin/DisputesPage";
-import { OrganizerApprovalsPage } from "./pages/admin/OrganizerApprovalsPage";
-import { EventCreatePage } from "./pages/organizer/EventCreatePage";
-import { MyEventsPage } from "./pages/organizer/MyEventsPage";
-import { OrganizerDashboardPage } from "./pages/organizer/OrganizerDashboardPage";
-import { EventDetailPage } from "./pages/user/EventDetailPage";
-import { MyPage } from "./pages/user/MyPage";
-import { ResaleDetailPage } from "./pages/user/ResaleDetailPage";
-import { ResaleListPage } from "./pages/user/ResaleListPage";
-import { TicketDetailPage } from "./pages/user/TicketDetailPage";
-import { UserHomePage } from "./pages/user/UserHomePage";
+import {
+  AdminBlockchainLogPage,
+  AdminDashboardPage,
+  AdminDisputeTransactionPage,
+  AdminEventManagePage,
+  AdminLoginPage,
+  AdminUserManagePage,
+  CheckInManagePage,
+  EventCreatePage,
+  EventDetailPage,
+  EventListPage,
+  EventSettingsPage,
+  MyTicketListPage,
+  OrganizerAuthPage,
+  OrganizerDashboardPage,
+  OrganizerEventDetailPage,
+  OrganizerEventListPage,
+  OrganizerLandingPage,
+  OrganizerProfilePage,
+  OrganizerApprovalPage,
+  PurchaseCompletePage,
+  ResaleDetailPage,
+  ResaleListPage,
+  ResaleRegisterCompletePage,
+  SalesStatusPage,
+  TicketDetailPage,
+  TicketIssuePage,
+  TicketPurchasePage,
+  TicketQrPage,
+  TicketResaleCreatePage,
+  UserAuthPage,
+  UserHomePage,
+  UserLandingPage,
+  UserMyPage,
+} from "./pages/portalPages";
 
 export const appRoutes: RouteObject[] = [
   {
@@ -24,18 +47,49 @@ export const appRoutes: RouteObject[] = [
       { index: true, element: <LandingPage /> },
       { path: "login", element: <LoginPage /> },
       { path: "register", element: <RegisterPage /> },
+      { path: "app", element: <UserLandingPage /> },
+      { path: "app/auth", element: <UserAuthPage /> },
+      { path: "app/home", element: <UserHomePage /> },
+      { path: "app/events", element: <EventListPage /> },
+      { path: "app/events/:eventId", element: <EventDetailPage /> },
+      { path: "app/tickets/:ticketId/purchase", element: <TicketPurchasePage /> },
+      { path: "app/purchase-complete", element: <PurchaseCompletePage /> },
+      { path: "app/resale", element: <ResaleListPage /> },
+      { path: "app/resale/:listingId", element: <ResaleDetailPage /> },
+      { path: "app/me", element: <UserMyPage /> },
+      { path: "app/tickets", element: <MyTicketListPage /> },
+      { path: "app/tickets/:ticketId", element: <TicketDetailPage /> },
+      { path: "app/tickets/:ticketId/resale", element: <TicketResaleCreatePage /> },
+      { path: "app/resale-complete", element: <ResaleRegisterCompletePage /> },
+      { path: "app/tickets/:ticketId/qr", element: <TicketQrPage /> },
+      { path: "organizer/start", element: <OrganizerLandingPage /> },
+      { path: "organizer/auth", element: <OrganizerAuthPage /> },
+      { path: "organizer", element: <OrganizerDashboardPage /> },
+      { path: "organizer/events/new", element: <EventCreatePage /> },
+      { path: "organizer/events", element: <OrganizerEventListPage /> },
+      { path: "organizer/events/:eventId", element: <OrganizerEventDetailPage /> },
+      { path: "organizer/events/:eventId/settings", element: <EventSettingsPage /> },
+      { path: "organizer/events/:eventId/sales", element: <SalesStatusPage /> },
+      { path: "organizer/events/:eventId/checkins", element: <CheckInManagePage /> },
+      { path: "organizer/events/:eventId/tickets/issue", element: <TicketIssuePage /> },
+      { path: "organizer/me", element: <OrganizerProfilePage /> },
+      { path: "admin/login", element: <AdminLoginPage /> },
+      { path: "admin", element: <AdminDashboardPage /> },
+      { path: "admin/organizer-approvals", element: <OrganizerApprovalPage /> },
+      { path: "admin/events", element: <AdminEventManagePage /> },
+      { path: "admin/users", element: <AdminUserManagePage /> },
+      { path: "admin/disputes", element: <AdminDisputeTransactionPage /> },
+      { path: "admin/blockchain", element: <AdminBlockchainLogPage /> },
+
       { path: "user", element: <UserHomePage /> },
       { path: "user/events/:eventId", element: <EventDetailPage /> },
       { path: "user/resale", element: <ResaleListPage /> },
       { path: "user/resale/:listingId", element: <ResaleDetailPage /> },
-      { path: "user/me", element: <MyPage /> },
+      { path: "user/me", element: <UserMyPage /> },
       { path: "user/tickets/:ticketId", element: <TicketDetailPage /> },
-      { path: "organizer", element: <OrganizerDashboardPage /> },
-      { path: "organizer/events/new", element: <EventCreatePage /> },
-      { path: "organizer/events", element: <MyEventsPage /> },
-      { path: "admin", element: <AdminDashboardPage /> },
-      { path: "admin/organizer-approvals", element: <OrganizerApprovalsPage /> },
-      { path: "admin/disputes", element: <DisputesPage /> },
+      { path: "user/tickets", element: <MyTicketListPage /> },
+      { path: "user/tickets/:ticketId/resale", element: <TicketResaleCreatePage /> },
+
     ],
   },
 ];

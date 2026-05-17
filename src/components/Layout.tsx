@@ -1,14 +1,19 @@
 import { Link, Outlet } from "react-router-dom";
 
 const links = [
-  { to: "/user", label: "User" },
-  { to: "/organizer", label: "Organizer" },
-  { to: "/admin", label: "Admin" },
+  { to: "/app", label: "User app" },
+  { to: "/organizer", label: "Organizer app" },
+  { to: "/admin", label: "Admin web" },
 ];
 
 export function Layout() {
   return (
-    <div>
+    <div className="app-shell">
+      <header className="topbar">
+        <Link className="brand" to="/">
+          TRUST TICKET
+        </Link>
+      </header>
       <nav className="nav-grid">
         {links.map((item) => (
           <Link key={item.to} to={item.to} className="nav-chip">
@@ -16,7 +21,9 @@ export function Layout() {
           </Link>
         ))}
       </nav>
-      <Outlet />
+      <main className="content">
+        <Outlet />
+      </main>
     </div>
   );
 }

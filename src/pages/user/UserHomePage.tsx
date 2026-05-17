@@ -8,7 +8,7 @@ export function UserHomePage() {
   const [keyword, setKeyword] = useState("");
 
   async function loadEvents(search?: string) {
-    const data = await backendApi.getEvents({ keyword: search });
+    const data = await backendApi.getEvents({ query: search });
     setEvents(data.items ?? []);
   }
 
@@ -19,6 +19,7 @@ export function UserHomePage() {
   return (
     <section className="panel">
       <h2>User Main</h2>
+      <p className="lead">Search events, browse categories, and jump to your page.</p>
       <div className="row">
         <input
           value={keyword}
@@ -40,11 +41,17 @@ export function UserHomePage() {
         ))}
       </div>
       <div className="action-row">
-        <Link className="button" to="/user/resale">
+        <Link className="button" to="/app/events">
+          Event list
+        </Link>
+        <Link className="button" to="/app/resale">
           Resale market
         </Link>
-        <Link className="button" to="/user/me">
+        <Link className="button" to="/app/me">
           My page
+        </Link>
+        <Link className="button" to="/app/tickets">
+          My tickets
         </Link>
       </div>
     </section>

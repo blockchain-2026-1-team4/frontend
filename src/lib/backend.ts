@@ -1,12 +1,23 @@
-import type { EventSummary, ResaleListing, TicketDetail } from "../types/api";
+import type {
+  AuthTokens,
+  BlockchainTransactionRecord,
+  CheckInRecord,
+  DisputeRecord,
+  EventDetail,
+  EventSummary,
+  OrganizerApplication,
+  PageResult,
+  ResaleListing,
+  TicketDetail,
+  UserAdminRecord,
+  UserProfile,
+} from "../types/api";
 import { setAccessToken } from "./auth";
 import { http, unwrap } from "./http";
 
 export const backendApi = {
   async registerEmail(payload: { email: string; password: string; displayName: string }) {
-    const data = await unwrap<{ accessToken: string }>(
-      http.post("/auth/email/register", payload),
-    );
+    const data = await unwrap<AuthTokens>(http.post("/auth/email/register", payload));
     if (data.accessToken) {
       setAccessToken(data.accessToken);
     }
@@ -14,9 +25,7 @@ export const backendApi = {
   },
 
   async loginEmail(payload: { email: string; password: string }) {
-    const data = await unwrap<{ accessToken: string }>(
-      http.post("/auth/email/login", payload),
-    );
+    const data = await unwrap<AuthTokens>(http.post("/auth/email/login", payload));
     if (data.accessToken) {
       setAccessToken(data.accessToken);
     }
@@ -24,27 +33,69 @@ export const backendApi = {
   },
 
   async getMe() {
-    return unwrap<{ id: string; email: string; displayName: string; roles: string[] }>(
-      http.get("/users/me"),
-    );
+    return unwrap<UserProfile>(http.get("/users/me"));
   },
 
-  async getEvents(params?: { keyword?: string; category?: string; page?: number }) {
-    return unwrap<{ items: EventSummary[] }>(http.get("/events", { params }));
+  async updateMe(payload: { displayName?: string }) {
+    return unwrap<UserProfile>(http.patch("/users/me", payload));
+  },
+
+  async getEvents(params?: { query?: string; category?: string; page?: number; size?: number }) {
+    return unwrap<PageResult<EventSummary>>(http.get("/events", { params }));
   },
 
   async getEvent(eventId: string) {
-    return unwrap<EventSummary & { policy?: Record<string, unknown> }>(
-      http.get(`/events/${eventId}`),
-    );
+    return unwrap<EventDetail>(http.get(`/events/${eventId}`));
   },
 
-  async purchasePrimary(ticketId: number) {
-    return unwrap<{ txHash?: string }>(http.post(`/tickets/${ticketId}/purchase`));
+  async getEventTickets(eventId: string) {
+    return unwrap<TicketDetail[]>(http.get(`/events/${eventId}/tickets`));
+  },
+
+  async getEventValidators(eventId: string) {
+    return unwrap<Record<string, unknown>[]>(http.get(`/events/${eventId}/validators`));
+  },
+
+  async getMyEvents(params?: { page?: number; size?: number }) {
+    return unwrap<PageResult<EventSummary>>(http.get("/events/me", { params }));
+  },
+
+  async createEvent(payload: Record<string, unknown>) {
+    return unwrap<EventDetail>(http.post("/events", payload));
+  },
+
+  async updateEvent(eventId: string, payload: Record<string, unknown>) {
+    return unwrap<EventDetail>(http.patch(`/events/${eventId}`, payload));
+  },
+
+  async updateEventStatus(eventId: string, payload: Record<string, unknown>) {
+    return unwrap<EventDetail>(http.patch(`/events/${eventId}/status`, payload));
+  },
+
+  async updateResalePolicy(eventId: string, payload: Record<string, unknown>) {
+    return unwrap<EventDetail>(http.patch(`/events/${eventId}/resale-policy`, payload));
+  },
+
+  async addEventValidator(eventId: string, payload: Record<string, unknown>) {
+    return unwrap<Record<string, unknown>>(http.post(`/events/${eventId}/validators`, payload));
+  },
+
+  async uploadEventImage(eventId: string, file: File) {
+    const formData = new FormData();
+    formData.append("file", file);
+    return unwrap<EventDetail>(http.post(`/events/${eventId}/image`, formData));
+  },
+
+  async issueTickets(eventId: string, payload: Record<string, unknown>) {
+    return unwrap<TicketDetail[]>(http.post(`/events/${eventId}/tickets`, payload));
+  },
+
+  async purchasePrimary(ticketId: string) {
+    return unwrap<TicketDetail>(http.post(`/tickets/${ticketId}/purchase`));
   },
 
   async getResaleListings(params?: { eventId?: string }) {
-    return unwrap<{ items: ResaleListing[] }>(http.get("/resale-listings", { params }));
+    return unwrap<PageResult<ResaleListing>>(http.get("/resale-listings", { params }));
   },
 
   async getResaleListing(listingId: string) {
@@ -52,54 +103,114 @@ export const backendApi = {
   },
 
   async purchaseResale(listingId: string) {
-    return unwrap<{ txHash?: string }>(http.post(`/resale-listings/${listingId}/purchase`));
-  },
-
-  async getMyTickets() {
-    return unwrap<{ items: TicketDetail[] }>(http.get("/tickets/me"));
-  },
-
-  async getTicket(ticketId: number) {
-    return unwrap<TicketDetail>(http.get(`/tickets/${ticketId}`));
-  },
-
-  async createResale(ticketId: number, price: string) {
-    return unwrap<{ listingId: string }>(
-      http.post(`/tickets/${ticketId}/resale-listing`, { price }),
-    );
+    return unwrap<ResaleListing>(http.post(`/resale-listings/${listingId}/purchase`));
   },
 
   async cancelResale(listingId: string) {
-    return unwrap<{ canceled: boolean }>(http.patch(`/resale-listings/${listingId}/cancel`));
+    return unwrap<ResaleListing>(http.patch(`/resale-listings/${listingId}/cancel`));
   },
 
-  async createEvent(payload: Record<string, unknown>) {
-    return unwrap<{ eventId: string }>(http.post("/events", payload));
+  async getMyTickets() {
+    return unwrap<TicketDetail[]>(http.get("/tickets/me"));
   },
 
-  async getMyEvents() {
-    return unwrap<{ items: EventSummary[] }>(http.get("/events/me"));
+  async getTicket(ticketId: string) {
+    return unwrap<TicketDetail>(http.get(`/tickets/${ticketId}`));
+  },
+
+  async getTicketValidity(ticketId: string) {
+    return unwrap<Record<string, unknown>>(http.get(`/tickets/${ticketId}/validity`));
+  },
+
+  async createResale(ticketId: string, price: string) {
+    return unwrap<ResaleListing>(http.post(`/tickets/${ticketId}/resale-listing`, { priceWei: price }));
+  },
+
+  async createTicketQr(ticketId: string, payload: Record<string, unknown>) {
+    return unwrap<Record<string, unknown>>(http.post(`/tickets/${ticketId}/qr`, payload));
+  },
+
+  async checkIn(payload: Record<string, unknown>) {
+    return unwrap<CheckInRecord>(http.post("/check-ins", payload));
+  },
+
+  async getTicketCheckInMessage(ticketId: string, params: { claimedOwner: string; expiresAt: string }) {
+    return unwrap<Record<string, unknown>>(http.get(`/tickets/${ticketId}/check-in-message`, { params }));
+  },
+
+  async getTicketCheckIns(ticketId: string) {
+    return unwrap<CheckInRecord[]>(http.get(`/tickets/${ticketId}/check-ins`));
   },
 
   async getAdminDashboard() {
     return unwrap<Record<string, unknown>>(http.get("/admin/dashboard"));
   },
 
-  async getOrganizerApplications() {
-    return unwrap<{ items: Array<Record<string, unknown>> }>(
-      http.get("/organizer-applications"),
-    );
+  async getAdminEvents(params?: { page?: number; size?: number; status?: string; category?: string; query?: string; flagged?: boolean }) {
+    return unwrap<PageResult<EventDetail>>(http.get("/admin/events", { params }));
+  },
+
+  async flagAdminEvent(eventId: string) {
+    return unwrap<EventDetail>(http.patch(`/admin/events/${eventId}/flag`));
+  },
+
+  async unflagAdminEvent(eventId: string) {
+    return unwrap<EventDetail>(http.patch(`/admin/events/${eventId}/unflag`));
+  },
+
+  async getUsers(params?: { page?: number; size?: number; status?: string }) {
+    return unwrap<PageResult<UserAdminRecord>>(http.get("/users", { params }));
+  },
+
+  async suspendUser(userId: string) {
+    return unwrap<UserAdminRecord>(http.patch(`/users/${userId}/suspend`));
+  },
+
+  async activateUser(userId: string) {
+    return unwrap<UserAdminRecord>(http.patch(`/users/${userId}/activate`));
+  },
+
+  async deleteUser(userId: string) {
+    return unwrap<UserAdminRecord>(http.patch(`/users/${userId}/delete`));
+  },
+
+  async grantValidator(userId: string) {
+    return unwrap<UserAdminRecord>(http.patch(`/users/${userId}/validator`));
+  },
+
+  async getOrganizerApplications(params?: { status?: string; page?: number; size?: number }) {
+    return unwrap<PageResult<OrganizerApplication>>(http.get("/organizer-applications", { params }));
+  },
+
+  async getMyOrganizerApplications() {
+    return unwrap<OrganizerApplication[]>(http.get("/organizer-applications/me"));
+  },
+
+  async submitOrganizerApplication(payload: Record<string, unknown>) {
+    return unwrap<OrganizerApplication>(http.post("/organizer-applications", payload));
   },
 
   async reviewOrganizerApplication(applicationId: string, decision: "APPROVED" | "REJECTED") {
-    return unwrap<Record<string, unknown>>(
+    return unwrap<OrganizerApplication>(
       http.patch(`/organizer-applications/${applicationId}/review`, {
         status: decision,
       }),
     );
   },
 
-  async getDisputes() {
-    return unwrap<{ items: Array<Record<string, unknown>> }>(http.get("/admin/disputes"));
+  async getResaleTransactions(params?: { page?: number; size?: number; status?: string }) {
+    return unwrap<PageResult<ResaleListing>>(http.get("/admin/resale-transactions", { params }));
+  },
+
+  async getDisputes(params?: { page?: number; size?: number; status?: string }) {
+    return unwrap<PageResult<DisputeRecord>>(http.get("/admin/disputes", { params }));
+  },
+
+  async reviewDispute(disputeId: string, payload: Record<string, unknown>) {
+    return unwrap<DisputeRecord>(http.patch(`/admin/disputes/${disputeId}/review`, payload));
+  },
+
+  async getBlockchainTransactions(params?: { size?: number }) {
+    return unwrap<BlockchainTransactionRecord[]>(http.get("/admin/blockchain-transactions", { params }));
   },
 };

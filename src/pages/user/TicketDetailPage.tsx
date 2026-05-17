@@ -9,13 +9,11 @@ export function TicketDetailPage() {
   const [message, setMessage] = useState("");
 
   useEffect(() => {
-    backendApi
-      .getTicket(Number(ticketId))
-      .then((data) => setTicket(data as unknown as Record<string, unknown>));
+    backendApi.getTicket(ticketId).then((data) => setTicket(data as unknown as Record<string, unknown>));
   }, [ticketId]);
 
   async function onResaleSubmit() {
-    await backendApi.createResale(Number(ticketId), resalePrice);
+    await backendApi.createResale(ticketId, resalePrice);
     setMessage("Resale listing created.");
   }
 

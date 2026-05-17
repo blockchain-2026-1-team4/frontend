@@ -1,6 +1,7 @@
 import { FormEvent, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { backendApi } from "../lib/backend";
+import { resolveRolePath } from "../lib/authRoute";
 
 export function RegisterPage() {
   const navigate = useNavigate();
@@ -14,7 +15,7 @@ export function RegisterPage() {
     try {
       setError(null);
       await backendApi.registerEmail({ displayName, email, password });
-      navigate("/user");
+      navigate(await resolveRolePath());
     } catch (e) {
       setError(e instanceof Error ? e.message : "Register failed");
     }

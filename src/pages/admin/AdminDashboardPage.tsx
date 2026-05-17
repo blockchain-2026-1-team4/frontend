@@ -16,8 +16,17 @@ export function AdminDashboardPage() {
         <Link className="button" to="/admin/organizer-approvals">
           Organizer approvals
         </Link>
+        <Link className="button" to="/admin/events">
+          Event manage
+        </Link>
+        <Link className="button" to="/admin/users">
+          User manage
+        </Link>
         <Link className="button" to="/admin/disputes">
           Disputes
+        </Link>
+        <Link className="button" to="/admin/blockchain">
+          Blockchain logs
         </Link>
       </div>
       <pre className="code">{JSON.stringify(dashboard, null, 2)}</pre>
