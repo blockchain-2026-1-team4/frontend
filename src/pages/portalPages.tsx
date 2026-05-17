@@ -14,6 +14,7 @@ import type {
 import { LandingPage as BaseLandingPage } from "./LandingPage";
 import { LoginPage } from "./LoginPage";
 import { AdminDashboardPage as BaseAdminDashboardPage } from "./admin/AdminDashboardPage";
+import { AdminUserManagePage as BaseAdminUserManagePage } from "./admin/AdminUserManagePage";
 import { OrganizerApprovalsPage as BaseOrganizerApprovalsPage } from "./admin/OrganizerApprovalsPage";
 import { EventCreatePage as BaseEventCreatePage } from "./organizer/EventCreatePage";
 import { MyEventsPage as BaseMyEventsPage } from "./organizer/MyEventsPage";
@@ -116,6 +117,7 @@ export const EventCreatePage = BaseEventCreatePage;
 export const OrganizerEventListPage = BaseMyEventsPage;
 export const AdminDashboardPage = BaseAdminDashboardPage;
 export const OrganizerApprovalPage = BaseOrganizerApprovalsPage;
+export const AdminUserManagePage = BaseAdminUserManagePage;
 
 export function UserMyPage() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -722,7 +724,7 @@ export function AdminEventManagePage() {
   );
 }
 
-export function AdminUserManagePage() {
+export function LegacyAdminUserManagePage() {
   const [items, setItems] = useState<UserAdminRecord[]>([]);
 
   async function load() {
