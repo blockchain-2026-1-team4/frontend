@@ -121,9 +121,7 @@ export function AdminEventsPage() {
   }, [items, query]);
 
   async function handleFlag(eventId: string, currentlyFlagged: boolean) {
-    const message = currentlyFlagged
-      ? "이벤트 검토 표시를 해제하시겠습니까? 이벤트 상태와 판매 가능 여부는 변경되지 않습니다."
-      : "이 이벤트를 검토 대상으로 표시하시겠습니까? 취소와 달리 이벤트 상태와 판매 가능 여부는 변경되지 않습니다.";
+    const message = currentlyFlagged ? "이벤트 검토 표시를 해제하시겠습니까?" : "이 이벤트를 검토 표시하시겠습니까?";
     if (!window.confirm(message)) {
       return;
     }
@@ -148,7 +146,7 @@ export function AdminEventsPage() {
   }
 
   async function handleCancel(eventId: string) {
-    if (!window.confirm("이 이벤트를 관리자 취소 처리하시겠습니까? 티켓 구매, 리셀, 체크인이 중단되며 관리자만 복구할 수 있습니다.")) {
+    if (!window.confirm("이 이벤트를 관리자 취소 처리하시겠습니까?")) {
       return;
     }
 
@@ -228,8 +226,10 @@ export function AdminEventsPage() {
         .ae-toast { background: #e8f5e9; border: 1px solid #a5d6a7; color: #2e7d32; border-radius: 10px; padding: 0.65rem 1rem; font-size: 0.88rem; font-weight: 700; margin-top: 0.75rem; }
         .ae-error { background: #fff5f5; border: 1px solid #ffcdd2; color: #c62828; border-radius: 10px; padding: 0.75rem 1rem; font-size: 0.88rem; font-weight: 700; margin-top: 0.75rem; display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; flex-wrap: wrap; }
         .ae-error .button { border-color: #ffcdd2; background: #fff; color: #c62828; padding: 0.35rem 0.65rem; }
-        .ae-note { margin-top: 0.7rem; border: 1px solid #dbeafe; background: #f8fbff; color: var(--txt-sub); border-radius: 10px; padding: 0.55rem 0.75rem; font-size: 0.8rem; line-height: 1.45; }
-        .ae-note strong { color: var(--txt-main); }
+        .ae-help { margin-top: 0.7rem; border: 1px solid #dbeafe; background: #f8fbff; color: var(--txt-sub); border-radius: 10px; padding: 0.55rem 0.75rem; font-size: 0.8rem; line-height: 1.45; }
+        .ae-help summary { cursor: pointer; color: var(--txt-main); font-weight: 800; }
+        .ae-help div { margin-top: 0.45rem; display: grid; gap: 0.25rem; }
+        .ae-help strong { color: var(--txt-main); }
         .ae-shell { background: var(--panel); border: 1px solid var(--border); border-radius: 20px; box-shadow: var(--shadow); overflow: hidden; }
         .ae-table-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 1rem 1.25rem; border-bottom: 1px solid var(--border); background: linear-gradient(180deg, #fff, #f7f9fc); }
         .ae-table-head h3 { margin: 0; font-size: 0.95rem; font-weight: 800; }
@@ -273,9 +273,13 @@ export function AdminEventsPage() {
             </form>
           </div>
 
-          <div className="ae-note">
-            검토 표시는 관리자 확인이 필요한 이벤트를 표시하는 기능이며, 이벤트 상태나 판매에는 영향을 주지 않습니다.
-          </div>
+          <details className="ae-help">
+            <summary>작업 도움말</summary>
+            <div>
+              <span><strong>검토 표시</strong>: 관리자 확인 대상 표시. 이벤트 상태나 판매에는 영향 없음.</span>
+              <span><strong>관리자 취소</strong>: 티켓 구매, 리셀, 체크인을 중단하며 관리자만 복구 가능.</span>
+            </div>
+          </details>
 
           <div className="ae-filter-row">
             <div className="ae-filter-group">
