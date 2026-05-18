@@ -1,103 +1,49 @@
 # Trust Ticket Frontend
 
-Trust Ticket frontend is split into two client applications.
+Final client split:
 
-- `frontend/`: Vite + React web app for the admin portal, a simple user web flow, and a simple organizer web flow.
-- `frontend/mobile/`: React Native + Expo app for the mobile user and organizer flows.
+- `frontend/`: administrator web console only.
+- `frontend/mobile/`: React Native + Expo app for user and organizer flows.
 
-The backend API base path is `/api/v1`. Both clients use Axios wrappers that unwrap the backend `ApiEnvelope<T>` response shape and attach a bearer token when one is stored.
+The web project no longer owns user or organizer web routes. User ticketing, resale, QR, and organizer event-operation flows live in the mobile app.
 
-## Project Structure
+## Web Admin Console
 
-```text
-frontend/
-  src/
-    App.tsx
-    routes.tsx
-    components/
-      Layout.tsx
-      RequireAdmin.tsx
-      UserAppLayout.tsx
-      OrganizerAppLayout.tsx
-    lib/
-      auth.ts
-      authRoute.ts
-      backend.ts
-      config.ts
-      http.ts
-      blockchain/
-        abi.ts
-        client.ts
-    pages/
-      admin/
-      organizer/
-      user/
-      LandingPage.tsx
-      LoginPage.tsx
-      RegisterPage.tsx
-    types/
-      api.ts
-  mobile/
-    App.tsx
-    src/
-      lib/
-        account.ts
-        auth.ts
-        backend.ts
-        config.ts
-        http.ts
-      pages/
-      types/
-        api.ts
-```
+Stack:
 
-## Web App
+- Vite
+- React
+- React Router
+- Axios
+- TypeScript
 
-The web app uses `react-router-dom` routes from `src/routes.tsx`.
-
-User routes:
+Active web routes:
 
 ```text
-/app
-/app/events
-/app/events/:eventId
-/app/resale
-/app/resale/:listingId
-/app/me
-/app/tickets
-/app/tickets/:ticketId
+/                         Admin landing page
+/login                    Admin login
+/admin                    Admin dashboard
+/admin/organizer-approvals Organizer approval
+/admin/events             Event supervision
+/admin/users              User management
+/admin/disputes           Disputes / resale transaction center
+/admin/blockchain         Blockchain transaction logs
 ```
 
-Organizer routes:
+Removed from the web app:
 
-```text
-/organizer
-/organizer/events
-/organizer/events/new
-/organizer/me
-/organizer/start
-```
-
-Admin routes:
-
-```text
-/admin
-/admin/organizer-approvals
-/admin/events
-/admin/users
-/admin/disputes
-/admin/blockchain
-```
-
-Admin routes are guarded by `RequireAdmin`, which calls `GET /users/me` and checks the `ADMIN` role.
-
-The web user and organizer pages are lightweight portal pages. The admin portal is more complete and covers dashboard, organizer approval, event supervision, user management, dispute/resale transaction review, and blockchain transaction log viewing.
+- `/app/*` user web routes
+- `/organizer/*` organizer web routes
+- web user pages under `src/pages/user`
+- web organizer pages under `src/pages/organizer`
+- web registration route/page
+- web mobile-style user/organizer layouts
 
 ## Mobile App
 
-The mobile app uses React Navigation in `mobile/App.tsx`.
+The mobile app remains under `frontend/mobile` and is not part of the admin web cleanup.
 
-User flow:
+Mobile user flow:
 
 ```text
 Landing -> Auth -> Main -> EventList -> EventDetail -> TicketPurchase -> PurchaseComplete
@@ -106,7 +52,7 @@ MyPage -> MyTickets -> TicketDetail -> TicketQr
 MyPage -> MyTickets -> TicketDetail -> TicketResaleCreate -> ResaleRegisterComplete
 ```
 
-Organizer flow:
+Mobile organizer flow:
 
 ```text
 Landing -> Auth -> Organizer
@@ -120,188 +66,94 @@ Organizer -> OrganizerProfile
 Organizer -> OrganizerLogout
 ```
 
-The mobile app currently has no admin route. Admin APIs are present in `mobile/src/lib/backend.ts` as shared client methods, but they are not wired to mobile admin screens.
+## Web Structure
 
-## Common API, Client, And Auth
+```text
+frontend/src/
+  App.tsx
+  routes.tsx
+  styles.css
+  components/
+    Layout.tsx
+    RequireAdmin.tsx
+    AdminPagination.tsx
+  lib/
+    auth.ts
+    authRoute.ts
+    backend.ts
+    config.ts
+    http.ts
+    blockchain/
+      abi.ts
+      client.ts
+  pages/
+    LandingPage.tsx
+    LoginPage.tsx
+    admin/
+      AdminDashboardPage.tsx
+      OrganizerApprovalsPage.tsx
+      AdminEventsPage.tsx
+      AdminUserManagePage.tsx
+      AdminDisputeTransactionPage.tsx
+      AdminBlockchainLogPage.tsx
+```
+
+## API Client And Auth
 
 Web:
 
 - `src/lib/config.ts`: reads `VITE_API_BASE_URL`, chain RPC, chain ID, and contract address.
 - `src/lib/auth.ts`: stores the access token in `localStorage`.
-- `src/lib/http.ts`: creates the Axios instance, injects `Authorization: Bearer <token>`, clears token on `401`, and unwraps `ApiEnvelope<T>`.
-- `src/lib/backend.ts`: typed backend API wrapper for auth, users, events, tickets, resale, organizer applications, admin, disputes, check-in, and blockchain transaction log APIs.
+- `src/lib/http.ts`: creates the Axios instance, injects `Authorization: Bearer <token>`, clears token on `401`, and unwraps backend `ApiEnvelope<T>`.
+- `src/lib/authRoute.ts`: verifies that the logged-in user has `ADMIN`; non-admin users are logged out and blocked.
+- `src/lib/backend.ts`: remains broad because admin pages use many user, organizer, event, dispute, resale, and blockchain-log methods. Non-admin/mobile-only wrappers were not removed in this cleanup to avoid accidental breakage and because the mobile app has its own separate wrapper.
 
 Mobile:
 
-- `mobile/src/lib/config.ts`: reads `EXPO_PUBLIC_API_BASE_URL`, chain RPC, chain ID, and contract address.
-- `mobile/src/lib/auth.ts`: stores token in `expo-secure-store` on native and `localStorage` on Expo Web.
-- `mobile/src/lib/http.ts`: same bearer-token and envelope behavior as web, with async token access.
-- `mobile/src/lib/backend.ts`: mobile API wrapper. It includes email auth, wallet auth, user/event/ticket/resale/organizer/check-in/admin wrappers.
-- `mobile/src/lib/account.ts`: role/status-based entry routing and account status messages.
+- `mobile/src/lib/auth.ts`: stores tokens in `expo-secure-store` on native and `localStorage` on Expo Web.
+- `mobile/src/lib/http.ts`: async bearer-token injection and envelope unwrap.
+- `mobile/src/lib/backend.ts`: user and organizer app API wrapper.
 
-## Backend API Usage Audit
+## Admin API Usage
 
-Status meanings:
+| Backend API | Web usage |
+| --- | --- |
+| `POST /auth/email/login` | `LoginPage` |
+| `GET /users/me` | `RequireAdmin`, admin pages that verify session/role |
+| `GET /admin/dashboard` | `AdminDashboardPage` |
+| `GET /organizer-applications` | `OrganizerApprovalsPage` |
+| `PATCH /organizer-applications/{applicationId}/review` | `OrganizerApprovalsPage` |
+| `GET /admin/events` | `AdminEventsPage` |
+| `PATCH /admin/events/{eventId}/flag` | `AdminEventsPage` |
+| `PATCH /admin/events/{eventId}/unflag` | `AdminEventsPage` |
+| `PATCH /events/{eventId}/status` | `AdminEventsPage` for cancellation/status handling |
+| `GET /users` | `AdminUserManagePage` |
+| `PATCH /users/{userId}/suspend` | `AdminUserManagePage` |
+| `PATCH /users/{userId}/activate` | `AdminUserManagePage` |
+| `PATCH /users/{userId}/delete` | `AdminUserManagePage` |
+| `PATCH /users/{userId}/validator` | `AdminUserManagePage` |
+| `GET /admin/disputes` | `AdminDisputeTransactionPage` |
+| `PATCH /admin/disputes/{disputeId}/review` | `AdminDisputeTransactionPage` |
+| `GET /admin/resale-transactions` | `AdminDisputeTransactionPage` |
+| `GET /admin/blockchain-transactions` | `AdminBlockchainLogPage` |
 
-- Used: actively called from at least one frontend screen.
-- Partial: called, but the UI or request shape is temporary or not complete.
-- Exposed only: present in a frontend API client but not currently called by a screen.
-- Not connected: not present or not used in frontend.
+## Blockchain And Wallet Notes
 
-### Auth
+- The admin web console displays backend-recorded blockchain transactions through `GET /admin/blockchain-transactions`.
+- `src/lib/blockchain/client.ts` still contains ethers helpers for direct contract reads/writes and wallet signing experiments, but no active admin route imports them.
+- Production admin flows should treat backend transaction logs as the canonical view unless a future task explicitly wires direct contract inspection into an admin page.
+- Wallet login and mobile QR signing belong to `frontend/mobile`, not the admin web console.
 
-| Backend API | Web | Mobile | Notes |
-| --- | --- | --- | --- |
-| `POST /auth/email/register` | `RegisterPage` | `AuthPage` | Used correctly for email signup. |
-| `POST /auth/email/login` | `LoginPage` | `AuthPage`, legacy `LoginPage` | Used correctly and stores access token. |
-| `POST /auth/wallet/nonce` | Not connected | `AuthPage` | Mobile asks the user to enter wallet address manually. |
-| `POST /auth/wallet/login` | Not connected | `AuthPage` | Mobile sends manually entered signature. There is no native wallet connection yet. |
+## Remaining Frontend TODO
 
-### Users
-
-| Backend API | Web | Mobile | Notes |
-| --- | --- | --- | --- |
-| `GET /users/me` | auth guards, admin pages | `LandingPage`, `AuthPage`, `MyPage`, organizer pages | Used broadly for session, role, and profile checks. |
-| `PATCH /users/me` | Exposed only | `OrganizerProfilePage` | Mobile uses it for display-name update. User profile edit screen is not separate. |
-| `GET /users` | `AdminUserManagePage` | Exposed only | Admin web usage is appropriate. |
-| `PATCH /users/{userId}/suspend` | `AdminUserManagePage` | Exposed only | Admin web usage is appropriate. |
-| `PATCH /users/{userId}/activate` | `AdminUserManagePage` | Exposed only | Admin web usage is appropriate. |
-| `PATCH /users/{userId}/delete` | `AdminUserManagePage` | Exposed only | Admin web usage is appropriate. |
-| `PATCH /users/{userId}/validator` | `AdminUserManagePage` | Exposed only | Admin web usage is appropriate. |
-
-### Organizer Applications
-
-| Backend API | Web | Mobile | Notes |
-| --- | --- | --- | --- |
-| `POST /organizer-applications` | Exposed only | `OrganizerDashboardPage` | Mobile organizer application flow is connected. |
-| `GET /organizer-applications/me` | Exposed only | `OrganizerDashboardPage` | Used for showing application state. |
-| `GET /organizer-applications` | `OrganizerApprovalsPage` | Exposed only | Admin web approval flow is connected. |
-| `PATCH /organizer-applications/{applicationId}/review` | `OrganizerApprovalsPage` | Exposed only | Admin web approval/rejection is connected. |
-
-### Events And Tickets
-
-| Backend API | Web | Mobile | Notes |
-| --- | --- | --- | --- |
-| `GET /events` | `UserHomePage` | `UserHomePage`, `EventListPage` | Query/category usage is appropriate. |
-| `GET /events/{eventId}` | user pages | user and organizer pages | Used for event detail and display enrichment. |
-| `GET /events/me` | `MyEventsPage` | `OrganizerDashboardPage`, `MyEventsPage` | Organizer event list is connected. |
-| `POST /events` | `EventCreatePage` | `EventCreatePage` | Organizer event creation is connected. |
-| `PATCH /events/{eventId}` | Exposed only | `EventSettingsPage` | Mobile organizer event edit is connected. |
-| `PATCH /events/{eventId}/status` | `AdminEventsPage` | organizer pages | Used for admin cancellation/flag-related flows and mobile organizer status changes. |
-| `PATCH /events/{eventId}/resale-policy` | Exposed only | `EventSettingsPage` | Mobile organizer policy edit is connected. |
-| `POST /events/{eventId}/image` | Exposed only | Exposed only | No current upload UI; mobile settings use image URL style handling instead. |
-| `POST /events/{eventId}/validators` | Exposed only | `CheckInManagePage` | Mobile organizer check-in validator registration is connected. |
-| `GET /events/{eventId}/validators` | Exposed only | `CheckInManagePage` | Mobile organizer validator list is connected. |
-| `POST /events/{eventId}/tickets` | Exposed only | `TicketIssuePage` | Mobile organizer ticket issue flow is connected. |
-| `GET /events/{eventId}/tickets` | `EventDetailPage` | event, organizer, sales, check-in pages | Used for primary ticket discovery, ticket selection, and organizer dashboards. |
-| `GET /tickets/me` | `MyPage` | `MyTicketsPage` | User ticket list is connected. |
-| `GET /tickets/{ticketId}` | `TicketDetailPage` | purchase/detail/resale/QR pages | Used appropriately; mobile often fetches event separately for display. |
-| `GET /tickets/{ticketId}/validity` | Exposed only | `TicketDetailPage`, `TicketResaleCreatePage` | Used before detail/resale UI. |
-| `GET /wallets/{walletAddress}/tickets` | Not connected | Not connected | No frontend wrapper or screen uses wallet-based ticket lookup yet. |
-| `POST /tickets/{ticketId}/purchase` | `EventDetailPage` ticket selection | `TicketPurchasePage` | Web and mobile now purchase from loaded ticket IDs instead of arbitrary user-entered IDs. |
-
-### Resale And Check-In
-
-| Backend API | Web | Mobile | Notes |
-| --- | --- | --- | --- |
-| `GET /resale-listings` | `ResaleListPage` | `ResaleListPage`, `EventDetailPage` | Connected. Event detail needs event filtering but backend only supports page/size. |
-| `GET /resale-listings/{listingId}` | `ResaleDetailPage` | `ResaleDetailPage` | Web and mobile load listing details before purchase. |
-| `POST /tickets/{ticketId}/resale-listing` | `TicketDetailPage` | `TicketResaleCreatePage` | Connected. Mobile reuses completion page. |
-| `POST /resale-listings/{listingId}/purchase` | `ResaleDetailPage` | `ResaleDetailPage` | Connected. |
-| `PATCH /resale-listings/{listingId}/cancel` | Exposed only | Exposed only | No UI currently cancels a resale listing. |
-| `POST /tickets/{ticketId}/qr` | Exposed only | `TicketQrPage` | Mobile calls it after fetching the check-in message hash, but still uses a development signature placeholder. |
-| `GET /tickets/{ticketId}/check-in-message` | Exposed only | `TicketQrPage` | Mobile now fetches the message hash before QR creation. Real wallet signing is still TODO. |
-| `POST /check-ins` | Exposed only | `CheckInManagePage` | Mobile organizer check-in processing is connected. |
-| `GET /tickets/{ticketId}/check-ins` | Exposed only | `CheckInStatusPage` | Mobile organizer check-in history is connected. |
-| `POST /disputes` | Not connected | Not connected | No frontend dispute creation flow yet. |
-| `GET /disputes/me` | Not connected | Not connected | No user dispute history flow yet. |
-
-### Admin
-
-| Backend API | Web | Mobile | Notes |
-| --- | --- | --- | --- |
-| `GET /admin/dashboard` | `AdminDashboardPage` | Exposed only | Admin web connected. |
-| `GET /admin/blockchain-transactions` | `AdminBlockchainLogPage` | Exposed only | Admin web transaction log connected. |
-| `GET /admin/events` | `AdminEventsPage` | Exposed only | Admin web event supervision connected. |
-| `PATCH /admin/events/{eventId}/flag` | `AdminEventsPage` | Exposed only | Admin web connected. |
-| `PATCH /admin/events/{eventId}/unflag` | `AdminEventsPage` | Exposed only | Admin web connected. |
-| `GET /admin/resale-transactions` | `AdminDisputeTransactionPage` | Exposed only | Admin web connected. |
-| `GET /admin/disputes` | `AdminDisputeTransactionPage`, `DisputesPage` | Exposed only | Admin web connected. |
-| `PATCH /admin/disputes/{disputeId}/review` | `AdminDisputeTransactionPage` | Exposed only | Admin web connected. |
-
-## User Plan API Fit
-
-The planned user flow is mostly connected in the mobile app.
-
-Connected:
-
-- Login/signup: email and manual wallet auth APIs are wired in `mobile/src/pages/AuthPage.tsx`.
-- Main/event list/search/category: `GET /events` is used with `query` and `category`.
-- Event detail: `GET /events/{eventId}` and `GET /events/{eventId}/tickets` are used.
-- Primary purchase: `POST /tickets/{ticketId}/purchase` is used by `TicketPurchasePage`.
-- Web event detail also uses `GET /events/{eventId}/tickets` and purchases from a selected loaded ticket instead of prompting for a raw ticket ID.
-- Purchase complete: reuses returned ticket/listing IDs and routes to ticket detail or ticket list.
-- Resale list/detail/purchase: `GET /resale-listings`, `GET /resale-listings/{listingId}`, and `POST /resale-listings/{listingId}/purchase` are used.
-- My page/ticket list/ticket detail: `GET /users/me`, `GET /tickets/me`, `GET /tickets/{ticketId}`, and `GET /tickets/{ticketId}/validity` are used.
-- Ticket resale registration: `POST /tickets/{ticketId}/resale-listing` is used, then `ResaleRegisterCompletePage` is reused.
-- QR generation now calls `GET /tickets/{ticketId}/check-in-message` before `POST /tickets/{ticketId}/qr`, so the QR request is based on the backend-provided message hash path.
-
-Temporary or incomplete:
-
-- Event-specific resale list: mobile filters `GET /resale-listings` client-side by `eventId`. Backend does not currently accept `eventId` for that endpoint.
-- QR signing: `TicketQrPage` still uses `signature: "mobile-dev-signature"` after fetching the message hash. This placeholder is isolated in `createDevelopmentSignature` and must be replaced by a real wallet signature.
-- Wallet login: mobile uses backend wallet nonce/login endpoints, but the user manually enters wallet address and signature. There is no mobile wallet connector/deep-link flow.
-
-Not connected from the user plan:
-
-- `GET /wallets/{walletAddress}/tickets` has no frontend usage.
-- User dispute creation/history APIs are not wired.
-
-## Blockchain And Wallet Integration
-
-Backend-mediated blockchain:
-
-- Most product flows call backend REST APIs. The backend decides whether to submit real chain transactions or simulated transactions.
-- Frontend purchase/resale/check-in screens do not directly call smart contract write methods in the current UI.
-- Admin blockchain transaction logs are connected through `GET /admin/blockchain-transactions` in `AdminBlockchainLogPage`.
-
-Direct web blockchain utilities:
-
-- `src/lib/blockchain/client.ts` defines ethers-based helpers for read calls, wallet connection, check-in hash signing, and `purchaseTicket`.
-- Current search shows these helpers are not imported by any page. They are available but not wired into active UI flows.
-- The web app can be configured with `VITE_CHAIN_RPC_URL`, `VITE_CHAIN_ID`, and `VITE_TRUST_TICKET_CONTRACT_ADDRESS`.
-
-Mobile blockchain utilities:
-
-- `mobile/src/lib/config.ts` has chain RPC and contract configuration values.
-- There is no mobile blockchain client implementation under `mobile/src` currently.
-- Mobile includes `ethers` as a dependency, but no active mobile screen calls smart contracts directly.
-
-Wallet auth and signatures:
-
-- Mobile wallet login uses `POST /auth/wallet/nonce` and `POST /auth/wallet/login`, but address/signature input is manual.
-- Web wallet login is not connected.
-- QR generation first asks the backend for the check-in message hash, then calls QR creation. Mobile still has a TODO and sends a development placeholder signature instead of a real wallet signature.
-- `CheckInManagePage` can parse a QR payload and send `POST /check-ins`; this is the validator-side processing path, not the owner-side signing path.
-
-## Remaining TODO
-
-- Add backend support for event-scoped resale listing queries, such as `GET /resale-listings?eventId={eventId}`, then remove mobile client-side filtering.
-- Replace mobile QR placeholder signature with a real wallet signature flow.
-- Add mobile wallet connection/deep-link support for nonce login and QR signing.
-- Decide how email-only users should generate QR codes if they do not have a wallet address/signature.
-- Use the `GET /tickets/{ticketId}/check-in-message` hash as the actual input to wallet signing once a wallet connector exists.
-- Decide whether direct frontend blockchain utilities should be used in UI or removed in favor of backend-mediated blockchain only.
-- Keep admin blockchain transaction log as the canonical frontend view for backend-recorded on-chain/simulated actions, and consider adding transaction detail links if real explorers are configured.
-- Add user dispute creation and user dispute history pages if dispute APIs are part of the user scope.
-- Add resale cancel UI for sellers.
-- Consider enriching ticket/resale response DTOs or adding frontend batching to reduce repeated event/ticket detail fetches.
-- Add image upload UI if `POST /events/{eventId}/image` should be used from frontend instead of URL-only handling.
-- Add smoke tests for mobile user purchase, resale purchase, resale registration, and QR generation once fixtures are available.
+- Decide whether `src/lib/blockchain/client.ts` should remain as future admin tooling or be removed if backend-mediated blockchain is the only supported web path.
+- Keep `src/lib/backend.ts` broad for now; prune only after confirming no admin page or future admin task depends on the method.
+- Add admin explorer links for real blockchain transactions once network/explorer config exists.
+- Continue mobile-only TODOs in `frontend/mobile`: event-scoped resale API, wallet connector, QR signing, and user/organizer smoke tests.
 
 ## Run
 
-Web:
+Web admin:
 
 ```bash
 cd frontend
@@ -309,22 +161,12 @@ npm install
 npm run dev
 ```
 
-Mobile web:
+Mobile app:
 
 ```bash
 cd frontend/mobile
 npm install
 npx expo start --web
-```
-
-Mobile native:
-
-```bash
-cd frontend/mobile
-npm install
-npm run android
-# or
-npm run ios
 ```
 
 Backend:

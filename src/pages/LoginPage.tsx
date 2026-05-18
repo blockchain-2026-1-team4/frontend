@@ -25,14 +25,10 @@ function buildLoginError(cause: unknown) {
   const serverMessage = getServerMessage(cause);
 
   if (status === 401 || status === 403) {
-    return serverMessage || "이메일 또는 비밀번호가 올바르지 않습니다.";
+    return serverMessage || "Email or password is invalid.";
   }
 
-  if (serverMessage) {
-    return serverMessage;
-  }
-
-  return "로그인에 실패했습니다. 잠시 후 다시 시도하세요.";
+  return serverMessage || "Admin login failed. Please try again.";
 }
 
 export function LoginPage() {
@@ -50,10 +46,9 @@ export function LoginPage() {
       await backendApi.loginEmail({ email, password });
       navigate(await requireAdminPath(), { replace: true });
     } catch (cause) {
-      const message = cause instanceof Error && cause.message.includes("ADMIN 계정") ? cause.message : buildLoginError(cause);
-      if (message.includes("ADMIN 계정")) {
-        window.alert(message);
-      }
+      const message = cause instanceof Error && cause.message.includes("ADMIN account")
+        ? cause.message
+        : buildLoginError(cause);
       setError(message);
     } finally {
       setSubmitting(false);
@@ -62,17 +57,18 @@ export function LoginPage() {
 
   return (
     <section className="panel">
-      <h2>로그인</h2>
+      <h2>Admin Login</h2>
+      <p className="lead">Sign in with an administrator account to use the web console.</p>
       <form className="form" onSubmit={onSubmit}>
-        <input value={email} onChange={(event) => setEmail(event.target.value)} placeholder="이메일" />
+        <input value={email} onChange={(event) => setEmail(event.target.value)} placeholder="Email" />
         <input
           type="password"
           value={password}
           onChange={(event) => setPassword(event.target.value)}
-          placeholder="비밀번호"
+          placeholder="Password"
         />
         <button className="button primary" disabled={submitting} type="submit">
-          {submitting ? "확인 중..." : "로그인"}
+          {submitting ? "Checking..." : "Log in"}
         </button>
       </form>
       {error ? <p className="error">{error}</p> : null}

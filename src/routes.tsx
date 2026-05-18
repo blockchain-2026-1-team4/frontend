@@ -3,24 +3,12 @@ import { Layout } from "./components/Layout";
 import { RequireAdmin } from "./components/RequireAdmin";
 import { LandingPage } from "./pages/LandingPage";
 import { LoginPage } from "./pages/LoginPage";
-import { RegisterPage } from "./pages/RegisterPage";
-import {
-  AdminBlockchainLogPage,
-  AdminDashboardPage,
-  AdminDisputeTransactionPage,
-  AdminEventManagePage,
-  AdminUserManagePage,
-  EventCreatePage,
-  EventDetailPage,
-  MyTicketListPage,
-  OrganizerDashboardPage,
-  OrganizerEventListPage,
-  OrganizerApprovalPage,
-  ResaleDetailPage,
-  ResaleListPage,
-  TicketDetailPage,
-  UserHomePage,
-} from "./pages/portalPages";
+import { AdminBlockchainLogPage } from "./pages/admin/AdminBlockchainLogPage";
+import { AdminDashboardPage } from "./pages/admin/AdminDashboardPage";
+import { AdminDisputeTransactionPage } from "./pages/admin/AdminDisputeTransactionPage";
+import { AdminEventsPage } from "./pages/admin/AdminEventsPage";
+import { AdminUserManagePage } from "./pages/admin/AdminUserManagePage";
+import { OrganizerApprovalsPage } from "./pages/admin/OrganizerApprovalsPage";
 
 export const appRoutes: RouteObject[] = [
   {
@@ -29,37 +17,13 @@ export const appRoutes: RouteObject[] = [
     children: [
       { index: true, element: <LandingPage /> },
       { path: "login", element: <LoginPage /> },
-      { path: "register", element: <RegisterPage /> },
-      {
-        path: "app",
-        children: [
-          { index: true, element: <UserHomePage /> },
-          { path: "events", element: <UserHomePage /> },
-          { path: "events/:eventId", element: <EventDetailPage /> },
-          { path: "resale", element: <ResaleListPage /> },
-          { path: "resale/:listingId", element: <ResaleDetailPage /> },
-          { path: "me", element: <MyTicketListPage /> },
-          { path: "tickets", element: <MyTicketListPage /> },
-          { path: "tickets/:ticketId", element: <TicketDetailPage /> },
-        ],
-      },
-      {
-        path: "organizer",
-        children: [
-          { index: true, element: <OrganizerDashboardPage /> },
-          { path: "events", element: <OrganizerEventListPage /> },
-          { path: "events/new", element: <EventCreatePage /> },
-          { path: "me", element: <OrganizerDashboardPage /> },
-          { path: "start", element: <OrganizerDashboardPage /> },
-        ],
-      },
       {
         path: "admin",
         element: <RequireAdmin />,
         children: [
           { index: true, element: <AdminDashboardPage /> },
-          { path: "organizer-approvals", element: <OrganizerApprovalPage /> },
-          { path: "events", element: <AdminEventManagePage /> },
+          { path: "organizer-approvals", element: <OrganizerApprovalsPage /> },
+          { path: "events", element: <AdminEventsPage /> },
           { path: "users", element: <AdminUserManagePage /> },
           { path: "disputes", element: <AdminDisputeTransactionPage /> },
           { path: "blockchain", element: <AdminBlockchainLogPage /> },
