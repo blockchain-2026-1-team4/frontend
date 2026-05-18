@@ -6,15 +6,15 @@ import type { BlockchainTransactionRecord } from "../../types/api";
 type StatusFilter = "ALL" | "SIMULATED" | "SUBMITTED" | "FAILED";
 
 const STATUS_LABEL: Record<string, string> = {
-  SIMULATED: "시뮬레이션 기록",
-  SUBMITTED: "체인 제출됨",
+  SIMULATED: "시뮬레이션",
+  SUBMITTED: "제출 완료",
   FAILED: "실패",
 };
 
 const ACTION_LABEL: Record<string, string> = {
-  addOrganizer: "주최자 온체인 등록",
-  addValidator: "전역 체크인 검증자 등록",
-  addEventValidator: "이벤트 체크인 검증자 등록",
+  addOrganizer: "주최자 체인 등록",
+  addValidator: "전역 검증자 등록",
+  addEventValidator: "이벤트 검증자 등록",
   createEvent: "이벤트 생성",
   setEventStatus: "이벤트 활성 상태 변경",
   mintTicket: "티켓 발행",
@@ -22,7 +22,7 @@ const ACTION_LABEL: Record<string, string> = {
   listTicket: "리셀 등록",
   purchaseResaleTicket: "리셀 구매",
   cancelListing: "리셀 등록 취소",
-  useTicket: "입장 처리",
+  useTicket: "체크인 처리",
 };
 
 function getHttpStatus(cause: unknown) {
@@ -134,8 +134,8 @@ export function AdminBlockchainLogPage() {
 
   const filterTabs: { label: string; value: StatusFilter }[] = [
     { label: "전체", value: "ALL" },
-    { label: "시뮬레이션 기록", value: "SIMULATED" },
-    { label: "체인 제출됨", value: "SUBMITTED" },
+    { label: "시뮬레이션", value: "SIMULATED" },
+    { label: "제출 완료", value: "SUBMITTED" },
     { label: "실패", value: "FAILED" },
   ];
 
@@ -189,15 +189,15 @@ export function AdminBlockchainLogPage() {
           <div className="bc-title">
             <p className="eyebrow">블록체인 로그</p>
             <h2>트랜잭션 모니터링</h2>
-            <p className="desc">백엔드가 기록한 온체인 제출 또는 시뮬레이션 액션을 확인합니다.</p>
+            <p className="desc">서버가 기록한 체인 제출 또는 시뮬레이션 작업을 확인합니다.</p>
           </div>
           <div className="bc-metrics">
             <article className="bc-metric">
-              <span>시뮬레이션 기록</span>
+              <span>시뮬레이션</span>
               <strong>{simulatedCount}</strong>
             </article>
             <article className="bc-metric">
-              <span>체인 제출됨</span>
+              <span>제출 완료</span>
               <strong>{submittedCount}</strong>
             </article>
             <article className="bc-metric">
@@ -211,7 +211,7 @@ export function AdminBlockchainLogPage() {
           <summary>상태 도움말</summary>
           <div>
             <span><strong>SIMULATED</strong>: 실제 전송 없이 기록</span>
-            <span><strong>SUBMITTED</strong>: 체인 제출 및 해시 수신</span>
+            <span><strong>SUBMITTED</strong>: 체인 제출 후 해시 수신</span>
             <span><strong>FAILED</strong>: 제출 또는 기록 실패</span>
           </div>
         </details>
@@ -239,7 +239,7 @@ export function AdminBlockchainLogPage() {
               ))}
             </div>
             <form className="bc-search" onSubmit={onSearch}>
-              <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="액션, 해시, 컨트랙트 검색" />
+              <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="작업, 해시, 컨트랙트 검색" />
               <button type="submit">검색</button>
             </form>
           </div>
@@ -249,7 +249,7 @@ export function AdminBlockchainLogPage() {
               <thead>
                 <tr>
                   <th>로그 ID</th>
-                  <th>액션</th>
+                  <th>작업</th>
                   <th>트랜잭션 해시</th>
                   <th>컨트랙트</th>
                   <th>상태</th>

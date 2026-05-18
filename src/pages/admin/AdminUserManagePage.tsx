@@ -133,10 +133,10 @@ export function AdminUserManagePage() {
 
   async function runAction(userId: string, action: "suspend" | "activate" | "delete" | "validator") {
     const confirmMessages: Record<typeof action, string> = {
-      suspend: "이 사용자를 정지하시겠습니까?",
-      activate: "이 사용자를 활성화하시겠습니까?",
-      delete: "이 사용자를 삭제 처리하시겠습니까?",
-      validator: "이 사용자에게 전역 검증자 권한을 부여하시겠습니까?",
+      suspend: "이 사용자를 정지할까요?",
+      activate: "이 사용자를 다시 활성화할까요?",
+      delete: "이 사용자를 삭제 처리할까요?",
+      validator: "이 사용자에게 전역 검증자 권한을 부여할까요?",
     };
 
     if (!window.confirm(confirmMessages[action])) {
@@ -152,7 +152,7 @@ export function AdminUserManagePage() {
       }
       if (action === "activate") {
         await backendApi.activateUser(userId);
-        setActionMessage("사용자를 활성화했습니다.");
+        setActionMessage("사용자를 다시 활성화했습니다.");
       }
       if (action === "delete") {
         await backendApi.deleteUser(userId);
@@ -366,7 +366,7 @@ export function AdminUserManagePage() {
                                   onClick={() => void runAction(user.id, "activate")}
                                   type="button"
                                 >
-                                  활성화
+                                  다시 활성화하기
                                 </button>
                               ) : (
                                 <button
@@ -375,7 +375,7 @@ export function AdminUserManagePage() {
                                   onClick={() => void runAction(user.id, "suspend")}
                                   type="button"
                                 >
-                                  정지
+                                  정지하기
                                 </button>
                               )}
                               <button
@@ -384,7 +384,7 @@ export function AdminUserManagePage() {
                                 onClick={() => void runAction(user.id, "validator")}
                                 type="button"
                               >
-                                {hasValidatorRole ? "검증자 해제" : "검증자 부여"}
+                                {hasValidatorRole ? "검증자 부여됨" : "검증자 부여하기"}
                               </button>
                               <button
                                 className="user-action-btn danger"
@@ -392,7 +392,7 @@ export function AdminUserManagePage() {
                                 onClick={() => void runAction(user.id, "delete")}
                                 type="button"
                               >
-                                삭제
+                                삭제하기
                               </button>
                             </div>
                           </td>

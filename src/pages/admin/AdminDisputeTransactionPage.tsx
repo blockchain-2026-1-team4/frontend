@@ -11,15 +11,15 @@ const PAGE_SIZE = 20;
 
 const DISPUTE_STATUS_LABEL: Record<string, string> = {
   OPEN: "접수",
-  REVIEWING: "검토중",
+  REVIEWING: "검토 중",
   RESOLVED: "해결",
   REJECTED: "반려",
 };
 
 const RESALE_STATUS_LABEL: Record<string, string> = {
-  ACTIVE: "판매중",
-  SOLD: "거래완료",
-  CANCELED: "취소",
+  ACTIVE: "판매 중",
+  SOLD: "거래 완료",
+  CANCELED: "취소됨",
 };
 
 const DISPUTE_TYPE_LABEL: Record<string, string> = {
@@ -195,7 +195,7 @@ export function AdminDisputeTransactionPage() {
       return;
     }
 
-    if (!window.confirm(`분쟁 상태를 ${DISPUTE_STATUS_LABEL[status]}로 변경하시겠습니까?`)) {
+    if (!window.confirm(`분쟁을 ${DISPUTE_STATUS_LABEL[status]} 상태로 변경할까요?`)) {
       return;
     }
 
@@ -206,7 +206,7 @@ export function AdminDisputeTransactionPage() {
         status,
         resolutionNote: reviewNote.trim() || null,
       });
-      setMessage(`분쟁 상태를 ${DISPUTE_STATUS_LABEL[status]}로 변경했습니다.`);
+      setMessage(`분쟁을 ${DISPUTE_STATUS_LABEL[status]} 상태로 변경했습니다.`);
       await load();
     } catch (cause) {
       setError(buildError(cause));
@@ -223,16 +223,16 @@ export function AdminDisputeTransactionPage() {
   const disputeTabs: { label: string; value: DisputeStatusFilter }[] = [
     { label: "전체", value: "ALL" },
     { label: "접수", value: "OPEN" },
-    { label: "검토중", value: "REVIEWING" },
+    { label: "검토 중", value: "REVIEWING" },
     { label: "해결", value: "RESOLVED" },
     { label: "반려", value: "REJECTED" },
   ];
 
   const transactionTabs: { label: string; value: ResaleStatusFilter }[] = [
     { label: "전체", value: "ALL" },
-    { label: "판매중", value: "ACTIVE" },
-    { label: "거래완료", value: "SOLD" },
-    { label: "취소", value: "CANCELED" },
+    { label: "판매 중", value: "ACTIVE" },
+    { label: "거래 완료", value: "SOLD" },
+    { label: "취소됨", value: "CANCELED" },
   ];
 
   return (
@@ -303,7 +303,7 @@ export function AdminDisputeTransactionPage() {
           </div>
           <div className="dt-metrics">
             <article className="dt-metric">
-              <span>대기 분쟁</span>
+              <span>처리 대기</span>
               <strong>{pendingCount}</strong>
             </article>
             <article className="dt-metric">
@@ -311,7 +311,7 @@ export function AdminDisputeTransactionPage() {
               <strong>{soldCount}</strong>
             </article>
             <article className="dt-metric">
-              <span>조회 거래</span>
+              <span>조회된 거래</span>
               <strong>{filteredTransactions.length}</strong>
             </article>
           </div>
@@ -330,7 +330,7 @@ export function AdminDisputeTransactionPage() {
         <div className="dt-workspace">
           <section className="dt-panel">
             <div className="dt-panel-head">
-              <h3>분쟁 큐</h3>
+              <h3>분쟁 목록</h3>
               <div className="dt-tabs">
                 {disputeTabs.map((tab) => (
                   <button
@@ -419,7 +419,7 @@ export function AdminDisputeTransactionPage() {
                   </div>
                 </div>
 
-                <div className="dt-description">{selectedDispute.description || "분쟁 설명이 없습니다."}</div>
+                <div className="dt-description">{selectedDispute.description || "등록된 분쟁 설명이 없습니다."}</div>
 
                 <div className="dt-grid">
                   <div className="dt-field">
@@ -440,7 +440,7 @@ export function AdminDisputeTransactionPage() {
                   />
                   <div className="dt-review-actions">
                     <button disabled={reviewingId === selectedDispute.id} onClick={() => void review("REVIEWING")} type="button">
-                      검토중
+                      검토 중으로 변경
                     </button>
                     <button
                       className="primary"
@@ -448,7 +448,7 @@ export function AdminDisputeTransactionPage() {
                       onClick={() => void review("RESOLVED")}
                       type="button"
                     >
-                      해결 처리
+                      해결하기
                     </button>
                     <button
                       className="danger"
@@ -456,13 +456,13 @@ export function AdminDisputeTransactionPage() {
                       onClick={() => void review("REJECTED")}
                       type="button"
                     >
-                      반려
+                      반려하기
                     </button>
                   </div>
                 </div>
               </div>
             ) : (
-              <div className="dt-empty">선택된 분쟁이 없습니다.</div>
+              <div className="dt-empty">선택한 분쟁이 없습니다.</div>
             )}
           </section>
         </div>

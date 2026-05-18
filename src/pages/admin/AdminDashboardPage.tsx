@@ -86,7 +86,7 @@ export function AdminDashboardPage() {
       to: "/admin/organizer-approvals",
     },
     {
-      label: "검토 표시 이벤트",
+      label: "검토 이벤트",
       value: flaggedEventCount,
       hint: "운영자 확인 필요",
       to: "/admin/events",
@@ -94,7 +94,7 @@ export function AdminDashboardPage() {
     {
       label: "미처리 분쟁",
       value: openDisputeCount,
-      hint: "접수/검토중",
+      hint: "접수/검토 중",
       to: "/admin/disputes",
     },
   ];

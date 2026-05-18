@@ -9,7 +9,7 @@ type FlaggedFilter = "ALL" | "FLAGGED" | "NORMAL";
 const PAGE_SIZE = 20;
 
 const STATUS_LABEL: Record<string, string> = {
-  ACTIVE: "진행중",
+  ACTIVE: "진행 중",
   INACTIVE: "비활성",
   CANCELED: "취소됨",
   FLAGGED: "검토",
@@ -121,7 +121,7 @@ export function AdminEventsPage() {
   }, [items, query]);
 
   async function handleFlag(eventId: string, currentlyFlagged: boolean) {
-    const message = currentlyFlagged ? "검토 상태를 해제할까요?" : "이 이벤트를 검토 대상으로 등록할까요?";
+    const message = currentlyFlagged ? "이 이벤트의 검토 상태를 해제할까요?" : "이 이벤트를 검토 대상으로 지정할까요?";
     if (!window.confirm(message)) {
       return;
     }
@@ -134,7 +134,7 @@ export function AdminEventsPage() {
         setActionMessage("이벤트 검토 상태를 해제했습니다.");
       } else {
         await backendApi.flagAdminEvent(eventId);
-        setActionMessage("이벤트를 검토 대상으로 등록했습니다.");
+        setActionMessage("이벤트를 검토 대상으로 지정했습니다.");
       }
       await load();
     } catch (cause) {
@@ -154,7 +154,7 @@ export function AdminEventsPage() {
     setError(null);
     try {
       await backendApi.updateEventStatus(eventId, { status: "CANCELED" });
-      setActionMessage("이벤트를 취소 처리했습니다.");
+      setActionMessage("이벤트를 취소했습니다.");
       await load();
     } catch (cause) {
       setError(buildError(cause));
@@ -173,7 +173,7 @@ export function AdminEventsPage() {
     setError(null);
     try {
       await backendApi.updateEventStatus(eventId, { status: "ACTIVE" });
-      setActionMessage("이벤트를 활성 상태로 복구했습니다.");
+      setActionMessage("이벤트를 다시 활성화했습니다.");
       await load();
     } catch (cause) {
       setError(buildError(cause));
@@ -191,7 +191,7 @@ export function AdminEventsPage() {
 
   const filterTabs: { label: string; value: FilterStatus }[] = [
     { label: "전체", value: "ALL" },
-    { label: "진행중", value: "ACTIVE" },
+    { label: "진행 중", value: "ACTIVE" },
     { label: "비활성", value: "INACTIVE" },
     { label: "취소됨", value: "CANCELED" },
   ];
@@ -272,7 +272,7 @@ export function AdminEventsPage() {
           </div>
 
           <div className="ae-help">
-            <span><strong>검토</strong>: 운영자가 다시 확인해야 하는 이벤트입니다. 판매 상태는 그대로 유지됩니다.</span>
+            <span><strong>검토</strong>: 운영자가 다시 확인해야 하는 이벤트입니다. 판매 상태는 바뀌지 않습니다.</span>
             <span><strong>취소</strong>: 티켓 구매, 리셀, 체크인이 중단됩니다. 관리자만 다시 활성화할 수 있습니다.</span>
           </div>
 
@@ -387,7 +387,7 @@ export function AdminEventsPage() {
                                   onClick={() => void handleFlag(event.id, true)}
                                   type="button"
                                 >
-                                  {flaggingId === event.id ? "해제중..." : "검토 해제하기"}
+                                  {flaggingId === event.id ? "해제 중..." : "검토 해제하기"}
                                 </button>
                               ) : (
                                 <button
@@ -396,7 +396,7 @@ export function AdminEventsPage() {
                                   onClick={() => void handleFlag(event.id, false)}
                                   type="button"
                                 >
-                                  {flaggingId === event.id ? "검토중..." : "검토하기"}
+                                  {flaggingId === event.id ? "검토 중..." : "검토하기"}
                                 </button>
                               )}
                               <button
@@ -405,7 +405,7 @@ export function AdminEventsPage() {
                                 onClick={() => void handleCancel(event.id)}
                                 type="button"
                               >
-                                {cancelingId === event.id ? "취소중..." : event.status === "CANCELED" ? "취소됨" : "취소하기"}
+                                {cancelingId === event.id ? "취소 중..." : event.status === "CANCELED" ? "취소됨" : "취소하기"}
                               </button>
                               {isCanceled ? (
                                 <button
@@ -414,7 +414,7 @@ export function AdminEventsPage() {
                                   onClick={() => void handleRestore(event.id)}
                                   type="button"
                                 >
-                                  {restoringId === event.id ? "활성화중..." : "다시 활성화"}
+                                  {restoringId === event.id ? "활성화 중..." : "다시 활성화하기"}
                                 </button>
                               ) : null}
                             </div>
