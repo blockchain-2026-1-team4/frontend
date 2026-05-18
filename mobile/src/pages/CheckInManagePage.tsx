@@ -19,6 +19,16 @@ function normalizeExpiresAt(value?: string | number) {
   return String(value);
 }
 
+function checkInResultMessage(error: unknown) {
+  const message = errorMessage(error, '입장 처리에 실패했습니다.');
+  if (message.includes('이미 사용')) return '이미 체크인된 티켓입니다.';
+  if (message.includes('검증자 권한') || message.includes('FORBIDDEN') || message.includes('권한')) {
+    return '체크인 권한이 없습니다. 전역 체크인 검증자이거나 이 이벤트의 검증자로 등록된 계정이어야 합니다.';
+  }
+  if (message.includes('서명') || message.includes('유효하지')) return 'QR 서명 또는 티켓 상태가 유효하지 않습니다.';
+  return message;
+}
+
 export default function CheckInManagePage({ navigation, route }: any) {
   const eventId = route?.params?.eventId as string;
   const scannedPayload = route?.params?.scannedPayload as string | undefined;
@@ -125,7 +135,7 @@ export default function CheckInManagePage({ navigation, route }: any) {
       setFeedback({ type: 'success', message: '입장 처리가 완료되었습니다.' });
       setMemo('');
     } catch (error: any) {
-      const message = errorMessage(error, '입장 처리에 실패했습니다.');
+      const message = checkInResultMessage(error);
       setFeedback({ type: 'error', message });
       Alert.alert('입장 처리 실패', message);
     } finally {
@@ -141,7 +151,7 @@ export default function CheckInManagePage({ navigation, route }: any) {
     >
       <Text style={styles.eyebrow}>Check-in Manage</Text>
       <Text style={styles.title}>체크인 관리</Text>
-      <Text style={styles.subtitle}>QR payload를 붙여넣거나 수동 입력해서 입장 처리를 진행합니다.</Text>
+      <Text style={styles.subtitle}>전역 체크인 검증자 또는 이 이벤트의 검증자로 등록된 계정이 QR payload를 스캔/입력해 입장 처리를 진행합니다.</Text>
 
       {feedback ? (
         <View style={[styles.messageBox, feedback.type === 'error' ? styles.errorBox : styles.infoBox]}>
@@ -180,6 +190,7 @@ export default function CheckInManagePage({ navigation, route }: any) {
 
       <View style={styles.card}>
         <Text style={styles.cardTitle}>검증자 관리</Text>
+        <Text style={styles.cardText}>전역 체크인 검증자는 모든 이벤트를 검증할 수 있고, 이벤트별 검증자는 이 이벤트에 대해서만 체크인할 수 있습니다.</Text>
         <TextInput style={styles.input} value={validatorId} onChangeText={setValidatorId} placeholder="검증자 사용자 UUID" autoCapitalize="none" />
         <TouchableOpacity style={[styles.secondaryButton, saving && styles.disabledButton]} disabled={saving} onPress={addValidator}>
           <Text style={styles.secondaryButtonText}>{saving ? '등록 중...' : '검증자 등록'}</Text>

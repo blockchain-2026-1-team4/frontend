@@ -114,6 +114,12 @@ export default function EventSettingsPage({ route }: any) {
 
   const saveStatus = async (nextStatus: string) => {
     if (!event) return;
+    if (event.adminCanceled && nextStatus !== 'CANCELED') {
+      const message = '관리자가 취소한 이벤트는 주최자 앱에서 복구할 수 없습니다. 관리자에게 복구를 요청해 주세요.';
+      setFeedback(message);
+      Alert.alert('복구 권한 없음', message);
+      return;
+    }
     setSaving(true);
     setFeedback(null);
     try {
@@ -183,6 +189,9 @@ export default function EventSettingsPage({ route }: any) {
 
       <View style={styles.card}>
         <Text style={styles.cardTitle}>이벤트 상태</Text>
+        {event?.adminCanceled ? (
+          <Text style={styles.warningText}>관리자가 취소한 이벤트입니다. 주최자는 재활성화할 수 없고, 관리자 웹에서만 복구할 수 있습니다.</Text>
+        ) : null}
         <View style={styles.statusGrid}>
           {[
             { value: 'ACTIVE', label: '활성' },
@@ -192,7 +201,7 @@ export default function EventSettingsPage({ route }: any) {
             <TouchableOpacity
               key={item.value}
               style={[styles.statusChip, status === item.value && styles.activeStatusChip]}
-              disabled={saving}
+              disabled={saving || (event?.adminCanceled === true && item.value !== 'CANCELED')}
               onPress={() => saveStatus(item.value)}
             >
               <Text style={[styles.statusChipText, status === item.value && styles.activeStatusChipText]}>{item.label}</Text>
@@ -214,6 +223,7 @@ const styles = StyleSheet.create({
   messageText: { color: '#1D4ED8', fontWeight: '800' },
   card: { marginTop: 16, backgroundColor: '#FFFFFF', borderRadius: 18, padding: 16, borderWidth: 1, borderColor: '#E2E8F0' },
   cardTitle: { color: '#0F172A', fontSize: 17, fontWeight: '900' },
+  warningText: { marginTop: 10, color: '#B91C1C', fontSize: 13, fontWeight: '800', lineHeight: 19 },
   label: { marginTop: 12, marginBottom: 6, color: '#334155', fontSize: 13, fontWeight: '800' },
   input: { borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 12, padding: 12, backgroundColor: '#FFFFFF', color: '#0F172A' },
   textArea: { minHeight: 100, textAlignVertical: 'top' },

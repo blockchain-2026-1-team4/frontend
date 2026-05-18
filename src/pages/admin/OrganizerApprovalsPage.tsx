@@ -152,6 +152,7 @@ export function OrganizerApprovalsPage() {
         .oa-header { background: var(--panel); border: 1px solid var(--border); border-radius: 20px; padding: 1.15rem 1.3rem; box-shadow: var(--shadow); display: flex; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
         .oa-title .eyebrow { margin: 0; }
         .oa-title h2 { margin: 0.15rem 0 0; font-size: 1.45rem; }
+        .oa-title p.desc { margin: 0.45rem 0 0; color: var(--txt-sub); font-size: 0.9rem; line-height: 1.55; }
         .oa-metrics { display: grid; grid-template-columns: repeat(3, minmax(110px, 1fr)); gap: 0.6rem; min-width: 360px; }
         .oa-metric { border: 1px solid var(--border); border-radius: 14px; background: #f8fafc; padding: 0.7rem 0.85rem; }
         .oa-metric span { display: block; color: var(--txt-sub); font-size: 0.78rem; font-weight: 700; }
@@ -195,6 +196,7 @@ export function OrganizerApprovalsPage() {
           <div className="oa-title">
             <p className="eyebrow">주최자 승인</p>
             <h2>주최자 신청 심사</h2>
+            <p className="desc">주최자 권한 신청을 승인하거나 거절하고 심사 현황을 확인합니다.</p>
           </div>
           <div className="oa-metrics">
             <article className="oa-metric">

@@ -59,6 +59,12 @@ export default function ResaleDetailPage({ route, navigation }: any) {
       <TouchableOpacity style={[styles.button, submitting && styles.disabled]} disabled={submitting || listing.status !== 'ACTIVE'} onPress={purchase}>
         <Text style={styles.buttonText}>{submitting ? '구매 처리 중...' : '리셀 티켓 구매하기'}</Text>
       </TouchableOpacity>
+      <TouchableOpacity
+        style={styles.secondaryButton}
+        onPress={() => navigation.navigate('DisputeCreate', { resaleListingId: listing.id ?? listing.listingId, ticketId: listing.ticketId })}
+      >
+        <Text style={styles.secondaryButtonText}>이 리셀 거래 분쟁 신고</Text>
+      </TouchableOpacity>
     </ScrollView>
   );
 }
@@ -84,6 +90,8 @@ const styles = StyleSheet.create({
   infoLabel: { color: '#868E96', fontSize: 12, fontWeight: '800', marginBottom: 4 },
   infoValue: { color: '#212529', fontWeight: '900' },
   button: { backgroundColor: '#007AFF', padding: 18, borderRadius: 12, alignItems: 'center', marginTop: 8 },
+  secondaryButton: { borderWidth: 1, borderColor: '#007AFF', padding: 18, borderRadius: 12, alignItems: 'center', marginTop: 12 },
+  secondaryButtonText: { color: '#007AFF', fontSize: 16, fontWeight: '900' },
   disabled: { opacity: 0.55 },
   buttonText: { color: '#fff', fontSize: 17, fontWeight: '900' },
 });

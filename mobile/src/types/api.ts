@@ -69,6 +69,7 @@ export type EventSummary = {
   resaleStart?: string;
   resaleEnd?: string;
   flagged?: boolean;
+  adminCanceled?: boolean;
   createdAt?: string;
   updatedAt?: string;
   status: string;
@@ -146,9 +147,13 @@ export type DisputeRecord = {
   type?: string;
   description?: string;
   resolutionNote?: string;
+  resaleListingId?: string;
+  ticketId?: string;
   reporterId?: string;
   reviewedBy?: string;
   reviewedAt?: string;
+  createdAt?: string;
+  updatedAt?: string;
   [key: string]: unknown;
 };
 

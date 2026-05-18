@@ -30,6 +30,7 @@ export default function MyPage({ navigation }: any) {
 
   const menuItems = [
     { id: 'tickets', label: '내 티켓 목록', screen: 'MyTickets' },
+    { id: 'disputes', label: '내 분쟁 신고', screen: 'MyDisputes' },
     { id: 'resale', label: '리셀 티켓 둘러보기', screen: 'ResaleList' },
     { id: 'home', label: '이벤트 메인으로 이동', screen: 'Main' },
   ];

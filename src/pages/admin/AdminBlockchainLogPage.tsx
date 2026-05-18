@@ -146,6 +146,7 @@ export function AdminBlockchainLogPage() {
         .bc-header { background: var(--panel); border: 1px solid var(--border); border-radius: 20px; padding: 1.15rem 1.3rem; box-shadow: var(--shadow); display: flex; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
         .bc-title .eyebrow { margin: 0; }
         .bc-title h2 { margin: 0.15rem 0 0; font-size: 1.45rem; }
+        .bc-title p.desc { margin: 0.45rem 0 0; color: var(--txt-sub); font-size: 0.9rem; line-height: 1.55; }
         .bc-metrics { display: grid; grid-template-columns: repeat(3, minmax(120px, 1fr)); gap: 0.6rem; min-width: 380px; }
         .bc-metric { border: 1px solid var(--border); border-radius: 14px; background: #f8fafc; padding: 0.7rem 0.85rem; }
         .bc-metric span { display: block; color: var(--txt-sub); font-size: 0.78rem; font-weight: 800; }
@@ -187,6 +188,7 @@ export function AdminBlockchainLogPage() {
           <div className="bc-title">
             <p className="eyebrow">블록체인 로그</p>
             <h2>트랜잭션 모니터링</h2>
+            <p className="desc">백엔드가 기록한 온체인 제출 또는 시뮬레이션 액션을 최근 순서로 확인합니다.</p>
           </div>
           <div className="bc-metrics">
             <article className="bc-metric">

@@ -56,6 +56,10 @@ export default function TicketDetailPage({ route, navigation }: any) {
           <Text style={styles.secondaryButtonText}>티켓 판매 등록</Text>
         </TouchableOpacity>
       ) : null}
+
+      <TouchableOpacity style={styles.secondaryButton} onPress={() => navigation.navigate('DisputeCreate', { ticketId: ticket.id ?? ticket.ticketId })}>
+        <Text style={styles.secondaryButtonText}>이 티켓 분쟁 신고</Text>
+      </TouchableOpacity>
     </ScrollView>
   );
 }

@@ -140,6 +140,14 @@ export const backendApi = {
     return unwrap<ResaleListing>(http.post(`/tickets/${ticketId}/resale-listing`, { priceWei: price }));
   },
 
+  async createDispute(payload: { resaleListingId?: string | null; ticketId?: string | null; type: string; description: string }) {
+    return unwrap<DisputeRecord>(http.post("/disputes", payload));
+  },
+
+  async getMyDisputes(params?: { page?: number; size?: number }) {
+    return unwrap<PageResult<DisputeRecord>>(http.get("/disputes/me", { params }));
+  },
+
   async createTicketQr(ticketId: string, payload: { claimedOwner: string; expiresAt: string; signature: string }) {
     return unwrap<TicketQr>(http.post(`/tickets/${ticketId}/qr`, payload));
   },

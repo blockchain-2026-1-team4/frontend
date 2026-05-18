@@ -193,6 +193,7 @@ export function AdminUserManagePage() {
         .user-title-group { display: grid; gap: 0.2rem; }
         .user-title-group .eyebrow { margin: 0; }
         .user-title-group h2 { margin: 0; font-size: 1.4rem; }
+        .user-title-group p.desc { margin: 0.25rem 0 0; color: var(--txt-sub); font-size: 0.9rem; line-height: 1.55; }
         .user-search-form { display: flex; gap: 0.5rem; align-items: center; }
         .user-search-input { border-radius: 10px; border: 1px solid var(--border-strong); padding: 0.5rem 0.75rem; font-size: 0.9rem; width: 260px; color: var(--txt-main); background: #fff; }
         .user-search-input::placeholder { color: #8a97a8; }
@@ -242,6 +243,7 @@ export function AdminUserManagePage() {
             <div className="user-title-group">
               <p className="eyebrow">사용자 관리</p>
               <h2>회원 계정 관리</h2>
+              <p className="desc">회원 상태를 정지/활성/삭제 처리하고 전역 체크인 검증자 권한을 부여합니다.</p>
             </div>
             <form className="user-search-form" onSubmit={onSearch}>
               <input

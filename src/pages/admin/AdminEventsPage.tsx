@@ -5,6 +5,7 @@ import { backendApi } from "../../lib/backend";
 import type { EventDetail } from "../../types/api";
 
 type FilterStatus = "ALL" | "ACTIVE" | "INACTIVE" | "CANCELED";
+type FlaggedFilter = "ALL" | "FLAGGED" | "NORMAL";
 const PAGE_SIZE = 20;
 
 const STATUS_LABEL: Record<string, string> = {
@@ -56,12 +57,14 @@ export function AdminEventsPage() {
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
   const [filterStatus, setFilterStatus] = useState<FilterStatus>("ALL");
+  const [flaggedFilter, setFlaggedFilter] = useState<FlaggedFilter>("ALL");
   const [page, setPage] = useState(0);
   const [totalElements, setTotalElements] = useState<number | undefined>();
   const [totalPages, setTotalPages] = useState<number | undefined>();
   const [hasNext, setHasNext] = useState(false);
   const [flaggingId, setFlaggingId] = useState<string | null>(null);
   const [cancelingId, setCancelingId] = useState<string | null>(null);
+  const [restoringId, setRestoringId] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -82,6 +85,7 @@ export function AdminEventsPage() {
         size: PAGE_SIZE,
         query: query || undefined,
         status: filterStatus !== "ALL" ? filterStatus : undefined,
+        flagged: flaggedFilter === "ALL" ? undefined : flaggedFilter === "FLAGGED",
       });
       setItems(sortCanceledLast(data.items ?? []));
       setTotalElements(data.totalElements);
@@ -102,7 +106,7 @@ export function AdminEventsPage() {
 
   useEffect(() => {
     void load();
-  }, [filterStatus, page]);
+  }, [filterStatus, flaggedFilter, page]);
 
   const visibleItems = useMemo(() => {
     const keyword = query.trim().toLowerCase();
@@ -162,6 +166,25 @@ export function AdminEventsPage() {
     }
   }
 
+  async function handleRestore(eventId: string) {
+    if (!window.confirm("취소된 이벤트를 다시 활성화하시겠습니까? 관리자 복구는 adminCanceled 표시를 해제하고 상태를 ACTIVE로 되돌립니다.")) {
+      return;
+    }
+
+    setRestoringId(eventId);
+    setError(null);
+    try {
+      await backendApi.updateEventStatus(eventId, { status: "ACTIVE" });
+      setActionMessage("이벤트를 활성 상태로 복구했습니다.");
+      await load();
+    } catch (cause) {
+      setError(buildError(cause));
+    } finally {
+      setRestoringId(null);
+      window.setTimeout(() => setActionMessage(null), 3000);
+    }
+  }
+
   function handleSearch(event: FormEvent) {
     event.preventDefault();
     setPage(0);
@@ -175,6 +198,12 @@ export function AdminEventsPage() {
     { label: "취소됨", value: "CANCELED" },
   ];
 
+  const flaggedTabs: { label: string; value: FlaggedFilter }[] = [
+    { label: "전체", value: "ALL" },
+    { label: "검토 표시됨", value: "FLAGGED" },
+    { label: "정상", value: "NORMAL" },
+  ];
+
   const showEmpty = hasLoaded && visibleItems.length === 0 && !loading;
 
   return (
@@ -185,10 +214,13 @@ export function AdminEventsPage() {
         .ae-toprow { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
         .ae-title .eyebrow { margin: 0; }
         .ae-title h2 { margin: 0.15rem 0 0; font-size: 1.4rem; }
+        .ae-title p.desc { margin: 0.45rem 0 0; color: var(--txt-sub); font-size: 0.9rem; line-height: 1.55; }
         .ae-search { display: flex; gap: 0.5rem; align-items: center; }
         .ae-search input { border-radius: 10px; border: 1px solid var(--border-strong); padding: 0.5rem 0.75rem; font-size: 0.9rem; width: 240px; color: var(--txt-main); background: #fff; }
         .ae-search button { border: 1px solid var(--border); background: var(--panel); color: var(--txt-main); border-radius: 10px; padding: 0.5rem 0.85rem; cursor: pointer; font-size: 0.9rem; font-weight: 700; }
-        .ae-tabs { display: flex; gap: 0.4rem; margin-top: 1rem; flex-wrap: wrap; }
+        .ae-filter-row { display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; margin-top: 1rem; }
+        .ae-filter-label { color: var(--txt-sub); font-size: 0.78rem; font-weight: 800; }
+        .ae-tabs { display: flex; gap: 0.4rem; flex-wrap: wrap; }
         .ae-tab { border: 1px solid var(--border); background: var(--panel-soft); color: var(--txt-sub); border-radius: 999px; padding: 0.38rem 0.9rem; font-size: 0.83rem; font-weight: 700; cursor: pointer; }
         .ae-tab.active { background: #e8f1ff; border-color: #cfe0ff; color: var(--accent-2); }
         .ae-toast { background: #e8f5e9; border: 1px solid #a5d6a7; color: #2e7d32; border-radius: 10px; padding: 0.65rem 1rem; font-size: 0.88rem; font-weight: 700; margin-top: 0.75rem; }
@@ -212,10 +244,12 @@ export function AdminEventsPage() {
         .ae-status.inactive { background: #f3f3f3; color: #555; }
         .ae-status.canceled { background: #fff3e0; color: #e65100; }
         .ae-status.flagged { background: #fce4ec; color: #c62828; }
+        .ae-status.admin-canceled { background: #fee2e2; color: #991b1b; }
         .ae-dot { width: 7px; height: 7px; border-radius: 50%; background: #ef5350; margin-right: 5px; }
         .ae-tickets { text-align: right; font-variant-numeric: tabular-nums; }
         .ae-tickets span { color: var(--txt-sub); font-size: 0.82rem; }
         .ae-action { border: 1px solid #ffcdd2; background: #fff5f5; color: #c62828; border-radius: 8px; padding: 0.4rem 0.72rem; font-size: 0.8rem; font-weight: 800; cursor: pointer; }
+        .ae-action.primary { border-color: #cfe0ff; background: #e8f1ff; color: var(--accent-2); }
         .ae-action.neutral { border-color: var(--border); background: var(--panel-soft); color: var(--txt-sub); }
         .ae-action.danger { border-color: #ffb4b4; background: #fff1f1; color: #b91c1c; }
         .ae-action:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -229,6 +263,7 @@ export function AdminEventsPage() {
             <div className="ae-title">
               <p className="eyebrow">이벤트 관리</p>
               <h2>이벤트 감독</h2>
+              <p className="desc">이벤트 상태를 확인하고 검토 표시, 관리자 취소, 관리자 복구를 처리합니다.</p>
             </div>
             <form className="ae-search" onSubmit={handleSearch}>
               <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="이벤트명 또는 주최자 검색" />
@@ -240,20 +275,39 @@ export function AdminEventsPage() {
             <strong>검토 표시</strong>는 운영자가 나중에 확인할 이벤트를 표시하는 메모성 플래그입니다. <strong>취소</strong>는 이벤트 상태를 CANCELED로 바꾸며 티켓 구매/리셀/체크인을 막는 위험 작업입니다.
           </div>
 
-          <div className="ae-tabs">
-            {filterTabs.map((tab) => (
-              <button
-                key={tab.value}
-                className={`ae-tab${filterStatus === tab.value ? " active" : ""}`}
-                onClick={() => {
-                  setPage(0);
-                  setFilterStatus(tab.value);
-                }}
-                type="button"
-              >
-                {tab.label}
-              </button>
-            ))}
+          <div className="ae-filter-row">
+            <span className="ae-filter-label">상태</span>
+            <div className="ae-tabs">
+              {filterTabs.map((tab) => (
+                <button
+                  key={tab.value}
+                  className={`ae-tab${filterStatus === tab.value ? " active" : ""}`}
+                  onClick={() => {
+                    setPage(0);
+                    setFilterStatus(tab.value);
+                  }}
+                  type="button"
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+            <span className="ae-filter-label">검토 표시</span>
+            <div className="ae-tabs">
+              {flaggedTabs.map((tab) => (
+                <button
+                  key={tab.value}
+                  className={`ae-tab${flaggedFilter === tab.value ? " active" : ""}`}
+                  onClick={() => {
+                    setPage(0);
+                    setFlaggedFilter(tab.value);
+                  }}
+                  type="button"
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
           </div>
 
           {actionMessage ? <div className="ae-toast">{actionMessage}</div> : null}
@@ -299,6 +353,8 @@ export function AdminEventsPage() {
                     visibleItems.map((event) => {
                       const isFlagged = event.flagged === true || event.status === "FLAGGED";
                       const status = isFlagged ? "FLAGGED" : event.status ?? "ACTIVE";
+                      const isCanceled = event.status === "CANCELED";
+                      const statusLabel = event.adminCanceled && isCanceled ? "관리자 취소" : STATUS_LABEL[status] ?? status;
                       return (
                         <tr key={event.id}>
                           <td className="ae-id">#{shortId(event.id)}</td>
@@ -312,9 +368,9 @@ export function AdminEventsPage() {
                             <span> / {event.totalTicketCount ?? "-"}</span>
                           </td>
                           <td>
-                            <span className={`ae-status ${status.toLowerCase()}`}>
+                            <span className={`ae-status ${event.adminCanceled && isCanceled ? "admin-canceled" : status.toLowerCase()}`}>
                               {isFlagged ? <span className="ae-dot" /> : null}
-                              {STATUS_LABEL[status] ?? status}
+                              {statusLabel}
                             </span>
                           </td>
                           <td>
@@ -346,6 +402,16 @@ export function AdminEventsPage() {
                               >
                                 {cancelingId === event.id ? "취소중..." : event.status === "CANCELED" ? "취소됨" : "취소"}
                               </button>
+                              {isCanceled ? (
+                                <button
+                                  className="ae-action primary"
+                                  disabled={restoringId === event.id}
+                                  onClick={() => void handleRestore(event.id)}
+                                  type="button"
+                                >
+                                  {restoringId === event.id ? "복구중..." : "복구"}
+                                </button>
+                              ) : null}
                             </div>
                           </td>
                         </tr>

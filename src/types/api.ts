@@ -77,6 +77,7 @@ export type EventDetail = EventSummary & {
   organizerId?: string;
   organizerName?: string;
   flagged?: boolean;
+  adminCanceled?: boolean;
   totalTicketCount?: number;
   soldTicketCount?: number;
   remainingTicketCount?: number;

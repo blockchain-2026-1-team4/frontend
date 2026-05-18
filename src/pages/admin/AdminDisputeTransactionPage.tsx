@@ -242,6 +242,7 @@ export function AdminDisputeTransactionPage() {
         .dt-header { background: var(--panel); border: 1px solid var(--border); border-radius: 20px; padding: 1.15rem 1.3rem; box-shadow: var(--shadow); display: flex; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
         .dt-title h2 { margin: 0.15rem 0 0; font-size: 1.45rem; }
         .dt-title .eyebrow { margin: 0; }
+        .dt-title p.desc { margin: 0.45rem 0 0; color: var(--txt-sub); font-size: 0.9rem; line-height: 1.55; }
         .dt-metrics { display: grid; grid-template-columns: repeat(3, minmax(120px, 1fr)); gap: 0.6rem; min-width: 380px; }
         .dt-metric { border: 1px solid var(--border); border-radius: 14px; padding: 0.7rem 0.85rem; background: #f8fafc; }
         .dt-metric span { display: block; color: var(--txt-sub); font-size: 0.78rem; font-weight: 700; }
@@ -300,6 +301,7 @@ export function AdminDisputeTransactionPage() {
           <div className="dt-title">
             <p className="eyebrow">분쟁/거래 센터</p>
             <h2>리셀 거래와 분쟁 처리</h2>
+            <p className="desc">접수된 사용자 분쟁을 검토하고 완료/취소된 리셀 거래 내역을 모니터링합니다.</p>
           </div>
           <div className="dt-metrics">
             <article className="dt-metric">

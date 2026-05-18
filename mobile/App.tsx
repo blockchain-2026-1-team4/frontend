@@ -31,6 +31,8 @@ import CheckInStatusPage from './src/pages/CheckInStatusPage';
 import EventSettingsPage from './src/pages/EventSettingsPage';
 import CheckInManagePage from './src/pages/CheckInManagePage';
 import CheckInScanPage from './src/pages/CheckInScanPage';
+import DisputeCreatePage from './src/pages/DisputeCreatePage';
+import MyDisputesPage from './src/pages/MyDisputesPage';
 
 const Stack = createStackNavigator();
 
@@ -55,6 +57,8 @@ export default function App() {
           <Stack.Screen name="TicketQr" component={TicketQrPage} options={{ title: 'QR 보기' }} />
           <Stack.Screen name="TicketResaleCreate" component={TicketResaleCreatePage} options={{ title: '판매 등록' }} />
           <Stack.Screen name="ResaleRegisterComplete" component={ResaleRegisterCompletePage} options={{ title: '판매 등록 완료' }} />
+          <Stack.Screen name="DisputeCreate" component={DisputeCreatePage} options={{ title: '분쟁 신고' }} />
+          <Stack.Screen name="MyDisputes" component={MyDisputesPage} options={{ title: '내 분쟁 신고' }} />
 
           <Stack.Screen name="Organizer" component={OrganizerDashboardPage} options={{ title: '주최자 센터' }} />
           <Stack.Screen name="EventCreate" component={EventCreatePage} options={{ title: '이벤트 등록' }} />
