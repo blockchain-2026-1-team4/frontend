@@ -8,6 +8,7 @@ import type {
   OrganizerApplication,
   PageResult,
   ResaleListing,
+  TicketQr,
   TicketDetail,
   UserAdminRecord,
   UserProfile,
@@ -107,7 +108,7 @@ export const backendApi = {
     return unwrap<TicketDetail>(http.post(`/tickets/${ticketId}/purchase`));
   },
 
-  async getResaleListings(params?: { eventId?: string }) {
+  async getResaleListings(params?: { page?: number; size?: number }) {
     return unwrap<PageResult<ResaleListing>>(http.get("/resale-listings", { params }));
   },
 
@@ -139,8 +140,8 @@ export const backendApi = {
     return unwrap<ResaleListing>(http.post(`/tickets/${ticketId}/resale-listing`, { priceWei: price }));
   },
 
-  async createTicketQr(ticketId: string, payload: Record<string, unknown>) {
-    return unwrap<Record<string, unknown>>(http.post(`/tickets/${ticketId}/qr`, payload));
+  async createTicketQr(ticketId: string, payload: { claimedOwner: string; expiresAt: string; signature: string }) {
+    return unwrap<TicketQr>(http.post(`/tickets/${ticketId}/qr`, payload));
   },
 
   async checkIn(payload: Record<string, unknown>) {

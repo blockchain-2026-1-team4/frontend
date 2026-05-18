@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Alert, Platform } from 'react-native';
+import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { backendApi } from '../lib/backend';
 import { clearAccessToken } from '../lib/auth';
 import type { UserProfile } from '../types/api';
@@ -9,56 +9,49 @@ export default function MyPage({ navigation }: any) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    const loadProfile = async () => {
+      try {
+        setProfile(await backendApi.getMe());
+      } catch (error) {
+        console.error(error);
+      } finally {
+        setLoading(false);
+      }
+    };
     loadProfile();
   }, []);
-
-  const loadProfile = async () => {
-    try {
-      const data = await backendApi.getMe();
-      setProfile(data);
-    } catch (error) {
-      console.error(error);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleLogout = async () => {
     await clearAccessToken();
     navigation.replace('Landing');
   };
 
+  if (loading) return <View style={styles.center}><ActivityIndicator size="large" color="#007AFF" /></View>;
+
   const menuItems = [
-    { id: 'tickets', label: '내 티켓 관리', icon: '🎟️', screen: 'MyTickets' },
-    { id: 'resale', label: '내 리셀 판매 내역', icon: '🔄', screen: 'ResaleList' },
-    { id: 'organizer', label: '주최자 신청 / 관리', icon: '🏢', screen: 'Organizer' },
+    { id: 'tickets', label: '내 티켓 목록', screen: 'MyTickets' },
+    { id: 'resale', label: '리셀 티켓 둘러보기', screen: 'ResaleList' },
+    { id: 'home', label: '이벤트 메인으로 이동', screen: 'Main' },
   ];
 
   return (
     <ScrollView style={styles.container}>
-      {/* Profile Section */}
       <View style={styles.profileHeader}>
         <View style={styles.avatarPlaceholder}>
           <Text style={styles.avatarText}>{profile?.displayName?.[0] || 'U'}</Text>
         </View>
         <Text style={styles.userName}>{profile?.displayName || '사용자'}</Text>
-        <Text style={styles.userEmail}>{profile?.email}</Text>
+        <Text style={styles.userEmail}>{profile?.email || profile?.walletAddress || '-'}</Text>
         <View style={styles.roleBadge}>
-          <Text style={styles.roleText}>{profile?.roles?.join(', ')}</Text>
+          <Text style={styles.roleText}>{profile?.roles?.join(', ') || 'USER'}</Text>
         </View>
       </View>
 
-      {/* Menu List */}
       <View style={styles.menuSection}>
         {menuItems.map((item) => (
-          <TouchableOpacity 
-            key={item.id} 
-            style={styles.menuItem}
-            onPress={() => navigation.navigate(item.screen)}
-          >
-            <Text style={styles.menuIcon}>{item.icon}</Text>
+          <TouchableOpacity key={item.id} style={styles.menuItem} onPress={() => navigation.navigate(item.screen)}>
             <Text style={styles.menuLabel}>{item.label}</Text>
-            <Text style={styles.arrow}>〉</Text>
+            <Text style={styles.arrow}>›</Text>
           </TouchableOpacity>
         ))}
       </View>
@@ -72,6 +65,7 @@ export default function MyPage({ navigation }: any) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8F9FA' },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   profileHeader: { backgroundColor: '#fff', padding: 30, alignItems: 'center', borderBottomWidth: 1, borderBottomColor: '#eee' },
   avatarPlaceholder: { width: 80, height: 80, borderRadius: 40, backgroundColor: '#007AFF', justifyContent: 'center', alignItems: 'center', marginBottom: 15 },
   avatarText: { color: '#fff', fontSize: 32, fontWeight: 'bold' },
@@ -81,9 +75,8 @@ const styles = StyleSheet.create({
   roleText: { color: '#007AFF', fontSize: 12, fontWeight: 'bold' },
   menuSection: { marginTop: 20, backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: '#eee' },
   menuItem: { flexDirection: 'row', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderBottomColor: '#eee' },
-  menuIcon: { fontSize: 20, marginRight: 15 },
-  menuLabel: { flex: 1, fontSize: 16, color: '#495057' },
-  arrow: { color: '#ADB5BD', fontSize: 18 },
+  menuLabel: { flex: 1, fontSize: 16, color: '#495057', fontWeight: '700' },
+  arrow: { color: '#ADB5BD', fontSize: 24 },
   logoutButton: { marginTop: 40, marginHorizontal: 20, padding: 15, borderRadius: 10, alignItems: 'center', borderWidth: 1, borderColor: '#FA5252' },
   logoutText: { color: '#FA5252', fontWeight: 'bold' },
 });

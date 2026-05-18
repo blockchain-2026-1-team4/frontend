@@ -114,6 +114,15 @@ export type TicketDetail = {
   qrImageUrl?: string;
 };
 
+export type TicketQr = {
+  ticketId: string;
+  contractTokenId: string;
+  payload: string;
+  qrPngBase64: string;
+  barcodeText: string;
+  expiresAt: string;
+};
+
 export type OrganizerApplication = {
   id?: string;
   userId?: string;
@@ -166,12 +175,19 @@ export type CheckInRecord = {
 };
 
 export type ResaleListing = {
-  listingId: string;
-  ticketId: number;
+  id?: string;
+  listingId?: string;
+  ticketId: number | string;
   eventId: string;
-  eventName: string;
-  seatInfo: string;
-  price: string;
+  eventName?: string;
+  seatInfo?: string;
+  price?: string;
+  priceWei?: string;
   sellerDisplayName?: string;
+  sellerId?: string;
+  buyerId?: string;
   status: string;
+  purchasedAt?: string;
+  createdAt?: string;
+  updatedAt?: string;
 };
