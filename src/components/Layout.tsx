@@ -2,12 +2,12 @@ import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-do
 import { clearAccessToken } from "../lib/auth";
 
 const adminLinks = [
-  { to: "/admin", label: "Dashboard", end: true },
-  { to: "/admin/organizer-approvals", label: "Organizer Approvals" },
-  { to: "/admin/events", label: "Event Supervision" },
-  { to: "/admin/users", label: "User Management" },
-  { to: "/admin/disputes", label: "Disputes / Transactions" },
-  { to: "/admin/blockchain", label: "Blockchain Logs" },
+  { to: "/admin", label: "관리자 대시보드", end: true },
+  { to: "/admin/organizer-approvals", label: "주최자 승인" },
+  { to: "/admin/events", label: "이벤트 감독" },
+  { to: "/admin/users", label: "사용자 관리" },
+  { to: "/admin/disputes", label: "분쟁/거래 센터" },
+  { to: "/admin/blockchain", label: "블록체인 로그" },
 ];
 
 export function Layout() {
@@ -25,9 +25,9 @@ export function Layout() {
       <div className="admin-shell">
         <aside className="admin-sidebar">
           <Link className="brand brand-admin" to="/admin">
-            TRUST TICKET ADMIN
+            TRUST TICKET
           </Link>
-          <div className="sidebar-title">Menu</div>
+          <div className="sidebar-title">메뉴</div>
           <nav className="sidebar-nav">
             {adminLinks.map((item) => (
               <NavLink
@@ -45,11 +45,11 @@ export function Layout() {
         <div className="admin-main">
           <header className="admin-topbar">
             <div>
-              <p className="eyebrow">Admin Console</p>
-              <h1>Trust Ticket Operations</h1>
+              <p className="eyebrow">관리자 웹 포털</p>
+              <h1>관리자 대시보드</h1>
             </div>
             <button className="button" onClick={handleLogout} type="button">
-              Log out
+              로그아웃
             </button>
           </header>
 
@@ -65,7 +65,7 @@ export function Layout() {
     <div className="app-shell">
       <header className="topbar">
         <Link className="brand" to="/">
-          TRUST TICKET ADMIN
+          TRUST TICKET
         </Link>
       </header>
 

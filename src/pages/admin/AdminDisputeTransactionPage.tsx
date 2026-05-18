@@ -519,7 +519,7 @@ export function AdminDisputeTransactionPage() {
                         <td className="dt-mono">#{formatId(id)}</td>
                         <td>
                           <strong>#{formatId(item.ticketId)}</strong>
-                          <p className="dt-sub">event #{formatId(item.eventId)}</p>
+                          <p className="dt-sub">이벤트 #{formatId(item.eventId)}</p>
                         </td>
                         <td className="dt-mono">#{formatId(item.sellerId)}</td>
                         <td className="dt-mono">#{formatId(item.buyerId)}</td>
