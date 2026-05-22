@@ -222,6 +222,11 @@ VITE_TRUST_TICKET_CONTRACT_ADDRESS=
 Mobile uses `frontend/mobile/.env`.
 
 ```text
+EXPO_PUBLIC_WEB_API_BASE_URL=http://localhost:8080/api/v1
+# Optional for Expo Go on a physical phone if automatic PC IP detection fails.
+# Replace the IP with your PC Wi-Fi/LAN IPv4 address.
+# EXPO_PUBLIC_MOBILE_API_BASE_URL=http://192.168.0.10:8080/api/v1
+EXPO_PUBLIC_API_PORT=8080
 EXPO_PUBLIC_API_BASE_URL=http://localhost:8080/api/v1
 EXPO_PUBLIC_CHAIN_RPC_URL=http://localhost:8545
 EXPO_PUBLIC_CHAIN_ID=31337
