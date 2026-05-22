@@ -106,6 +106,13 @@ export default function AuthPage({ navigation, route }: any) {
   };
 
   const handleWalletLogin = async () => {
+    if (!isLogin && !displayName.trim()) {
+      const message = '이름을 입력해 주세요.';
+      setFeedback({ type: 'error', message });
+      Alert.alert('입력 필요', message);
+      return;
+    }
+
     if (!walletAddress.trim() || !walletNonce.trim() || !walletSignature.trim()) {
       const message = '지갑 주소, nonce, 서명값이 모두 필요합니다.';
       setFeedback({ type: 'error', message });
@@ -121,7 +128,9 @@ export default function AuthPage({ navigation, route }: any) {
         nonce: walletNonce.trim(),
         signature: walletSignature.trim(),
       });
-      const profile = result.user ?? await backendApi.getMe();
+      const profile = !isLogin && displayName.trim()
+        ? await backendApi.updateMe({ displayName: displayName.trim() })
+        : result.user ?? await backendApi.getMe();
       const statusMessage = accountStatusMessage(profile.status);
       if (statusMessage) {
         setFeedback({ type: 'error', message: statusMessage });
@@ -164,6 +173,17 @@ export default function AuthPage({ navigation, route }: any) {
 
           {walletMode ? (
             <>
+              {!isLogin ? (
+                <>
+                  <Text style={styles.walletSignupHelp}>지갑으로 새 계정을 만들려면 이름과 지갑 서명이 필요합니다.</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="이름"
+                    value={displayName}
+                    onChangeText={setDisplayName}
+                  />
+                </>
+              ) : null}
               <TextInput
                 style={styles.input}
                 placeholder="지갑 주소"
@@ -268,6 +288,7 @@ const styles = StyleSheet.create({
   errorText: { color: '#DC2626' },
   successText: { color: '#047857' },
   input: { backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#CBD5E1', padding: 15, borderRadius: 12, fontSize: 16 },
+  walletSignupHelp: { color: '#64748B', fontSize: 13, fontWeight: '700', lineHeight: 19 },
   walletMessageBox: { backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 12, padding: 12 },
   walletMessageLabel: { color: '#2563EB', fontSize: 12, fontWeight: '900', marginBottom: 6 },
   walletMessageText: { color: '#334155', fontSize: 12, lineHeight: 18 },
