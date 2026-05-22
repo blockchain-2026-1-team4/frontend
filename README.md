@@ -125,8 +125,15 @@ The backend requires PostgreSQL first. The Docker Compose file is in `backend/do
 
 ```bash
 cd ../backend
-docker compose up -d
+docker compose up -d postgres
 ./gradlew bootRun
+```
+
+Optional local EVM chain:
+
+```bash
+cd ../backend
+docker compose --profile chain up -d anvil
 ```
 
 Reset local development data:
@@ -134,7 +141,7 @@ Reset local development data:
 ```bash
 cd ../backend
 docker compose down -v
-docker compose up -d
+docker compose up -d postgres
 ```
 
 Run the admin web console:
@@ -150,8 +157,55 @@ Run the mobile app on web:
 ```bash
 cd frontend/mobile
 npm install
-npm run web
+npx expo start --web --port 8081
 ```
+
+`npm run web -- --port 8081` is equivalent because the mobile package script runs `expo start --web`.
+
+## Local Test URLs
+
+Backend:
+
+- API base: `http://localhost:8080/api/v1`
+- Swagger UI: `http://localhost:8080/swagger-ui`
+- OpenAPI JSON: `http://localhost:8080/v3/api-docs`
+- Health: `http://localhost:8080/actuator/health`
+
+Frontend:
+
+- Admin web: `http://localhost:5173`
+- Admin login: `http://localhost:5173/login`
+- Admin dashboard: `http://localhost:5173/admin`
+- Mobile web: `http://localhost:8081`
+
+## Local Test Account And Flow
+
+The backend creates only one local development admin account on startup. There is no seeded user, event, ticket, or resale data beyond this account.
+
+```text
+Admin email: dev-admin@local.test
+Admin password: Admin1234!
+Roles: USER, ORGANIZER, ADMIN, VALIDATOR
+```
+
+Use this account in the admin web console for organizer approvals, user management, event supervision, disputes, and blockchain logs.
+
+For user/mobile testing:
+
+1. Start the backend, admin web, and mobile web.
+2. Open `http://localhost:8081`.
+3. Create a new user from the mobile app with email/password or wallet login.
+4. After signup/login, the user-side screens are available from the mobile app.
+5. Purchase, resale, QR, and ticket-detail flows need event and ticket data, so create/issue those through an approved organizer account first.
+
+For organizer testing:
+
+1. Create or log in as a normal user in the mobile app.
+2. Enter the organizer flow and submit an organizer application.
+3. Log in to the admin web with `dev-admin@local.test / Admin1234!`.
+4. Approve the organizer application under `/admin/organizer-approvals`.
+5. Log out and log back in on the mobile app so the JWT includes the new `ORGANIZER` role.
+6. The organizer can then create events, issue tickets, manage sales, check-in, and event settings from the mobile app.
 
 ## Environment Variables
 
