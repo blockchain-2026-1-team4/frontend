@@ -17,7 +17,7 @@ type EthereumProvider = {
   request: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
 };
 
-type WalletStep = 'idle' | 'connected' | 'signing' | 'signed';
+type WalletStep = 'idle' | 'connecting' | 'signing' | 'signed';
 
 function getEthereumProvider() {
   if (Platform.OS !== 'web') return null;
@@ -29,6 +29,20 @@ function getEthereumProvider() {
 }
 
 function walletClientMessage(error: any, fallback: string) {
+  if (error?.code === 4001) {
+    return '지갑 요청이 거절되었습니다. MetaMask에서 연결 또는 서명을 승인해야 계속할 수 있습니다.';
+  }
+  if (error?.code === -32002) {
+    return 'MetaMask에서 이미 처리 중인 요청이 있습니다. 지갑 창을 열어 요청을 완료해 주세요.';
+  }
+  const rawMessage = typeof error?.message === 'string' ? error.message : '';
+  const lowerMessage = rawMessage.toLowerCase();
+  if (lowerMessage.includes('locked') || lowerMessage.includes('unlock')) {
+    return 'MetaMask가 잠겨 있습니다. 지갑 잠금을 해제한 뒤 다시 시도해 주세요.';
+  }
+  if (lowerMessage.includes('rejected') || lowerMessage.includes('denied')) {
+    return '지갑 요청이 거절되었습니다. 연결 또는 서명을 승인해야 계속할 수 있습니다.';
+  }
   return typeof error?.message === 'string' && error.message.trim() ? error.message : fallback;
 }
 
@@ -104,6 +118,7 @@ export default function AuthPage({ navigation, route }: any) {
       throw new Error('브라우저 지갑을 찾을 수 없습니다. MetaMask 등 Web3 지갑을 설치하거나 지갑 내 브라우저에서 접속해 주세요.');
     }
 
+    setWalletStep('connecting');
     const accounts = await provider.request({ method: 'eth_requestAccounts' });
     const [address] = Array.isArray(accounts) ? accounts.filter((item): item is string => typeof item === 'string') : [];
     if (!address) {
@@ -111,23 +126,7 @@ export default function AuthPage({ navigation, route }: any) {
     }
 
     setWalletAddress(address);
-    setWalletStep('connected');
     return { provider, address };
-  };
-
-  const handleConnectWallet = async () => {
-    setLoading(true);
-    setFeedback(null);
-    try {
-      await connectInjectedWallet();
-      setFeedback({ type: 'success', message: '지갑이 연결되었습니다. 이제 지갑에서 서명을 승인해 주세요.' });
-    } catch (error: any) {
-      const message = walletClientMessage(error, '지갑 연결에 실패했습니다.');
-      setFeedback({ type: 'error', message });
-      Alert.alert('지갑 연결 실패', message);
-    } finally {
-      setLoading(false);
-    }
   };
 
   const handleWalletLogin = async () => {
@@ -141,13 +140,7 @@ export default function AuthPage({ navigation, route }: any) {
     setLoading(true);
     setFeedback(null);
     try {
-      const connection = walletAddress.trim()
-        ? { provider: getEthereumProvider(), address: walletAddress.trim() }
-        : await connectInjectedWallet();
-      if (!connection.provider) {
-        throw new Error('브라우저 지갑을 찾을 수 없습니다. MetaMask 등 Web3 지갑을 설치하거나 지갑 내 브라우저에서 접속해 주세요.');
-      }
-
+      const connection = await connectInjectedWallet();
       const nonce = await backendApi.issueWalletNonce({ walletAddress: connection.address });
       setWalletAddress(nonce.walletAddress);
       setWalletMessage(nonce.message);
@@ -179,7 +172,9 @@ export default function AuthPage({ navigation, route }: any) {
       }
       navigation.replace(routeForEntry(profile, initialRole));
     } catch (error: any) {
-      const message = errorMessage(error, '지갑 로그인에 실패했습니다.');
+      const message = error?.response
+        ? errorMessage(error, '지갑 로그인에 실패했습니다.')
+        : walletClientMessage(error, '지갑 인증에 실패했습니다.');
       setFeedback({ type: 'error', message });
       Alert.alert(isLogin ? '지갑 로그인 실패' : '지갑 회원가입 실패', message);
     } finally {
@@ -239,16 +234,13 @@ export default function AuthPage({ navigation, route }: any) {
               {walletStep !== 'idle' ? (
                 <View style={styles.walletStatusBox}>
                   <Text style={styles.walletStatusText}>
-                    {walletStep === 'connected' ? '지갑 연결 완료' : walletStep === 'signing' ? '지갑 서명 승인 대기 중' : '서명 완료'}
+                    {walletStep === 'connecting' ? '지갑 연결 요청 중' : walletStep === 'signing' ? '지갑 서명 승인 대기 중' : '인증 완료'}
                   </Text>
                 </View>
               ) : null}
-              <TouchableOpacity style={[styles.secondaryAction, loading && styles.disabledButton]} disabled={loading} onPress={handleConnectWallet}>
-                <Text style={styles.secondaryActionText}>{loading ? '처리 중...' : '지갑 연결'}</Text>
-              </TouchableOpacity>
               <TouchableOpacity style={[styles.primaryButton, loading && styles.disabledButton]} disabled={loading} onPress={handleWalletLogin}>
                 <Text style={styles.primaryButtonText}>
-                  {loading ? '처리 중...' : isLogin ? '지갑 서명 요청 및 로그인' : '지갑 회원가입'}
+                  {loading ? '처리 중...' : isLogin ? '지갑으로 로그인' : '지갑으로 회원가입'}
                 </Text>
               </TouchableOpacity>
             </>
