@@ -1,3 +1,4 @@
+import { createEVMClient, type Hex, type MetamaskConnectEVM } from '@metamask/connect-evm';
 import React, { useMemo, useState } from 'react';
 import {
   Alert,
@@ -13,6 +14,7 @@ import {
 } from 'react-native';
 import { accountStatusMessage, errorMessage, routeForEntry } from '../lib/account';
 import { backendApi } from '../lib/backend';
+import { config } from '../lib/config';
 
 type EthereumProvider = {
   request: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
@@ -21,10 +23,10 @@ type EthereumProvider = {
 type WalletStep = 'idle' | 'connecting' | 'signing' | 'signed';
 
 const METAMASK_MOBILE_LINK = 'https://metamask.app.link/';
-const NATIVE_WALLET_UNAVAILABLE_MESSAGE =
-  'Expo Go에서는 브라우저 지갑(window.ethereum)이 없어 MetaMask 연결/서명 팝업을 받을 수 없습니다. 모바일 지갑 인증은 MetaMask Connect 또는 WalletConnect가 포함된 개발 빌드/EAS에서 테스트해 주세요. MetaMask 앱이 설치되어 있지 않다면 먼저 설치해 주세요.';
 const NATIVE_WALLET_HELP =
-  '모바일 앱에서는 MetaMask 앱과 연결해야 합니다. Expo Go는 지갑 승인 후 앱으로 돌아오는 연결 세션을 처리할 수 없어 개발 빌드가 필요합니다.';
+  '버튼을 누르면 MetaMask 앱으로 이동합니다. 연결과 서명을 승인한 뒤 앱으로 돌아오면 인증이 이어집니다.';
+
+let metamaskConnectClientPromise: Promise<MetamaskConnectEVM> | null = null;
 
 function getEthereumProvider() {
   if (Platform.OS !== 'web') return null;
@@ -50,7 +52,54 @@ function walletClientMessage(error: any, fallback: string) {
   if (lowerMessage.includes('rejected') || lowerMessage.includes('denied')) {
     return '지갑 요청이 거절되었습니다. 연결 또는 서명을 승인해야 계속할 수 있습니다.';
   }
+  if (lowerMessage.includes('unable to open url') || lowerMessage.includes('no activity found')) {
+    return 'MetaMask 앱을 실행할 수 없습니다. MetaMask 앱이 설치되어 있는지 확인해 주세요.';
+  }
+  if (lowerMessage.includes('timeout') || lowerMessage.includes('expired')) {
+    return 'MetaMask 승인 시간이 만료되었습니다. 다시 시도해 주세요.';
+  }
   return typeof error?.message === 'string' && error.message.trim() ? error.message : fallback;
+}
+
+function chainIdToHex(chainId: number): Hex {
+  const safeChainId = Number.isFinite(chainId) && chainId > 0 ? chainId : 1;
+  return `0x${safeChainId.toString(16)}` as Hex;
+}
+
+function openMetaMaskLink(deeplink: string) {
+  void Linking.openURL(deeplink).catch(() => {
+    void Linking.openURL(METAMASK_MOBILE_LINK).catch(() => {
+      Alert.alert('MetaMask 실행 실패', 'MetaMask 앱을 설치한 뒤 다시 시도해 주세요.');
+    });
+  });
+}
+
+function getMetaMaskConnectClient() {
+  if (!metamaskConnectClientPromise) {
+    const chainId = chainIdToHex(config.chainId);
+
+    metamaskConnectClientPromise = createEVMClient({
+      dapp: {
+        name: config.dappName,
+        url: config.dappUrl,
+      },
+      api: {
+        supportedNetworks: {
+          [chainId]: config.chainRpcUrl,
+        } as Record<Hex, string>,
+      },
+      ui: {
+        preferExtension: Platform.OS === 'web',
+        showInstallModal: Platform.OS === 'web',
+      },
+      mobile: {
+        useDeeplink: true,
+        preferredOpenLink: openMetaMaskLink,
+      },
+    });
+  }
+
+  return metamaskConnectClientPromise;
 }
 
 function showWalletAlert(title: string, message: string) {
@@ -139,10 +188,6 @@ export default function AuthPage({ navigation, route }: any) {
   };
 
   const connectInjectedWallet = async () => {
-    if (Platform.OS !== 'web') {
-      throw new Error(NATIVE_WALLET_UNAVAILABLE_MESSAGE);
-    }
-
     const provider = getEthereumProvider();
     if (!provider) {
       throw new Error('브라우저 지갑을 찾을 수 없습니다. MetaMask 등 Web3 지갑을 설치하거나 지갑 내 브라우저에서 접속해 주세요.');
@@ -159,6 +204,29 @@ export default function AuthPage({ navigation, route }: any) {
     return { provider, address };
   };
 
+  const connectMetaMaskMobileWallet = async () => {
+    setWalletStep('connecting');
+    const chainId = chainIdToHex(config.chainId);
+    const client = await getMetaMaskConnectClient();
+    const { accounts } = await client.connect({ chainIds: [chainId], forceRequest: true });
+    const [address] = accounts;
+
+    if (!address) {
+      throw new Error('MetaMask에서 연결된 지갑 주소를 가져오지 못했습니다.');
+    }
+
+    setWalletAddress(address);
+    return { provider: client.getProvider(), address };
+  };
+
+  const connectWallet = async () => {
+    if (Platform.OS === 'web') {
+      return connectInjectedWallet();
+    }
+
+    return connectMetaMaskMobileWallet();
+  };
+
   const handleWalletLogin = async () => {
     if (!isLogin && !displayName.trim()) {
       const message = '이름을 입력해 주세요.';
@@ -170,7 +238,7 @@ export default function AuthPage({ navigation, route }: any) {
     setLoading(true);
     setFeedback(null);
     try {
-      const connection = await connectInjectedWallet();
+      const connection = await connectWallet();
       const nonce = await backendApi.issueWalletNonce({ walletAddress: connection.address });
       setWalletAddress(nonce.walletAddress);
       setWalletMessage(nonce.message);

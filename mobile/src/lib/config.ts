@@ -76,6 +76,8 @@ function getApiBaseUrl() {
 
 export const config = {
   apiBaseUrl: getApiBaseUrl(),
+  dappName: process.env.EXPO_PUBLIC_DAPP_NAME || "Trust Ticket",
+  dappUrl: process.env.EXPO_PUBLIC_DAPP_URL || "https://trust-ticket.local",
   chainRpcUrl: process.env.EXPO_PUBLIC_CHAIN_RPC_URL || "http://10.0.2.2:8545",
   chainId: Number(process.env.EXPO_PUBLIC_CHAIN_ID || 31337),
   trustTicketContractAddress:

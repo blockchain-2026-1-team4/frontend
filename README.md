@@ -117,6 +117,7 @@ Mobile API calls are centralized in `frontend/mobile/src/lib/backend.ts`.
 - Axios
 - expo-secure-store
 - expo-camera
+- MetaMask Connect EVM
 - react-native-qrcode-svg
 
 ## Running Locally
@@ -161,6 +162,17 @@ npx expo start --web --port 8081
 ```
 
 `npm run web -- --port 8081` is equivalent because the mobile package script runs `expo start --web`.
+
+Run the mobile app with a development build for native MetaMask testing:
+
+```bash
+cd frontend/mobile
+npm install
+npx expo run:android
+npm run start:dev-client
+```
+
+Expo Go can still be used with `npm run start:go`, but native MetaMask app connection should be tested in a development build because the app needs its own native runtime and scheme.
 
 ## Local Test URLs
 
@@ -228,6 +240,10 @@ EXPO_PUBLIC_WEB_API_BASE_URL=http://localhost:8080/api/v1
 # EXPO_PUBLIC_MOBILE_API_BASE_URL=http://192.168.0.10:8080/api/v1
 EXPO_PUBLIC_API_PORT=8080
 EXPO_PUBLIC_API_BASE_URL=http://localhost:8080/api/v1
+# Metadata shown in MetaMask connection requests.
+EXPO_PUBLIC_DAPP_NAME=Trust Ticket
+EXPO_PUBLIC_DAPP_URL=https://trust-ticket.local
+# Use a phone-reachable RPC URL for MetaMask Mobile, for example your PC Wi-Fi/LAN IPv4.
 EXPO_PUBLIC_CHAIN_RPC_URL=http://localhost:8545
 EXPO_PUBLIC_CHAIN_ID=31337
 EXPO_PUBLIC_TRUST_TICKET_CONTRACT_ADDRESS=
