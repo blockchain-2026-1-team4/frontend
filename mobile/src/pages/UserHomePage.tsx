@@ -105,20 +105,6 @@ export default function UserHomePage({ navigation }: any) {
         />
       )}
 
-      <View style={styles.footer}>
-        <TouchableOpacity style={styles.navButton} onPress={() => navigation.navigate('ResaleList')}>
-          <Text style={styles.navText}>리셀</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navButton} onPress={() => navigation.navigate('Main')}>
-          <Text style={[styles.navText, styles.activeNavText]}>홈</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navButton} onPress={() => navigation.navigate('MyTickets')}>
-          <Text style={styles.navText}>티켓</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navButton} onPress={() => navigation.navigate('MyPage')}>
-          <Text style={styles.navText}>마이</Text>
-        </TouchableOpacity>
-      </View>
     </View>
   );
 }
@@ -136,7 +122,7 @@ const styles = StyleSheet.create({
   selectedCategoryItem: { backgroundColor: '#E7F1FF' },
   categoryLabel: { fontSize: 13, color: '#495057', fontWeight: '700' },
   selectedCategoryLabel: { color: '#007AFF' },
-  list: { padding: 15, paddingBottom: 90 },
+  list: { padding: 15, paddingBottom: 18 },
   listHeader: { fontSize: 18, fontWeight: 'bold', marginBottom: 15, color: '#212529' },
   card: { flexDirection: 'row', backgroundColor: '#fff', borderRadius: 12, marginBottom: 15, overflow: 'hidden', borderColor: '#eee', borderWidth: 1 },
   poster: { width: 96, height: 96, backgroundColor: '#E7F1FF', justifyContent: 'center', alignItems: 'center' },
@@ -147,8 +133,4 @@ const styles = StyleSheet.create({
   cardVenue: { fontSize: 13, color: '#666', marginBottom: 2 },
   cardDate: { fontSize: 12, color: '#999' },
   emptyText: { paddingVertical: 80, textAlign: 'center', color: '#999' },
-  footer: { flexDirection: 'row', borderTopWidth: 1, borderTopColor: '#f0f0f0', paddingBottom: 20, paddingTop: 10, backgroundColor: '#fff' },
-  navButton: { flex: 1, alignItems: 'center' },
-  navText: { fontSize: 12, color: '#999', fontWeight: '800' },
-  activeNavText: { color: '#007AFF' },
 });

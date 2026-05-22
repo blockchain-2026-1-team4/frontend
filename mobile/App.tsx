@@ -1,7 +1,8 @@
 import 'react-native-gesture-handler';
 import React from 'react';
-import { NavigationContainer } from '@react-navigation/native';
+import { createNavigationContainerRef, NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
+import { Platform, StyleSheet, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import LandingPage from './src/pages/LandingPage';
@@ -33,14 +34,34 @@ import CheckInManagePage from './src/pages/CheckInManagePage';
 import CheckInScanPage from './src/pages/CheckInScanPage';
 import DisputeCreatePage from './src/pages/DisputeCreatePage';
 import MyDisputesPage from './src/pages/MyDisputesPage';
+import BottomNavigation from './src/components/BottomNavigation';
 
 const Stack = createStackNavigator();
+const navigationRef = createNavigationContainerRef<any>();
 
 export default function App() {
+  const [currentRouteName, setCurrentRouteName] = React.useState('Landing');
+
+  const syncCurrentRoute = React.useCallback(() => {
+    const routeName = navigationRef.getCurrentRoute()?.name;
+    if (routeName) {
+      setCurrentRouteName(routeName);
+    }
+  }, []);
+
+  const navigateFromBottom = React.useCallback((routeName: string) => {
+    if (navigationRef.isReady()) {
+      navigationRef.navigate(routeName);
+    }
+  }, []);
+
   return (
     <SafeAreaProvider>
-      <NavigationContainer>
-        <Stack.Navigator initialRouteName="Landing">
+      <View style={[styles.appRoot, Platform.OS === 'web' && styles.webRoot]}>
+        <View style={[styles.appFrame, Platform.OS === 'web' && styles.webFrame]}>
+          <View style={styles.navigationHost}>
+            <NavigationContainer ref={navigationRef} onReady={syncCurrentRoute} onStateChange={syncCurrentRoute}>
+              <Stack.Navigator initialRouteName="Landing">
           <Stack.Screen name="Landing" component={LandingPage} options={{ headerShown: false }} />
           <Stack.Screen name="Auth" component={AuthPage} options={{ title: '인증' }} />
 
@@ -72,8 +93,41 @@ export default function App() {
           <Stack.Screen name="CheckInScan" component={CheckInScanPage} options={{ title: 'QR 스캔' }} />
           <Stack.Screen name="OrganizerProfile" component={OrganizerProfilePage} options={{ title: '내 정보' }} />
           <Stack.Screen name="OrganizerLogout" component={OrganizerLogoutPage} options={{ title: '로그아웃' }} />
-        </Stack.Navigator>
-      </NavigationContainer>
+              </Stack.Navigator>
+            </NavigationContainer>
+          </View>
+          <BottomNavigation routeName={currentRouteName} onNavigate={navigateFromBottom} />
+        </View>
+      </View>
     </SafeAreaProvider>
   );
 }
+
+const styles = StyleSheet.create({
+  appRoot: {
+    flex: 1,
+    backgroundColor: '#F4F7FB',
+  },
+  webRoot: {
+    width: '100%',
+    alignItems: 'center',
+    backgroundColor: '#E2E8F0',
+  },
+  appFrame: {
+    flex: 1,
+    width: '100%',
+    backgroundColor: '#FFFFFF',
+  },
+  webFrame: {
+    minWidth: 360,
+    maxWidth: 430,
+    borderLeftWidth: 1,
+    borderRightWidth: 1,
+    borderColor: '#CBD5E1',
+    backgroundColor: '#FFFFFF',
+  },
+  navigationHost: {
+    flex: 1,
+    minHeight: 0,
+  },
+});
