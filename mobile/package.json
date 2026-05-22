@@ -20,6 +20,7 @@
     "@reown/appkit-react-native": "^2.0.4",
     "@walletconnect/react-native-compat": "^2.23.9",
     "axios": "^1.16.1",
+    "babel-preset-expo": "~54.0.10",
     "ethers": "^6.16.0",
     "expo": "~54.0.33",
     "expo-application": "~7.0.8",
