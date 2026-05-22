@@ -13,6 +13,25 @@ import {
 import { accountStatusMessage, errorMessage, routeForEntry } from '../lib/account';
 import { backendApi } from '../lib/backend';
 
+type EthereumProvider = {
+  request: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
+};
+
+type WalletStep = 'idle' | 'connected' | 'signing' | 'signed';
+
+function getEthereumProvider() {
+  if (Platform.OS !== 'web') return null;
+  const globalScope = globalThis as typeof globalThis & {
+    ethereum?: EthereumProvider;
+    window?: { ethereum?: EthereumProvider };
+  };
+  return globalScope.ethereum ?? globalScope.window?.ethereum ?? null;
+}
+
+function walletClientMessage(error: any, fallback: string) {
+  return typeof error?.message === 'string' && error.message.trim() ? error.message : fallback;
+}
+
 export default function AuthPage({ navigation, route }: any) {
   const initialRole = route?.params?.initialRole ?? 'USER';
   const [isLogin, setIsLogin] = useState(true);
@@ -20,9 +39,8 @@ export default function AuthPage({ navigation, route }: any) {
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [walletAddress, setWalletAddress] = useState('');
-  const [walletNonce, setWalletNonce] = useState('');
   const [walletMessage, setWalletMessage] = useState('');
-  const [walletSignature, setWalletSignature] = useState('');
+  const [walletStep, setWalletStep] = useState<WalletStep>('idle');
   const [walletMode, setWalletMode] = useState(false);
   const [loading, setLoading] = useState(false);
   const [feedback, setFeedback] = useState<{ type: 'error' | 'success'; message: string } | null>(null);
@@ -80,26 +98,33 @@ export default function AuthPage({ navigation, route }: any) {
     setFeedback(null);
   };
 
-  const requestWalletNonce = async () => {
-    if (!walletAddress.trim()) {
-      const message = '지갑 주소를 입력해 주세요.';
-      setFeedback({ type: 'error', message });
-      Alert.alert('입력 필요', message);
-      return;
+  const connectInjectedWallet = async () => {
+    const provider = getEthereumProvider();
+    if (!provider) {
+      throw new Error('브라우저 지갑을 찾을 수 없습니다. MetaMask 등 Web3 지갑을 설치하거나 지갑 내 브라우저에서 접속해 주세요.');
     }
 
+    const accounts = await provider.request({ method: 'eth_requestAccounts' });
+    const [address] = Array.isArray(accounts) ? accounts.filter((item): item is string => typeof item === 'string') : [];
+    if (!address) {
+      throw new Error('연결된 지갑 주소를 가져오지 못했습니다.');
+    }
+
+    setWalletAddress(address);
+    setWalletStep('connected');
+    return { provider, address };
+  };
+
+  const handleConnectWallet = async () => {
     setLoading(true);
     setFeedback(null);
     try {
-      const nonce = await backendApi.issueWalletNonce({ walletAddress: walletAddress.trim() });
-      setWalletAddress(nonce.walletAddress);
-      setWalletNonce(nonce.nonce);
-      setWalletMessage(nonce.message);
-      setFeedback({ type: 'success', message: '서명 메시지를 발급했습니다. 지갑에서 메시지를 서명한 뒤 서명값을 입력해 주세요.' });
+      await connectInjectedWallet();
+      setFeedback({ type: 'success', message: '지갑이 연결되었습니다. 이제 지갑에서 서명을 승인해 주세요.' });
     } catch (error: any) {
-      const message = errorMessage(error, '서명 메시지를 발급하지 못했습니다.');
+      const message = walletClientMessage(error, '지갑 연결에 실패했습니다.');
       setFeedback({ type: 'error', message });
-      Alert.alert('지갑 인증 실패', message);
+      Alert.alert('지갑 연결 실패', message);
     } finally {
       setLoading(false);
     }
@@ -113,20 +138,35 @@ export default function AuthPage({ navigation, route }: any) {
       return;
     }
 
-    if (!walletAddress.trim() || !walletNonce.trim() || !walletSignature.trim()) {
-      const message = '지갑 주소, nonce, 서명값이 모두 필요합니다.';
-      setFeedback({ type: 'error', message });
-      Alert.alert('입력 필요', message);
-      return;
-    }
-
     setLoading(true);
     setFeedback(null);
     try {
+      const connection = walletAddress.trim()
+        ? { provider: getEthereumProvider(), address: walletAddress.trim() }
+        : await connectInjectedWallet();
+      if (!connection.provider) {
+        throw new Error('브라우저 지갑을 찾을 수 없습니다. MetaMask 등 Web3 지갑을 설치하거나 지갑 내 브라우저에서 접속해 주세요.');
+      }
+
+      const nonce = await backendApi.issueWalletNonce({ walletAddress: connection.address });
+      setWalletAddress(nonce.walletAddress);
+      setWalletMessage(nonce.message);
+      setWalletStep('signing');
+
+      const signature = await connection.provider.request({
+        method: 'personal_sign',
+        params: [nonce.message, nonce.walletAddress],
+      });
+
+      if (typeof signature !== 'string' || !signature.trim()) {
+        throw new Error('지갑 서명이 완료되지 않았습니다.');
+      }
+
+      setWalletStep('signed');
       const result = await backendApi.loginWallet({
-        walletAddress: walletAddress.trim(),
-        nonce: walletNonce.trim(),
-        signature: walletSignature.trim(),
+        walletAddress: nonce.walletAddress,
+        nonce: nonce.nonce,
+        signature,
       });
       const profile = !isLogin && displayName.trim()
         ? await backendApi.updateMe({ displayName: displayName.trim() })
@@ -141,7 +181,7 @@ export default function AuthPage({ navigation, route }: any) {
     } catch (error: any) {
       const message = errorMessage(error, '지갑 로그인에 실패했습니다.');
       setFeedback({ type: 'error', message });
-      Alert.alert('지갑 로그인 실패', message);
+      Alert.alert(isLogin ? '지갑 로그인 실패' : '지갑 회원가입 실패', message);
     } finally {
       setLoading(false);
     }
@@ -184,31 +224,32 @@ export default function AuthPage({ navigation, route }: any) {
                   />
                 </>
               ) : null}
-              <TextInput
-                style={styles.input}
-                placeholder="지갑 주소"
-                value={walletAddress}
-                onChangeText={setWalletAddress}
-                autoCapitalize="none"
-              />
+              <View style={styles.connectedWalletBox}>
+                <Text style={styles.connectedWalletLabel}>연결된 지갑 주소</Text>
+                <Text style={[styles.connectedWalletAddress, !walletAddress && styles.emptyWalletAddress]} numberOfLines={1}>
+                  {walletAddress || '아직 연결된 지갑이 없습니다.'}
+                </Text>
+              </View>
               {walletMessage ? (
                 <View style={styles.walletMessageBox}>
-                  <Text style={styles.walletMessageLabel}>서명 메시지</Text>
+                  <Text style={styles.walletMessageLabel}>서명 요청 메시지</Text>
                   <Text style={styles.walletMessageText}>{walletMessage}</Text>
                 </View>
               ) : null}
-              <TextInput
-                style={styles.input}
-                placeholder="지갑 서명값"
-                value={walletSignature}
-                onChangeText={setWalletSignature}
-                autoCapitalize="none"
-              />
-              <TouchableOpacity style={[styles.secondaryAction, loading && styles.disabledButton]} disabled={loading} onPress={requestWalletNonce}>
-                <Text style={styles.secondaryActionText}>{loading ? '처리 중...' : '서명 메시지 발급'}</Text>
+              {walletStep !== 'idle' ? (
+                <View style={styles.walletStatusBox}>
+                  <Text style={styles.walletStatusText}>
+                    {walletStep === 'connected' ? '지갑 연결 완료' : walletStep === 'signing' ? '지갑 서명 승인 대기 중' : '서명 완료'}
+                  </Text>
+                </View>
+              ) : null}
+              <TouchableOpacity style={[styles.secondaryAction, loading && styles.disabledButton]} disabled={loading} onPress={handleConnectWallet}>
+                <Text style={styles.secondaryActionText}>{loading ? '처리 중...' : '지갑 연결'}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={[styles.primaryButton, loading && styles.disabledButton]} disabled={loading} onPress={handleWalletLogin}>
-                <Text style={styles.primaryButtonText}>{loading ? '처리 중...' : '지갑 로그인'}</Text>
+                <Text style={styles.primaryButtonText}>
+                  {loading ? '처리 중...' : isLogin ? '지갑 서명 요청 및 로그인' : '지갑 회원가입'}
+                </Text>
               </TouchableOpacity>
             </>
           ) : (
@@ -257,7 +298,7 @@ export default function AuthPage({ navigation, route }: any) {
         </View>
 
         <TouchableOpacity style={styles.walletButton} onPress={handleWalletAuth}>
-          <Text style={styles.walletButtonText}>{walletMode ? '이메일로 계속하기' : '지갑으로 계속하기'}</Text>
+          <Text style={styles.walletButtonText}>{walletMode ? '이메일 인증으로 전환' : '지갑 인증으로 전환'}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.switchButton} onPress={() => setIsLogin((value) => !value)}>
@@ -289,9 +330,15 @@ const styles = StyleSheet.create({
   successText: { color: '#047857' },
   input: { backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#CBD5E1', padding: 15, borderRadius: 12, fontSize: 16 },
   walletSignupHelp: { color: '#64748B', fontSize: 13, fontWeight: '700', lineHeight: 19 },
+  connectedWalletBox: { backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 12, padding: 12 },
+  connectedWalletLabel: { color: '#2563EB', fontSize: 12, fontWeight: '900', marginBottom: 6 },
+  connectedWalletAddress: { color: '#0F172A', fontSize: 14, fontWeight: '800' },
+  emptyWalletAddress: { color: '#94A3B8' },
   walletMessageBox: { backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 12, padding: 12 },
   walletMessageLabel: { color: '#2563EB', fontSize: 12, fontWeight: '900', marginBottom: 6 },
   walletMessageText: { color: '#334155', fontSize: 12, lineHeight: 18 },
+  walletStatusBox: { backgroundColor: '#EFF6FF', borderRadius: 12, padding: 11, borderWidth: 1, borderColor: '#BFDBFE' },
+  walletStatusText: { color: '#1D4ED8', fontSize: 13, fontWeight: '900' },
   primaryButton: { backgroundColor: '#2563EB', padding: 17, borderRadius: 14, alignItems: 'center', marginTop: 6 },
   primaryButtonText: { color: '#FFFFFF', fontSize: 17, fontWeight: '900' },
   secondaryAction: { borderWidth: 1, borderColor: '#CBD5E1', backgroundColor: '#FFFFFF', padding: 15, borderRadius: 14, alignItems: 'center', marginTop: 6 },
