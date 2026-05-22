@@ -1,5 +1,6 @@
 import 'react-native-gesture-handler';
 import React from 'react';
+import { AppKit, AppKitProvider } from '@reown/appkit-react-native';
 import { createNavigationContainerRef, NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { Platform, StyleSheet, View } from 'react-native';
@@ -35,6 +36,7 @@ import CheckInScanPage from './src/pages/CheckInScanPage';
 import DisputeCreatePage from './src/pages/DisputeCreatePage';
 import MyDisputesPage from './src/pages/MyDisputesPage';
 import BottomNavigation from './src/components/BottomNavigation';
+import { appKit } from './src/lib/appkit';
 
 const Stack = createStackNavigator();
 const navigationRef = createNavigationContainerRef<any>();
@@ -57,11 +59,12 @@ export default function App() {
 
   return (
     <SafeAreaProvider>
-      <View style={[styles.appRoot, Platform.OS === 'web' && styles.webRoot]}>
-        <View style={[styles.appFrame, Platform.OS === 'web' && styles.webFrame]}>
-          <View style={styles.navigationHost}>
-            <NavigationContainer ref={navigationRef} onReady={syncCurrentRoute} onStateChange={syncCurrentRoute}>
-              <Stack.Navigator initialRouteName="Landing">
+      <AppKitProvider instance={appKit}>
+        <View style={[styles.appRoot, Platform.OS === 'web' && styles.webRoot]}>
+          <View style={[styles.appFrame, Platform.OS === 'web' && styles.webFrame]}>
+            <View style={styles.navigationHost}>
+              <NavigationContainer ref={navigationRef} onReady={syncCurrentRoute} onStateChange={syncCurrentRoute}>
+                <Stack.Navigator initialRouteName="Landing">
           <Stack.Screen name="Landing" component={LandingPage} options={{ headerShown: false }} />
           <Stack.Screen name="Auth" component={AuthPage} options={{ title: '인증' }} />
 
@@ -93,12 +96,16 @@ export default function App() {
           <Stack.Screen name="CheckInScan" component={CheckInScanPage} options={{ title: 'QR 스캔' }} />
           <Stack.Screen name="OrganizerProfile" component={OrganizerProfilePage} options={{ title: '내 정보' }} />
           <Stack.Screen name="OrganizerLogout" component={OrganizerLogoutPage} options={{ title: '로그아웃' }} />
-              </Stack.Navigator>
-            </NavigationContainer>
+                </Stack.Navigator>
+              </NavigationContainer>
+            </View>
+            <BottomNavigation routeName={currentRouteName} onNavigate={navigateFromBottom} />
           </View>
-          <BottomNavigation routeName={currentRouteName} onNavigate={navigateFromBottom} />
+          <View style={styles.appKitHost} pointerEvents="box-none">
+            <AppKit />
+          </View>
         </View>
-      </View>
+      </AppKitProvider>
     </SafeAreaProvider>
   );
 }
@@ -129,5 +136,10 @@ const styles = StyleSheet.create({
   navigationHost: {
     flex: 1,
     minHeight: 0,
+  },
+  appKitHost: {
+    position: 'absolute',
+    height: '100%',
+    width: '100%',
   },
 });
