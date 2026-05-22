@@ -165,7 +165,9 @@ export default function AuthPage({ navigation, route }: any) {
     setWalletStep('connecting');
     if (!isConnected || !appKitAddress || !provider) {
       open({ view: 'Connect' });
-      throw new Error('지갑 연결 화면을 열었습니다. 지갑 연결을 완료한 뒤 다시 인증 버튼을 눌러 주세요.');
+      setFeedback({ type: 'success', message: '지갑 연결 화면을 열었습니다. 연결을 완료한 뒤 다시 인증 버튼을 눌러 주세요.' });
+      setWalletStep('idle');
+      return null;
     }
 
     if (providerType !== 'eip155') {
@@ -196,6 +198,10 @@ export default function AuthPage({ navigation, route }: any) {
     setFeedback(null);
     try {
       const connection = await connectWallet();
+      if (!connection) {
+        return;
+      }
+
       const nonce = await backendApi.issueWalletNonce({ walletAddress: connection.address });
       setWalletAddress(nonce.walletAddress);
       setWalletMessage(nonce.message);
