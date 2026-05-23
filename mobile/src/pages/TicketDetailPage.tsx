@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { backendApi } from '../lib/backend';
+import { formatEventDate, formatTicketStatus, formatTicketValidity } from '../lib/ticketDisplay';
 import type { EventDetail, TicketDetail } from '../types/api';
 
 export default function TicketDetailPage({ route, navigation }: any) {
@@ -23,7 +24,7 @@ export default function TicketDetailPage({ route, navigation }: any) {
         setLoading(false);
       }
     };
-    loadTicket();
+    void loadTicket();
   }, [ticketId]);
 
   if (loading) return <View style={styles.center}><ActivityIndicator size="large" color="#007AFF" /></View>;
@@ -34,26 +35,26 @@ export default function TicketDetailPage({ route, navigation }: any) {
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.headerCard}>
-        <Text style={styles.eventTitle}>{event?.name || ticket.eventTitle || ticket.eventName || '티켓'}</Text>
+        <Text style={styles.eventTitle}>{event?.name || ticket.eventTitle || ticket.eventName || '이벤트'}</Text>
         <Text style={styles.venueText}>{event?.venue || ticket.venue || '-'}</Text>
-        <Text style={styles.dateText}>{event?.eventAt ? new Date(event.eventAt).toLocaleString() : '-'}</Text>
+        <Text style={styles.dateText}>{formatEventDate(event?.eventAt || ticket.eventDateTime)}</Text>
       </View>
 
       <View style={styles.detailCard}>
-        <Info label="좌석" value={ticket.seatInfo} />
-        <Info label="상태" value={ticket.status} />
-        <Info label="원가" value={`${ticket.originalPriceWei ?? ticket.priceWei ?? '-'} WEI`} />
-        <Info label="유효성" value={validity?.valid === false ? String(validity.reason || 'INVALID') : 'VALID'} />
-        <Info label="토큰 ID" value={String(ticket.contractTokenId ?? '-')} />
+        <Info label="좌석" value={ticket.seatInfo || '-'} />
+        <Info label="상태" value={formatTicketStatus(ticket.status)} />
+        <Info label="유효성" value={formatTicketValidity(validity)} />
+        <Info label="가격" value={`${ticket.originalPriceWei ?? ticket.priceWei ?? '-'} WEI`} />
+        <Info label="티켓 번호" value={String(ticket.contractTokenId ?? '-')} />
       </View>
 
       <TouchableOpacity style={styles.primaryButton} onPress={() => navigation.navigate('TicketQr', { ticketId: ticket.id ?? ticket.ticketId })}>
-        <Text style={styles.primaryButtonText}>QR / 바코드 보기</Text>
+        <Text style={styles.primaryButtonText}>QR 보기</Text>
       </TouchableOpacity>
 
       {canResale ? (
         <TouchableOpacity style={styles.secondaryButton} onPress={() => navigation.navigate('TicketResaleCreate', { ticketId: ticket.id ?? ticket.ticketId })}>
-          <Text style={styles.secondaryButtonText}>티켓 판매 등록</Text>
+          <Text style={styles.secondaryButtonText}>티켓 리셀 등록</Text>
         </TouchableOpacity>
       ) : null}
 

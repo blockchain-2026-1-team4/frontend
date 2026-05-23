@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { backendApi } from '../lib/backend';
+import { formatTicketStatus } from '../lib/ticketDisplay';
 import type { EventDetail, TicketDetail } from '../types/api';
 
 export default function TicketPurchasePage({ route, navigation }: any) {
@@ -50,7 +51,7 @@ export default function TicketPurchasePage({ route, navigation }: any) {
       </View>
       <View style={styles.card}>
         <Info label="좌석" value={ticket.seatInfo} />
-        <Info label="상태" value={ticket.status} />
+        <Info label="상태" value={formatTicketStatus(ticket.status)} />
         <Info label="가격" value={`${ticket.originalPriceWei ?? ticket.priceWei ?? event?.ticketPriceWei ?? '-'} WEI`} />
       </View>
       <TouchableOpacity style={[styles.button, submitting && styles.disabled]} disabled={submitting} onPress={purchase}>

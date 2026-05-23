@@ -2,28 +2,8 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 import { backendApi } from '../lib/backend';
+import { formatTicketEntryStatus, isTicketUsableForEntry } from '../lib/ticketDisplay';
 import type { TicketDetail, TicketQr } from '../types/api';
-
-const TICKET_STATUS_LABEL: Record<string, string> = {
-  LISTED: '판매중',
-  ISSUED: '입장 가능',
-  OWNED: '입장 가능',
-  SOLD: '입장 가능',
-  USED: '체크인 완료',
-  EXPIRED: '만료됨',
-  CANCELED: '사용 불가',
-  CANCELLED: '사용 불가',
-};
-
-function statusLabel(status?: string) {
-  const key = status?.toUpperCase() ?? '';
-  return TICKET_STATUS_LABEL[key] ?? status ?? '-';
-}
-
-function isUsable(status?: string) {
-  const key = status?.toUpperCase() ?? '';
-  return key === 'SOLD' || key === 'ISSUED' || key === 'OWNED' || key === 'LISTED';
-}
 
 export default function TicketQrPage({ route }: any) {
   const { ticketId } = route.params;
@@ -64,8 +44,8 @@ export default function TicketQrPage({ route }: any) {
 
   const qrValue = qr?.payload || JSON.stringify({ ticketId, owner: ticket?.ownerWalletAddress });
   const ticketNumber = qr?.barcodeText || ticket?.contractTokenId || String(ticketId);
-  const usable = isUsable(ticket?.status);
-  const status = statusLabel(ticket?.status);
+  const usable = isTicketUsableForEntry(ticket?.status);
+  const status = formatTicketEntryStatus(ticket?.status);
   const expiresText = useMemo(() => (qr?.expiresAt ? new Date(qr.expiresAt).toLocaleString() : '-'), [qr?.expiresAt]);
 
   if (loading) return <View style={styles.center}><ActivityIndicator size="large" color="#007AFF" /></View>;

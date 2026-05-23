@@ -1,27 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { backendApi } from '../lib/backend';
+import { formatEventDate, formatTicketStatus } from '../lib/ticketDisplay';
 import type { EventDetail, TicketDetail } from '../types/api';
-
-const TICKET_STATUS_LABEL: Record<string, string> = {
-  LISTED: '판매중',
-  ISSUED: '소유중',
-  OWNED: '소유중',
-  SOLD: '소유중',
-  USED: '사용완료',
-  EXPIRED: '만료됨',
-  CANCELED: '취소됨',
-  CANCELLED: '취소됨',
-};
-
-function ticketStatusLabel(status?: string) {
-  const key = status?.toUpperCase() ?? '';
-  return TICKET_STATUS_LABEL[key] ?? status ?? '-';
-}
 
 function eventDate(ticket: TicketDetail, event?: EventDetail) {
   const value = event?.eventAt || ticket.eventDateTime;
-  return value ? new Date(value).toLocaleString() : '-';
+  return formatEventDate(value);
 }
 
 export default function MyTicketsPage({ navigation }: any) {
@@ -48,7 +33,7 @@ export default function MyTicketsPage({ navigation }: any) {
 
   const renderTicket = ({ item }: { item: TicketDetail }) => {
     const event = eventsById[item.eventId];
-    const status = ticketStatusLabel(item.status);
+    const status = formatTicketStatus(item.status);
     return (
       <TouchableOpacity style={styles.ticketCard} onPress={() => navigation.navigate('TicketDetail', { ticketId: item.id ?? item.ticketId })}>
         <View style={styles.ticketInfo}>

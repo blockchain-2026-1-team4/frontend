@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { backendApi } from '../lib/backend';
+import { formatTicketStatus, formatTicketValidity } from '../lib/ticketDisplay';
 import type { TicketDetail } from '../types/api';
 
 export default function TicketResaleCreatePage({ route, navigation }: any) {
@@ -56,8 +57,8 @@ export default function TicketResaleCreatePage({ route, navigation }: any) {
 
       <View style={styles.card}>
         <Info label="티켓" value={ticket?.seatInfo || String(ticketId)} />
-        <Info label="상태" value={ticket?.status || '-'} />
-        <Info label="유효성" value={validity?.valid === false ? String(validity.reason || 'INVALID') : 'VALID'} />
+        <Info label="상태" value={formatTicketStatus(ticket?.status)} />
+        <Info label="유효성" value={formatTicketValidity(validity)} />
       </View>
 
       <View style={styles.inputContainer}>
