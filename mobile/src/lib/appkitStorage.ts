@@ -2,6 +2,15 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { Storage } from '@reown/appkit-react-native';
 
 const STORAGE_PREFIX = '@trustticket:appkit:';
+const WALLET_STORAGE_PREFIXES = [
+  STORAGE_PREFIX,
+  '@appkit/',
+  '@reown',
+  '@walletconnect',
+  'walletconnect',
+  'wc@',
+];
+const WALLET_STORAGE_KEYS = ['WALLETCONNECT_DEEPLINK_CHOICE'];
 
 function keyFor(key: string) {
   return `${STORAGE_PREFIX}${key}`;
@@ -50,3 +59,16 @@ export const appKitStorage: Storage = {
     await AsyncStorage.removeItem(keyFor(key));
   },
 };
+
+export async function clearWalletSessionStorage() {
+  const keys = await AsyncStorage.getAllKeys();
+  const walletKeys = keys.filter((key) =>
+    WALLET_STORAGE_KEYS.includes(key) ||
+    WALLET_STORAGE_PREFIXES.some((prefix) => key.startsWith(prefix)) ||
+    key.toLowerCase().includes('walletconnect')
+  );
+
+  if (walletKeys.length > 0) {
+    await AsyncStorage.multiRemove(walletKeys);
+  }
+}

@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { accountStatusMessage, errorMessage, routeForEntry } from '../lib/account';
 import { isWalletConnectConfigured } from '../lib/appkit';
+import { clearWalletSessionStorage } from '../lib/appkitStorage';
 import { backendApi } from '../lib/backend';
 
 type EthereumProvider = {
@@ -58,6 +59,24 @@ function showWalletAlert(title: string, message: string) {
   Alert.alert(title, message);
 }
 
+function stringifyWalletError(error: any) {
+  try {
+    return [
+      error?.message,
+      error?.reason,
+      typeof error?.toString === 'function' ? error.toString() : '',
+      JSON.stringify(error),
+    ].filter(Boolean).join(' ');
+  } catch {
+    return String(error?.message ?? error ?? '');
+  }
+}
+
+function isStaleWalletSessionError(error: any) {
+  const message = stringifyWalletError(error);
+  return message.includes('No matching key') || message.includes('session:');
+}
+
 export default function AuthPage({ navigation, route }: any) {
   const initialRole = route?.params?.initialRole ?? 'USER';
   const [isLogin, setIsLogin] = useState(true);
@@ -71,7 +90,7 @@ export default function AuthPage({ navigation, route }: any) {
   const [loading, setLoading] = useState(false);
   const [feedback, setFeedback] = useState<{ type: 'error' | 'success'; message: string } | null>(null);
 
-  const { open } = useAppKit();
+  const { open, disconnect } = useAppKit();
   const { address: appKitAddress, isConnected } = useAccount();
   const { provider, providerType } = useProvider();
 
@@ -233,6 +252,22 @@ export default function AuthPage({ navigation, route }: any) {
       }
       navigation.replace(routeForEntry(profile, initialRole));
     } catch (error: any) {
+      if (isStaleWalletSessionError(error)) {
+        const message = '이전 WalletConnect 세션이 만료되어 초기화했습니다. 다시 지갑을 연결해 주세요.';
+        try {
+          disconnect('eip155');
+        } catch {
+          // Local storage cleanup below is the important recovery step.
+        }
+        await clearWalletSessionStorage();
+        setWalletAddress('');
+        setWalletMessage('');
+        setWalletStep('idle');
+        setFeedback({ type: 'error', message });
+        showWalletAlert('지갑 세션 초기화', message);
+        return;
+      }
+
       const message = error?.response
         ? errorMessage(error, '지갑 로그인에 실패했습니다.')
         : walletClientMessage(error, '지갑 인증에 실패했습니다.');

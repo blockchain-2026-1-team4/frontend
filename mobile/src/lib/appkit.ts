@@ -36,7 +36,7 @@ export const appKit = createAppKit({
   adapters: [ethersAdapter],
   storage: appKitStorage,
   enableAnalytics: false,
-  logger: __DEV__ ? 'error' : 'silent',
+  logger: 'silent',
   metadata: {
     name: config.dappName,
     description: `${config.dappName} wallet authentication`,
