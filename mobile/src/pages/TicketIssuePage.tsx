@@ -49,6 +49,13 @@ function seatSectionOf(seatInfo?: string) {
   return normalized.split(/[-\s]/)[0];
 }
 
+function normalizeSeatSection(value: string) {
+  return String(value || '')
+    .toUpperCase()
+    .replace(/[^A-Z0-9가-힣\s-]/g, '')
+    .trim();
+}
+
 export default function TicketIssuePage({ navigation, route }: any) {
   const eventId = route?.params?.eventId as string;
   const [event, setEvent] = useState<EventDetail | null>(null);
@@ -162,8 +169,7 @@ export default function TicketIssuePage({ navigation, route }: any) {
   };
 
   const addSection = () => {
-    let value = String(newSection || '').toUpperCase().trim();
-    value = value.replace(/[^A-Z0-9\s-]/g, '').trim();
+    const value = normalizeSeatSection(newSection);
     if (!value) {
       setNewSection('');
       return;
@@ -185,7 +191,8 @@ export default function TicketIssuePage({ navigation, route }: any) {
 
   const removeSection = (section: string) => {
     if (DEFAULT_SEAT_SECTIONS.includes(section)) return;
-    const hasIssuedSeats = tickets.some((ticket) => seatSectionOf(ticket.seatInfo) === section);
+    const normalizedSection = normalizeSeatSection(section);
+    const hasIssuedSeats = tickets.some((ticket) => seatSectionOf(ticket.seatInfo) === normalizedSection);
     if (hasIssuedSeats) {
       Alert.alert('구역 삭제 불가', '이미 발행된 좌석이 있는 구역은 삭제할 수 없습니다.');
       return;

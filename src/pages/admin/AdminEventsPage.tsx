@@ -250,6 +250,7 @@ export function AdminEventsPage() {
         .ae-action { border: 1px solid #ffcdd2; background: #fff5f5; color: #c62828; border-radius: 8px; padding: 0.4rem 0.72rem; font-size: 0.8rem; font-weight: 800; cursor: pointer; }
         .ae-action.primary { border-color: #cfe0ff; background: #e8f1ff; color: var(--accent-2); }
         .ae-action.neutral { border-color: var(--border); background: var(--panel-soft); color: var(--txt-sub); }
+        .ae-action.warning { border-color: #fed7aa; background: #fff7ed; color: #c2410c; }
         .ae-action.danger { border-color: #ffb4b4; background: #fff1f1; color: #b91c1c; }
         .ae-action:disabled { opacity: 0.5; cursor: not-allowed; }
         .ae-actions { display: flex; gap: 0.4rem; flex-wrap: wrap; }
@@ -381,12 +382,12 @@ export function AdminEventsPage() {
                             <div className="ae-actions">
                               {isFlagged ? (
                                 <button
-                                  className="ae-action neutral"
+                                  className="ae-action warning"
                                   disabled={flaggingId === event.id}
                                   onClick={() => void handleFlag(event.id, true)}
                                   type="button"
                                 >
-                                  {flaggingId === event.id ? "해제 중..." : "검토 해제하기"}
+                                  {flaggingId === event.id ? "취소 중..." : "검토 취소"}
                                 </button>
                               ) : (
                                 <button

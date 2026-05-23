@@ -23,7 +23,7 @@ function isActiveDispute(status?: string) {
 
 function normalizeDisputeFailure(cause: any, fallback: string) {
   const message = errorMessage(cause, fallback);
-  if (message.includes('이미 처리 중') || message.includes('CONFLICT')) return '이미 처리 중인 분쟁 신고가 있습니다.';
+  if (message.includes('이미 처리 중') || message.includes('CONFLICT')) return '동일한 거래/티켓에 대해 이미 신고하셨습니다.';
   if (message.includes('권한') || message.includes('Forbidden') || message.includes('FORBIDDEN')) return '본인의 티켓 또는 거래만 신고할 수 있습니다.';
   if (message.includes('상태') || message.includes('status')) return '접수 가능한 상태의 티켓 또는 거래가 아닙니다.';
   return message || fallback;
@@ -47,7 +47,7 @@ function ticketIdOf(ticket?: TicketDetail | null) {
 
 function normalizeFailureMessage(cause: any, fallback: string) {
   const message = errorMessage(cause, fallback);
-  if (message.includes('이미 처리 중')) return '이미 처리 중인 분쟁 신고가 있습니다.';
+  if (message.includes('이미 처리 중')) return '동일한 거래/티켓에 대해 이미 신고하셨습니다.';
   if (message.includes('권한') || message.includes('Forbidden') || message.includes('FORBIDDEN')) return '본인의 티켓 또는 거래만 신고할 수 있습니다.';
   if (message.includes('상태') || message.includes('status')) return '접수 가능한 상태의 티켓 또는 거래가 아닙니다.';
   if (message.includes('티켓') || message.includes('리셀')) return message;
@@ -223,7 +223,7 @@ export default function DisputeCreatePage({ route, navigation }: any) {
           return Boolean(sameResale || sameTicket);
         });
         if (duplicate) {
-          throw new Error('이미 처리 중인 분쟁 신고가 있습니다.');
+          throw new Error('동일한 거래/티켓에 대해 이미 신고하셨습니다.');
         }
         await backendApi.createDispute({
           ticketId: resolvedTicketId.trim() || null,
@@ -279,6 +279,7 @@ export default function DisputeCreatePage({ route, navigation }: any) {
               const optionId = ticketIdOf(option.ticket);
               return (
                 <TouchableOpacity key={optionId} style={[styles.optionCard, selectedTicketId === optionId && styles.selectedOptionCard]} onPress={() => setSelectedTicketId(optionId)}>
+                  {selectedTicketId === optionId ? <Text style={styles.selectedBadge}>선택됨</Text> : null}
                   <TargetSummary title={option.event?.name || option.ticket.eventTitle || option.ticket.eventName || '이벤트'} seat={option.ticket.seatInfo} date={option.event?.eventAt || option.ticket.eventDateTime} />
                 </TouchableOpacity>
               );
@@ -295,6 +296,7 @@ export default function DisputeCreatePage({ route, navigation }: any) {
                   setSelectedResaleListingId(optionId);
                   setSelectedTicketId(ticketIdOf(option.ticket) || String(option.listing.ticketId));
                 }}>
+                  {selectedResaleListingId === optionId ? <Text style={styles.selectedBadge}>선택됨</Text> : null}
                   <TargetSummary
                     title={option.event?.name || option.listing.eventName || option.ticket?.eventTitle || '리셀 거래'}
                     seat={option.ticket?.seatInfo || option.listing.seatInfo}
@@ -307,24 +309,6 @@ export default function DisputeCreatePage({ route, navigation }: any) {
           </View>
         ) : null}
 
-        {targetType === 'ticket' && selectedTicket ? (
-          <View style={styles.selectedBox}>
-            <Text style={styles.selectedLabel}>선택된 티켓</Text>
-            <TargetSummary title={selectedTicket.event?.name || selectedTicket.ticket.eventTitle || selectedTicket.ticket.eventName || '이벤트'} seat={selectedTicket.ticket.seatInfo} date={selectedTicket.event?.eventAt || selectedTicket.ticket.eventDateTime} />
-          </View>
-        ) : null}
-
-        {targetType === 'resale' && selectedResale ? (
-          <View style={styles.selectedBox}>
-            <Text style={styles.selectedLabel}>선택된 리셀 거래</Text>
-            <TargetSummary
-              title={selectedResale.event?.name || selectedResale.listing.eventName || selectedResale.ticket?.eventTitle || '리셀 거래'}
-              seat={selectedResale.ticket?.seatInfo || selectedResale.listing.seatInfo}
-              date={selectedResale.listing.purchasedAt || selectedResale.listing.createdAt}
-              price={`${selectedResale.listing.priceWei ?? selectedResale.listing.price ?? '-'} WEI`}
-            />
-          </View>
-        ) : null}
         {((targetType === 'ticket' && !selectedTicket) || (targetType === 'resale' && !selectedResale)) && !loadingTargets ? (
           <View style={styles.emptyTargetBox}>
             <Text style={styles.emptyTargetTitle}>신고 대상을 선택해주세요.</Text>
@@ -402,8 +386,7 @@ const styles = StyleSheet.create({
   optionList: { marginTop: 14, gap: 10 },
   optionCard: { borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 14, padding: 14, backgroundColor: '#FFFFFF' },
   selectedOptionCard: { borderColor: '#2563EB', backgroundColor: '#EFF6FF' },
-  selectedBox: { marginTop: 14, borderWidth: 1, borderColor: '#BFDBFE', borderRadius: 14, padding: 14, backgroundColor: '#EFF6FF' },
-  selectedLabel: { color: '#2563EB', fontWeight: '900', fontSize: 12, marginBottom: 6 },
+  selectedBadge: { alignSelf: 'flex-start', overflow: 'hidden', borderRadius: 999, backgroundColor: '#2563EB', color: '#FFFFFF', paddingHorizontal: 9, paddingVertical: 4, fontSize: 11, fontWeight: '900', marginBottom: 8 },
   emptyTargetBox: { marginTop: 14, borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 14, padding: 14, backgroundColor: '#F8FAFC' },
   emptyTargetTitle: { color: '#0F172A', fontWeight: '900', fontSize: 14 },
   emptyTargetText: { marginTop: 5, color: '#64748B', fontSize: 12, lineHeight: 18 },

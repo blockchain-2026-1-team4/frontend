@@ -122,7 +122,7 @@ export function AdminUserManagePage() {
     const keyword = query.trim().toLowerCase();
     return items.filter((user) => {
       const userRoles = user.roles?.length ? user.roles : ["USER"];
-      const matchesRole = roleFilters.length === 0 || roleFilters.some((role) => userRoles.includes(role));
+      const matchesRole = roleFilters.length === 0 || roleFilters.every((role) => userRoles.includes(role));
       if (!matchesRole) {
         return false;
       }
@@ -334,7 +334,7 @@ export function AdminUserManagePage() {
                 </button>
               ))}
             </div>
-            <span className="user-filter-help">역할은 여러 개를 동시에 선택할 수 있습니다.</span>
+            <span className="user-filter-help">역할을 여러 개 선택하면 선택한 역할을 모두 가진 계정만 표시됩니다.</span>
           </div>
 
           {actionMessage ? <div className="user-toast">{actionMessage}</div> : null}

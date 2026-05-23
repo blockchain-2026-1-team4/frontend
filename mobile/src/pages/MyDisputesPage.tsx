@@ -3,7 +3,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { ActivityIndicator, Alert, FlatList, RefreshControl, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { errorMessage } from '../lib/account';
 import { backendApi } from '../lib/backend';
-import type { DisputeRecord } from '../types/api';
+import type { DisputeRecord, ResaleListing, TicketDetail } from '../types/api';
 
 const STATUS_LABEL: Record<string, string> = {
   OPEN: '접수됨',
@@ -28,6 +28,14 @@ const EDITABLE_STATUSES = new Set(['OPEN', 'RECEIVED']);
 const PROCESSING_STATUSES = new Set(['REVIEWING', 'PROCESSING']);
 const DONE_STATUSES = new Set(['RESOLVED', 'REJECTED', 'CLOSED', 'CANCELED', 'CANCELLED']);
 
+type DisputeTargetSummary = {
+  title: string;
+  seat?: string;
+  price?: string;
+  date?: string;
+  kind: string;
+};
+
 function getStatusBadge(status?: string) {
   const key = status?.toUpperCase() ?? 'OPEN';
   if (EDITABLE_STATUSES.has(key)) return { label: '수정/취소 가능', style: styles.badgeEditable, textStyle: styles.badgeEditableText };
@@ -38,6 +46,7 @@ function getStatusBadge(status?: string) {
 
 export default function MyDisputesPage({ navigation }: any) {
   const [items, setItems] = useState<DisputeRecord[]>([]);
+  const [targetSummaries, setTargetSummaries] = useState<Record<string, DisputeTargetSummary>>({});
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -48,7 +57,17 @@ export default function MyDisputesPage({ navigation }: any) {
     try {
       setError('');
       const data = await backendApi.getMyDisputes({ size: 50 });
-      setItems(data.items ?? []);
+      const disputeItems = data.items ?? [];
+      setItems(disputeItems);
+
+      const entries = await Promise.all(
+        disputeItems.map(async (item, index) => {
+          const key = String(item.id ?? index);
+          const summary = await loadTargetSummary(item);
+          return [key, summary] as const;
+        }),
+      );
+      setTargetSummaries(Object.fromEntries(entries));
     } catch (cause: any) {
       setError(errorMessage(cause, '분쟁 내역을 불러오지 못했습니다.'));
     } finally {
@@ -131,6 +150,7 @@ export default function MyDisputesPage({ navigation }: any) {
           const editable = EDITABLE_STATUSES.has(statusKey);
           const badge = getStatusBadge(statusKey);
           const disabled = cancelingId === String(item.id ?? '');
+          const summary = targetSummaries[String(item.id ?? '')];
 
           return (
             <View style={styles.card}>
@@ -141,7 +161,13 @@ export default function MyDisputesPage({ navigation }: any) {
                 </View>
               </View>
               <Text style={styles.cardTitle}>{TYPE_LABEL[item.type ?? 'OTHER'] ?? item.type ?? '분쟁'}</Text>
-              <Text style={styles.meta}>티켓 {item.ticketId ?? '-'} · 리셀 {item.resaleListingId ?? '-'}</Text>
+              <View style={styles.targetBox}>
+                <Text style={styles.targetKind}>{summary?.kind ?? (item.resaleListingId ? '리셀 거래' : '내 티켓')}</Text>
+                <Text style={styles.targetTitle}>{summary?.title ?? '분쟁 대상 정보를 불러오는 중입니다.'}</Text>
+                <Text style={styles.meta}>좌석 {summary?.seat || '-'}</Text>
+                {summary?.price ? <Text style={styles.meta}>가격 {summary.price} WEI</Text> : null}
+                <Text style={styles.meta}>일시 {formatDate(summary?.date || item.createdAt)}</Text>
+              </View>
               <Text style={styles.description}>{item.description}</Text>
               {item.resolutionNote ? <Text style={styles.note}>처리 메모: {item.resolutionNote}</Text> : null}
               {editable ? (
@@ -160,6 +186,66 @@ export default function MyDisputesPage({ navigation }: any) {
       />
     </View>
   );
+}
+
+async function loadTargetSummary(item: DisputeRecord): Promise<DisputeTargetSummary> {
+  const embedded = item as DisputeRecord & {
+    eventName?: string;
+    eventTitle?: string;
+    seatInfo?: string;
+    priceWei?: string;
+    price?: string;
+    eventAt?: string;
+    eventDateTime?: string;
+  };
+
+  if (embedded.eventName || embedded.eventTitle || embedded.seatInfo || embedded.priceWei || embedded.price) {
+    return {
+      title: embedded.eventName || embedded.eventTitle || '분쟁 대상',
+      seat: embedded.seatInfo,
+      price: embedded.priceWei || embedded.price,
+      date: embedded.eventAt || embedded.eventDateTime || item.createdAt,
+      kind: item.resaleListingId ? '리셀 거래' : '내 티켓',
+    };
+  }
+
+  if (item.resaleListingId) {
+    const listing = await backendApi.getResaleListing(String(item.resaleListingId)).catch(() => undefined as ResaleListing | undefined);
+    if (listing) {
+      return {
+        title: listing.eventName || '리셀 거래',
+        seat: listing.seatInfo,
+        price: listing.priceWei || listing.price,
+        date: listing.purchasedAt || listing.createdAt || item.createdAt,
+        kind: '리셀 거래',
+      };
+    }
+  }
+
+  if (item.ticketId) {
+    const ticket = await backendApi.getTicket(String(item.ticketId)).catch(() => undefined as TicketDetail | undefined);
+    if (ticket) {
+      return {
+        title: ticket.eventTitle || ticket.eventName || '내 티켓',
+        seat: ticket.seatInfo,
+        price: ticket.priceWei || ticket.originalPriceWei,
+        date: ticket.eventDateTime || ticket.createdAt || item.createdAt,
+        kind: '내 티켓',
+      };
+    }
+  }
+
+  return {
+    title: item.resaleListingId ? '리셀 거래 신고' : '티켓 신고',
+    date: item.createdAt,
+    kind: item.resaleListingId ? '리셀 거래' : '내 티켓',
+  };
+}
+
+function formatDate(value?: string) {
+  if (!value) return '-';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleString('ko-KR');
 }
 
 const styles = StyleSheet.create({
@@ -183,6 +269,9 @@ const styles = StyleSheet.create({
   cardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
   status: { color: '#2563EB', fontWeight: '900', marginBottom: 6 },
   cardTitle: { color: '#0F172A', fontSize: 18, fontWeight: '900' },
+  targetBox: { marginTop: 10, borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 12, padding: 12, backgroundColor: '#F8FAFC' },
+  targetKind: { color: '#2563EB', fontWeight: '900', fontSize: 12 },
+  targetTitle: { marginTop: 4, color: '#0F172A', fontSize: 15, fontWeight: '900' },
   meta: { marginTop: 6, color: '#64748B', fontSize: 12 },
   description: { marginTop: 10, color: '#334155', lineHeight: 20 },
   note: { marginTop: 10, color: '#166534', fontWeight: '800', lineHeight: 20 },
