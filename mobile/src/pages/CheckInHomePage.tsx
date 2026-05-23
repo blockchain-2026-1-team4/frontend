@@ -136,6 +136,9 @@ export default function CheckInHomePage({ navigation }: any) {
                 <TouchableOpacity style={[styles.rowButton, highlighted && styles.primaryRowButton]} onPress={() => navigation.navigate('CheckInManage', { eventId: event.id })}>
                   <Text style={styles.rowButtonText}>입장 처리</Text>
                 </TouchableOpacity>
+                <TouchableOpacity style={styles.rowButton} onPress={() => navigation.navigate('CheckInStatus', { eventId: event.id })}>
+                  <Text style={styles.rowButtonText}>체크인 현황</Text>
+                </TouchableOpacity>
               </View>
             </View>
             );

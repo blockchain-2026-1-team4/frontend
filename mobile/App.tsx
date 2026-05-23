@@ -25,10 +25,7 @@ import OrganizerDashboardPage from './src/pages/OrganizerDashboardPage';
 import EventCreatePage from './src/pages/EventCreatePage';
 import MyEventsPage from './src/pages/MyEventsPage';
 import TicketIssuePage from './src/pages/TicketIssuePage';
-import OrganizerEventDetailPage from './src/pages/OrganizerEventDetailPage';
-import OrganizerProfilePage from './src/pages/OrganizerProfilePage';
 import OrganizerLogoutPage from './src/pages/OrganizerLogoutPage';
-import SalesStatusPage from './src/pages/SalesStatusPage';
 import CheckInStatusPage from './src/pages/CheckInStatusPage';
 import EventSettingsPage from './src/pages/EventSettingsPage';
 import CheckInManagePage from './src/pages/CheckInManagePage';
@@ -42,6 +39,9 @@ import { appKit } from './src/lib/appkit';
 const Stack = createStackNavigator();
 const navigationRef = createNavigationContainerRef<any>();
 const TicketExplorePage = require('./src/pages/TicketExplorePage').default;
+const OrganizerEventDetailPage = require('./src/pages/OrganizerEventDetailPage').default;
+const OrganizerProfilePage = require('./src/pages/OrganizerProfilePage').default;
+const SalesStatusPage = require('./src/pages/SalesStatusPage').default;
 
 export default function App() {
   const [currentRouteName, setCurrentRouteName] = React.useState('Landing');
@@ -63,7 +63,7 @@ export default function App() {
   }, []);
 
   const navigateFromBottom = React.useCallback((routeName: string) => {
-    const eventScopedRoutes = new Set(['TicketIssue', 'TicketExplore', 'SalesStatus', 'CheckInStatus', 'EventSettings', 'CheckInManage']);
+    const eventScopedRoutes = new Set(['TicketIssue', 'TicketExplore', 'CheckInStatus', 'EventSettings', 'CheckInManage']);
 
     if (navigationRef.isReady()) {
       if (eventScopedRoutes.has(routeName)) {
@@ -116,7 +116,7 @@ export default function App() {
           <Stack.Screen name="MyEvents" component={MyEventsPage} options={{ title: '내 이벤트' }} />
           <Stack.Screen name="TicketIssue" component={TicketIssuePage} options={{ title: '티켓 발행' }} />
           <Stack.Screen name="TicketExplore" component={TicketExplorePage} options={{ title: '전체 티켓 탐색' }} />
-          <Stack.Screen name="OrganizerEventDetail" component={OrganizerEventDetailPage} options={{ title: '이벤트 운영' }} />
+          <Stack.Screen name="OrganizerEventDetail" component={OrganizerEventDetailPage} options={{ title: '이벤트 상세' }} />
           <Stack.Screen name="SalesStatus" component={SalesStatusPage} options={{ title: '판매 현황' }} />
           <Stack.Screen name="CheckInStatus" component={CheckInStatusPage} options={{ title: '체크인 현황' }} />
           <Stack.Screen name="CheckInHome" component={CheckInHomePage} options={{ title: '체크인' }} />

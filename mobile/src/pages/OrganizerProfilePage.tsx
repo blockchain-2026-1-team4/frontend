@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import {
   ActivityIndicator,
@@ -13,57 +13,21 @@ import {
 } from 'react-native';
 import { errorMessage } from '../lib/account';
 import { backendApi } from '../lib/backend';
-import { formatEventDate, formatEventStatus } from '../lib/ticketDisplay';
-import type { EventSummary, TicketDetail, UserProfile } from '../types/api';
-
-function eventTitle(event: EventSummary) {
-  return event.name || event.title || '제목 없는 이벤트';
-}
-
-function sortEvents(events: EventSummary[]) {
-  return [...events].sort((a, b) => {
-    const aTime = new Date(a.eventAt || a.eventDateTime || '').getTime();
-    const bTime = new Date(b.eventAt || b.eventDateTime || '').getTime();
-    return (Number.isNaN(bTime) ? 0 : bTime) - (Number.isNaN(aTime) ? 0 : aTime);
-  });
-}
+import type { UserProfile } from '../types/api';
 
 export default function OrganizerProfilePage({ navigation }: any) {
   const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [events, setEvents] = useState<EventSummary[]>([]);
-  const [checkInCountByEventId, setCheckInCountByEventId] = useState<Record<string, number>>({});
-  const [displayName, setDisplayName] = useState('');
+  const [displayNameDraft, setDisplayNameDraft] = useState('');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [editing, setEditing] = useState(false);
 
   const load = useCallback(async () => {
     try {
-      const [me, myEventsPage] = await Promise.all([
-        backendApi.getMe(),
-        backendApi.getMyEvents({ page: 0, size: 100 }),
-      ]);
-
-      const myEvents = sortEvents(myEventsPage.items ?? []);
-      const ticketSummaries = await Promise.all(
-        myEvents.map(async (event) => {
-          const tickets = await backendApi.getEventTickets(event.id).catch(() => [] as TicketDetail[]);
-          return {
-            eventId: event.id,
-            usedCount: tickets.filter((ticket) => ticket.status === 'USED').length,
-          };
-        }),
-      );
-
+      const me = await backendApi.getMe();
       setProfile(me);
-      setDisplayName(me.displayName || '');
-      setEvents(myEvents);
-      setCheckInCountByEventId(
-        ticketSummaries.reduce<Record<string, number>>((acc, item) => {
-          acc[item.eventId] = item.usedCount;
-          return acc;
-        }, {}),
-      );
+      setDisplayNameDraft(me.displayName || '');
     } catch (error: any) {
       Alert.alert('내 정보 로드 실패', errorMessage(error, '내 정보를 불러오지 못했습니다.'));
     } finally {
@@ -81,8 +45,10 @@ export default function OrganizerProfilePage({ navigation }: any) {
   const save = async () => {
     setSaving(true);
     try {
-      const updated = await backendApi.updateMe({ displayName: displayName.trim() || undefined });
+      const updated = await backendApi.updateMe({ displayName: displayNameDraft.trim() || undefined });
       setProfile(updated);
+      setDisplayNameDraft(updated.displayName || '');
+      setEditing(false);
       Alert.alert('저장 완료', '내 정보가 수정되었습니다.');
     } catch (error: any) {
       Alert.alert('저장 실패', errorMessage(error, '내 정보를 수정하지 못했습니다.'));
@@ -91,7 +57,10 @@ export default function OrganizerProfilePage({ navigation }: any) {
     }
   };
 
-  const activeEvents = useMemo(() => events.filter((event) => event.status === 'ACTIVE').length, [events]);
+  const cancelEdit = () => {
+    setDisplayNameDraft(profile?.displayName || '');
+    setEditing(false);
+  };
 
   if (loading) {
     return (
@@ -108,16 +77,12 @@ export default function OrganizerProfilePage({ navigation }: any) {
       contentContainerStyle={styles.content}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} />}
     >
-      <Text style={styles.eyebrow}>My Profile</Text>
+      <Text style={styles.eyebrow}>My Account</Text>
       <Text style={styles.title}>내 정보</Text>
-      <Text style={styles.subtitle}>계정 관리가 우선이고, 아래에서 운영 요약을 이어서 확인합니다.</Text>
-
-      <View style={styles.avatar}>
-        <Text style={styles.avatarText}>{(profile?.displayName || profile?.email || 'O').slice(0, 1).toUpperCase()}</Text>
-      </View>
+      <Text style={styles.subtitle}>계정 정보 확인과 수정만 이 화면에서 처리합니다.</Text>
 
       <View style={styles.card}>
-        <Text style={styles.cardTitle}>계정 정보</Text>
+        <Text style={styles.cardTitle}>계정 정보 보기</Text>
         <Text style={styles.label}>이메일</Text>
         <Text style={styles.value}>{profile?.email || '-'}</Text>
 
@@ -125,36 +90,42 @@ export default function OrganizerProfilePage({ navigation }: any) {
         <Text style={styles.value}>{profile?.roles?.join(', ') || '-'}</Text>
 
         <Text style={styles.label}>표시 이름</Text>
-        <TextInput style={styles.input} value={displayName} onChangeText={setDisplayName} placeholder="표시 이름" />
+        {editing ? (
+          <TextInput style={styles.input} value={displayNameDraft} onChangeText={setDisplayNameDraft} placeholder="표시 이름" />
+        ) : (
+          <Text style={styles.value}>{profile?.displayName || '-'}</Text>
+        )}
 
-        <TouchableOpacity style={[styles.primaryButton, saving && styles.disabledButton]} disabled={saving} onPress={save}>
-          <Text style={styles.primaryButtonText}>{saving ? '저장 중...' : '정보 수정'}</Text>
+        {!editing ? (
+          <TouchableOpacity style={styles.primaryButton} onPress={() => setEditing(true)}>
+            <Text style={styles.primaryButtonText}>정보 수정하기</Text>
+          </TouchableOpacity>
+        ) : (
+          <View style={styles.editRow}>
+            <TouchableOpacity style={[styles.primaryButton, styles.editButton]} onPress={save} disabled={saving}>
+              <Text style={styles.primaryButtonText}>{saving ? '저장 중...' : '저장'}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.secondaryButton, styles.editButton]} onPress={cancelEdit} disabled={saving}>
+              <Text style={styles.secondaryButtonText}>취소</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+      </View>
+
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>메인 화면 이동</Text>
+        <TouchableOpacity style={styles.secondaryButton} onPress={() => navigation.navigate('Organizer')}>
+          <Text style={styles.secondaryButtonText}>주최자 메인으로 이동</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.secondaryButton} onPress={() => navigation.navigate('Main')}>
+          <Text style={styles.secondaryButtonText}>사용자 메인으로 이동</Text>
         </TouchableOpacity>
       </View>
 
       <TouchableOpacity style={styles.logoutButton} onPress={() => navigation.navigate('OrganizerLogout')}>
         <Text style={styles.logoutButtonText}>로그아웃</Text>
       </TouchableOpacity>
-
-      <View style={styles.card}>
-        <View style={styles.sectionHead}>
-          <Text style={styles.cardTitle}>계정 관련 바로가기</Text>
-          <TouchableOpacity onPress={() => navigation.navigate('MyEvents')}>
-            <Text style={styles.linkText}>내 이벤트 보기</Text>
-          </TouchableOpacity>
-        </View>
-        <Text style={styles.sectionHint}>운영 통계는 홈 또는 이벤트 상세에서 확인하세요.</Text>
-      </View>
     </ScrollView>
-  );
-}
-
-function Metric({ label, value }: { label: string; value: number }) {
-  return (
-    <View style={styles.metricCard}>
-      <Text style={styles.metricLabel}>{label}</Text>
-      <Text style={styles.metricValue}>{value}</Text>
-    </View>
   );
 }
 
@@ -166,30 +137,17 @@ const styles = StyleSheet.create({
   eyebrow: { color: '#2563EB', fontWeight: '800', fontSize: 12, letterSpacing: 0.5 },
   title: { marginTop: 4, fontSize: 28, fontWeight: '900', color: '#0F172A' },
   subtitle: { marginTop: 8, color: '#64748B', fontSize: 14, lineHeight: 21 },
-  metricGrid: { flexDirection: 'row', gap: 8, marginTop: 16 },
-  metricCard: { flex: 1, backgroundColor: '#FFFFFF', borderRadius: 16, padding: 13, borderWidth: 1, borderColor: '#E2E8F0' },
-  metricLabel: { color: '#64748B', fontSize: 12, fontWeight: '800' },
-  metricValue: { marginTop: 8, color: '#0F172A', fontSize: 24, fontWeight: '900' },
-  avatar: { marginTop: 18, alignSelf: 'center', width: 72, height: 72, borderRadius: 36, backgroundColor: '#E2E8F0', alignItems: 'center', justifyContent: 'center' },
-  avatarText: { color: '#2563EB', fontSize: 28, fontWeight: '900' },
   card: { marginTop: 18, backgroundColor: '#FFFFFF', borderRadius: 18, padding: 16, borderWidth: 1, borderColor: '#E2E8F0' },
-  sectionHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
-  sectionHint: { color: '#64748B', fontSize: 12, fontWeight: '800' },
   cardTitle: { color: '#0F172A', fontSize: 17, fontWeight: '900' },
-  linkText: { color: '#2563EB', fontWeight: '900', fontSize: 12 },
-  eventCard: { borderTopWidth: 1, borderTopColor: '#F1F5F9', paddingTop: 12, paddingBottom: 12 },
-  eventTitle: { color: '#0F172A', fontWeight: '900', fontSize: 15 },
-  eventMeta: { marginTop: 4, color: '#64748B', fontSize: 12 },
-  eventFoot: { marginTop: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
-  badge: { overflow: 'hidden', borderRadius: 999, backgroundColor: '#E0F2FE', color: '#0369A1', paddingHorizontal: 9, paddingVertical: 5, fontSize: 11, fontWeight: '900' },
-  eventCount: { color: '#334155', fontSize: 12, fontWeight: '800' },
-  emptyText: { color: '#94A3B8', paddingVertical: 12, textAlign: 'center' },
   label: { marginTop: 10, color: '#64748B', fontSize: 12, fontWeight: '800' },
   value: { marginTop: 5, color: '#0F172A', fontSize: 15, fontWeight: '800' },
   input: { marginTop: 7, borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 12, padding: 12, backgroundColor: '#FFFFFF', color: '#0F172A' },
   primaryButton: { backgroundColor: '#2563EB', borderRadius: 14, paddingVertical: 14, alignItems: 'center', marginTop: 16 },
   primaryButtonText: { color: '#FFFFFF', fontSize: 16, fontWeight: '900' },
+  secondaryButton: { borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 14, paddingVertical: 14, alignItems: 'center', marginTop: 10, backgroundColor: '#FFFFFF' },
+  secondaryButtonText: { color: '#0F172A', fontSize: 16, fontWeight: '900' },
+  editRow: { flexDirection: 'row', gap: 8, marginTop: 16 },
+  editButton: { flex: 1, marginTop: 0 },
   logoutButton: { backgroundColor: '#FEF2F2', borderWidth: 1, borderColor: '#FECACA', borderRadius: 14, paddingVertical: 14, alignItems: 'center', marginTop: 14 },
   logoutButtonText: { color: '#DC2626', fontSize: 16, fontWeight: '900' },
-  disabledButton: { opacity: 0.55 },
 });

@@ -60,6 +60,8 @@ export default function OrganizerDashboardPage({ navigation }: any) {
   const canApply = !latestApplication || latestStatus === 'REJECTED';
   const activeEvents = events.filter((event) => event.status === 'ACTIVE').length;
   const soldTickets = events.reduce((sum, event) => sum + (event.soldTicketCount ?? 0), 0);
+  const listedTickets = events.reduce((sum, event) => sum + Number((event as any).listedTicketCount ?? 0), 0);
+  const checkedInTickets = events.reduce((sum, event) => sum + Number((event as any).checkInCount ?? 0), 0);
 
   const load = useCallback(async () => {
     try {
@@ -145,9 +147,6 @@ export default function OrganizerDashboardPage({ navigation }: any) {
             <Text style={styles.eyebrow}>Organizer</Text>
             <Text style={styles.title}>주최자 센터</Text>
           </View>
-          <TouchableOpacity style={styles.profileButton} onPress={() => navigation.navigate('OrganizerProfile')}>
-            <Text style={styles.profileButtonText}>내 정보</Text>
-          </TouchableOpacity>
         </View>
         <Text style={styles.subtitle}>이벤트 등록부터 티켓 발행, 체크인 운영까지 한 곳에서 관리합니다.</Text>
       </View>
@@ -198,6 +197,11 @@ export default function OrganizerDashboardPage({ navigation }: any) {
             <Metric label="운영중 이벤트" value={activeEvents} />
             <Metric label="판매 완료 티켓" value={soldTickets} />
           </View>
+          <View style={[styles.metricGrid, { marginTop: 8 }]}> 
+            <Metric label="리셀중 티켓" value={listedTickets} />
+            <Metric label="체크인 완료 티켓" value={checkedInTickets} />
+            <View style={styles.metricCard} />
+          </View>
 
           <View style={styles.actions}>
             <TouchableOpacity style={styles.primaryButton} onPress={() => navigation.navigate('EventCreate')}>
@@ -211,23 +215,20 @@ export default function OrganizerDashboardPage({ navigation }: any) {
           <View style={styles.card}>
             <View style={styles.sectionHead}>
               <Text style={styles.cardTitle}>최근 이벤트</Text>
-              <TouchableOpacity onPress={() => navigation.navigate('MyEvents')}>
-                <Text style={styles.linkText}>전체 보기</Text>
-              </TouchableOpacity>
             </View>
 
             {events.length === 0 ? (
               <Text style={styles.emptyText}>아직 등록한 이벤트가 없습니다.</Text>
             ) : (
               events.map((event) => (
-                <TouchableOpacity key={event.id} style={styles.eventRow} onPress={() => navigation.navigate('OrganizerEventDetail', { eventId: event.id })}>
+                <View key={event.id} style={styles.eventRow}>
                   <View style={styles.eventInfo}>
                     <Text style={styles.eventTitle}>{eventTitle(event)}</Text>
                     <Text style={styles.eventMeta}>장소 {event.venue || '-'}</Text>
                     <Text style={styles.eventMeta}>일시 {formatEventDate(event.eventAt || event.eventDateTime)}</Text>
                   </View>
                   <Text style={styles.badge}>{formatEventStatus(event.status)}</Text>
-                </TouchableOpacity>
+                </View>
               ))
             )}
           </View>
@@ -254,8 +255,6 @@ const styles = StyleSheet.create({
   header: { marginBottom: 16 },
   headerTop: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 },
   headerCopy: { flex: 1 },
-  profileButton: { borderWidth: 1, borderColor: '#CBD5E1', backgroundColor: '#FFFFFF', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 9 },
-  profileButtonText: { color: '#0F172A', fontWeight: '900' },
   eyebrow: { color: '#2563EB', fontWeight: '800', fontSize: 12 },
   title: { marginTop: 4, fontSize: 28, fontWeight: '900', color: '#0F172A' },
   subtitle: { marginTop: 8, color: '#64748B', fontSize: 14, lineHeight: 21 },
