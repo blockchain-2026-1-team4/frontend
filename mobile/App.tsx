@@ -41,6 +41,7 @@ import { appKit } from './src/lib/appkit';
 
 const Stack = createStackNavigator();
 const navigationRef = createNavigationContainerRef<any>();
+const TicketExplorePage = require('./src/pages/TicketExplorePage').default;
 
 export default function App() {
   const [currentRouteName, setCurrentRouteName] = React.useState('Landing');
@@ -62,7 +63,7 @@ export default function App() {
   }, []);
 
   const navigateFromBottom = React.useCallback((routeName: string) => {
-    const eventScopedRoutes = new Set(['TicketIssue', 'SalesStatus', 'CheckInStatus', 'EventSettings', 'CheckInManage']);
+    const eventScopedRoutes = new Set(['TicketIssue', 'TicketExplore', 'SalesStatus', 'CheckInStatus', 'EventSettings', 'CheckInManage']);
 
     if (navigationRef.isReady()) {
       if (eventScopedRoutes.has(routeName)) {
@@ -114,6 +115,7 @@ export default function App() {
           <Stack.Screen name="EventCreate" component={EventCreatePage} options={{ title: '이벤트 등록' }} />
           <Stack.Screen name="MyEvents" component={MyEventsPage} options={{ title: '내 이벤트' }} />
           <Stack.Screen name="TicketIssue" component={TicketIssuePage} options={{ title: '티켓 발행' }} />
+          <Stack.Screen name="TicketExplore" component={TicketExplorePage} options={{ title: '전체 티켓 탐색' }} />
           <Stack.Screen name="OrganizerEventDetail" component={OrganizerEventDetailPage} options={{ title: '이벤트 운영' }} />
           <Stack.Screen name="SalesStatus" component={SalesStatusPage} options={{ title: '판매 현황' }} />
           <Stack.Screen name="CheckInStatus" component={CheckInStatusPage} options={{ title: '체크인 현황' }} />

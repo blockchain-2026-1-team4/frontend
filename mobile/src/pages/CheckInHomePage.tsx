@@ -145,11 +145,11 @@ export default function CheckInHomePage({ navigation }: any) {
 
       <View style={styles.card}>
         <View style={styles.sectionHead}>
-          <Text style={styles.cardTitle}>최근 체크인 기록</Text>
+          <Text style={styles.cardTitle}>최근 입장 처리 로그</Text>
           <Text style={styles.sectionHint}>{recentCheckIns.length}건</Text>
         </View>
         {recentCheckIns.length === 0 ? (
-          <Text style={styles.emptyText}>최근 체크인 기록이 없습니다.</Text>
+          <Text style={styles.emptyText}>최근 입장 처리 로그가 없습니다.</Text>
         ) : (
           recentCheckIns.map((item, index) => (
             <TouchableOpacity key={`${item.eventId}-${item.seatInfo}-${index}`} style={styles.checkInRow} onPress={() => navigation.navigate('CheckInStatus', { eventId: item.eventId })}>

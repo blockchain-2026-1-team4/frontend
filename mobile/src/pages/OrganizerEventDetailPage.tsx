@@ -54,6 +54,10 @@ export default function OrganizerEventDetailPage({ navigation, route }: any) {
   const soldTickets = tickets.filter((ticket) => ticket.status === 'SOLD' || ticket.status === 'LISTED' || ticket.status === 'USED').length;
   const usedTickets = tickets.filter((ticket) => ticket.status === 'USED').length;
   const availableTickets = tickets.filter((ticket) => ticket.status === 'AVAILABLE').length;
+  const recentTickets = useMemo(
+    () => [...tickets].sort((a, b) => new Date(b.createdAt || '').getTime() - new Date(a.createdAt || '').getTime()).slice(0, 4),
+    [tickets],
+  );
   const seatFilters = useMemo(() => {
     const sections = Array.from(new Set(tickets.map((ticket) => seatSectionOf(ticket.seatInfo)).filter(Boolean))).sort((a, b) =>
       a.localeCompare(b, 'ko-KR', { numeric: true }),
@@ -227,66 +231,24 @@ export default function OrganizerEventDetailPage({ navigation, route }: any) {
 
       <View style={styles.card}>
         <View style={styles.sectionHead}>
-          <Text style={styles.cardTitle}>최근 발행 티켓</Text>
-          <Text style={styles.pageText}>{currentPage} / {totalPages}</Text>
-        </View>
-        <TextInput
-          style={styles.input}
-          value={seatQuery}
-          onChangeText={(value) => {
-            setSeatQuery(value);
-            setTicketPage(1);
-          }}
-          placeholder="좌석 검색: VIP-12, A-103"
-          autoCapitalize="characters"
-          returnKeyType="search"
-        />
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterList}>
-          {seatFilters.map((section) => (
-            <TouchableOpacity
-              key={section}
-              style={[styles.filterChip, selectedSeatSection === section && styles.activeFilterChip]}
-              onPress={() => {
-                setSelectedSeatSection(section);
-                setTicketPage(1);
-              }}
-            >
-              <Text style={[styles.filterChipText, selectedSeatSection === section && styles.activeFilterChipText]}>{section}</Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-        <View style={styles.sortRow}>
-          <TouchableOpacity style={[styles.sortButton, sortMode === 'latest' && styles.activeSortButton]} onPress={() => setSortMode('latest')}>
-            <Text style={[styles.sortButtonText, sortMode === 'latest' && styles.activeSortButtonText]}>최신순</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.sortButton, sortMode === 'seat' && styles.activeSortButton]} onPress={() => setSortMode('seat')}>
-            <Text style={[styles.sortButtonText, sortMode === 'seat' && styles.activeSortButtonText]}>좌석순</Text>
+          <Text style={styles.cardTitle}>최근 발행 티켓 미리보기</Text>
+          <TouchableOpacity onPress={() => navigation.navigate('TicketExplore', { eventId: event.id })}>
+            <Text style={styles.linkText}>전체 발행 좌석 보기</Text>
           </TouchableOpacity>
         </View>
-        {pagedTickets.length === 0 ? <Text style={styles.emptyText}>조건에 맞는 발행 티켓이 없습니다.</Text> : pagedTickets.map((ticket) => (
-          <View key={ticketId(ticket)} style={styles.ticketRow}>
-            <View style={styles.ticketInfo}>
-              <Text style={styles.ticketTitle}>{ticket.seatInfo || '-'}</Text>
-              <Text style={styles.ticketMeta}>{ticket.ownerWalletAddress || ticket.ownerAddress || '미판매'}</Text>
+        {recentTickets.length === 0 ? (
+          <Text style={styles.emptyText}>최근 발행 티켓이 없습니다.</Text>
+        ) : (
+          recentTickets.map((ticket) => (
+            <View key={ticketId(ticket)} style={styles.ticketRow}>
+              <View style={styles.ticketInfo}>
+                <Text style={styles.ticketTitle}>{ticket.seatInfo || '-'}</Text>
+                <Text style={styles.ticketMeta}>{ticket.ownerWalletAddress || ticket.ownerAddress || '미판매'}</Text>
+              </View>
+              <Text style={styles.badge}>{formatTicketStatus(ticket.status)}</Text>
             </View>
-            <Text style={styles.badge}>{formatTicketStatus(ticket.status)}</Text>
-          </View>
-        ))}
-        {filteredTickets.length > PAGE_SIZE ? (
-          <View style={styles.pagination}>
-            <TouchableOpacity style={[styles.pageButton, currentPage === 1 && styles.disabledButton]} disabled={currentPage === 1} onPress={() => setTicketPage((page) => Math.max(page - 1, 1))}>
-              <Text style={styles.pageButtonText}>이전</Text>
-            </TouchableOpacity>
-            {pageNumbers.map((pageNumber) => (
-              <TouchableOpacity key={pageNumber} style={[styles.pageNumberButton, currentPage === pageNumber && styles.activePageNumberButton]} onPress={() => setTicketPage(pageNumber)}>
-                <Text style={[styles.pageNumberText, currentPage === pageNumber && styles.activePageNumberText]}>{pageNumber}</Text>
-              </TouchableOpacity>
-            ))}
-            <TouchableOpacity style={[styles.pageButton, currentPage >= totalPages && styles.disabledButton]} disabled={currentPage >= totalPages} onPress={() => setTicketPage((page) => Math.min(page + 1, totalPages))}>
-              <Text style={styles.pageButtonText}>다음</Text>
-            </TouchableOpacity>
-          </View>
-        ) : null}
+          ))
+        )}
       </View>
     </ScrollView>
   );
@@ -333,6 +295,7 @@ const styles = StyleSheet.create({
   menuTitle: { color: '#0F172A', fontSize: 15, fontWeight: '900' },
   menuText: { marginTop: 4, color: '#64748B', fontSize: 12, lineHeight: 18 },
   chevron: { color: '#94A3B8', fontSize: 26, fontWeight: '300' },
+  linkText: { color: '#2563EB', fontSize: 12, fontWeight: '900' },
   primaryButton: { backgroundColor: '#2563EB', borderRadius: 14, paddingVertical: 14, alignItems: 'center', marginTop: 12 },
   primaryButtonText: { color: '#FFFFFF', fontSize: 16, fontWeight: '900' },
   secondaryButton: { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 14, paddingVertical: 14, alignItems: 'center', marginTop: 10 },

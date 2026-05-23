@@ -70,6 +70,10 @@ export default function TicketIssuePage({ navigation, route }: any) {
   const totalCount = event?.totalTicketCount ?? 0;
   const issuedCount = tickets.length;
   const remainingCount = Math.max(totalCount - issuedCount, 0);
+  const recentTickets = useMemo(
+    () => [...tickets].sort((a, b) => new Date(b.createdAt || '').getTime() - new Date(a.createdAt || '').getTime()).slice(0, 5),
+    [tickets],
+  );
 
   const load = useCallback(async () => {
     if (!eventId) return;
@@ -171,6 +175,20 @@ export default function TicketIssuePage({ navigation, route }: any) {
     selectSection(value);
   };
 
+  const removeSection = (section: string) => {
+    if (DEFAULT_SEAT_SECTIONS.includes(section)) return;
+    const hasIssuedSeats = tickets.some((ticket) => seatSectionOf(ticket.seatInfo) === section);
+    if (hasIssuedSeats) {
+      Alert.alert('구역 삭제 불가', '이미 발행된 좌석이 있는 구역은 삭제할 수 없습니다.');
+      return;
+    }
+
+    setSeatSections((current) => current.filter((item) => item !== section));
+    if (seatSection === section) {
+      selectSection(DEFAULT_SEAT_SECTIONS[0]);
+    }
+  };
+
   const showError = (title: string, message: string) => {
     setFeedback({ type: 'error', message });
     Alert.alert(title, message);
@@ -270,9 +288,16 @@ export default function TicketIssuePage({ navigation, route }: any) {
         <Text style={styles.label}>좌석 구역</Text>
         <View style={styles.sectionGrid}>
           {seatSections.map((section) => (
-            <TouchableOpacity key={section} style={[styles.sectionChip, seatSection === section && styles.activeSectionChip]} onPress={() => selectSection(section)}>
-              <Text style={[styles.sectionChipText, seatSection === section && styles.activeSectionChipText]}>{section}</Text>
-            </TouchableOpacity>
+            <View key={section} style={styles.sectionChipGroup}>
+              <TouchableOpacity style={[styles.sectionChip, seatSection === section && styles.activeSectionChip]} onPress={() => selectSection(section)}>
+                <Text style={[styles.sectionChipText, seatSection === section && styles.activeSectionChipText]}>{section}</Text>
+              </TouchableOpacity>
+              {!DEFAULT_SEAT_SECTIONS.includes(section) ? (
+                <TouchableOpacity style={styles.sectionDeleteButton} onPress={() => removeSection(section)}>
+                  <Text style={styles.sectionDeleteText}>×</Text>
+                </TouchableOpacity>
+              ) : null}
+            </View>
           ))}
         </View>
 
@@ -303,43 +328,19 @@ export default function TicketIssuePage({ navigation, route }: any) {
         <Text style={styles.primaryButtonText}>{issuing ? '발행 중...' : remainingCount <= 0 ? '발행 완료' : '티켓 발행'}</Text>
       </TouchableOpacity>
 
-      <TouchableOpacity style={styles.secondaryButton} onPress={() => navigation.replace('OrganizerEventDetail', { eventId })}>
-        <Text style={styles.secondaryButtonText}>이벤트 운영으로 이동</Text>
+      <TouchableOpacity style={styles.secondaryButton} onPress={() => navigation.navigate('TicketExplore', { eventId })}>
+        <Text style={styles.secondaryButtonText}>전체 발행 좌석 보기</Text>
       </TouchableOpacity>
 
       <View style={styles.card}>
         <View style={styles.sectionHead}>
-          <Text style={styles.cardTitle}>최근 발행 좌석</Text>
-          <Text style={styles.pageText}>{currentPage} / {totalPages}</Text>
+          <Text style={styles.cardTitle}>최근 발행 티켓 미리보기</Text>
+          <Text style={styles.pageText}>{recentTickets.length}건</Text>
         </View>
-        <TextInput style={styles.input} value={query} onChangeText={(value) => { setQuery(value); setPage(1); }} placeholder="좌석 검색: A-12, VIP-3" />
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterList}>
-          {ticketSeatFilters.map((section) => (
-            <TouchableOpacity
-              key={section}
-              style={[styles.filterChip, selectedSeatSection === section && styles.activeFilterChip]}
-              onPress={() => {
-                setSelectedSeatSection(section);
-                setPage(1);
-              }}
-            >
-              <Text style={[styles.filterChipText, selectedSeatSection === section && styles.activeFilterChipText]}>{section}</Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-        <View style={styles.sortRow}>
-          <TouchableOpacity style={[styles.sortButton, sortMode === 'latest' && styles.activeSortButton]} onPress={() => setSortMode('latest')}>
-            <Text style={[styles.sortButtonText, sortMode === 'latest' && styles.activeSortButtonText]}>최신순</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.sortButton, sortMode === 'seat' && styles.activeSortButton]} onPress={() => setSortMode('seat')}>
-            <Text style={[styles.sortButtonText, sortMode === 'seat' && styles.activeSortButtonText]}>좌석순</Text>
-          </TouchableOpacity>
-        </View>
-
-        {pagedTickets.length === 0 ? (
-          <Text style={styles.emptyText}>조건에 맞는 발행 좌석이 없습니다.</Text>
+        {recentTickets.length === 0 ? (
+          <Text style={styles.emptyText}>최근 발행 티켓이 없습니다.</Text>
         ) : (
-          pagedTickets.map((ticket) => (
+          recentTickets.map((ticket) => (
             <View key={ticketKey(ticket)} style={styles.ticketRow}>
               <View>
                 <Text style={styles.ticketSeat}>{ticket.seatInfo}</Text>
@@ -349,22 +350,6 @@ export default function TicketIssuePage({ navigation, route }: any) {
             </View>
           ))
         )}
-
-        {filteredTickets.length > PAGE_SIZE ? (
-          <View style={styles.pagination}>
-            <TouchableOpacity style={[styles.pageButton, currentPage === 1 && styles.disabledButton]} disabled={currentPage === 1} onPress={() => setPage((value) => Math.max(value - 1, 1))}>
-              <Text style={styles.pageButtonText}>이전</Text>
-            </TouchableOpacity>
-            {pageNumbers.map((pageNumber) => (
-              <TouchableOpacity key={pageNumber} style={[styles.pageNumberButton, currentPage === pageNumber && styles.activePageNumberButton]} onPress={() => setPage(pageNumber)}>
-                <Text style={[styles.pageNumberText, currentPage === pageNumber && styles.activePageNumberText]}>{pageNumber}</Text>
-              </TouchableOpacity>
-            ))}
-            <TouchableOpacity style={[styles.pageButton, currentPage >= totalPages && styles.disabledButton]} disabled={currentPage >= totalPages} onPress={() => setPage((value) => Math.min(value + 1, totalPages))}>
-              <Text style={styles.pageButtonText}>다음</Text>
-            </TouchableOpacity>
-          </View>
-        ) : null}
       </View>
     </ScrollView>
   );
@@ -402,10 +387,13 @@ const styles = StyleSheet.create({
   label: { marginTop: 14, marginBottom: 6, color: '#334155', fontSize: 13, fontWeight: '800' },
   input: { borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 12, padding: 12, backgroundColor: '#FFFFFF', color: '#0F172A' },
   sectionGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  sectionChipGroup: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   sectionChip: { borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 999, paddingHorizontal: 14, paddingVertical: 8, backgroundColor: '#FFFFFF' },
   activeSectionChip: { borderColor: '#2563EB', backgroundColor: '#EFF6FF' },
   sectionChipText: { color: '#475569', fontWeight: '900' },
   activeSectionChipText: { color: '#2563EB' },
+  sectionDeleteButton: { width: 28, height: 28, borderRadius: 14, borderWidth: 1, borderColor: '#FCA5A5', backgroundColor: '#FEF2F2', alignItems: 'center', justifyContent: 'center' },
+  sectionDeleteText: { color: '#DC2626', fontSize: 18, lineHeight: 18, fontWeight: '900' },
   addSectionRow: { flexDirection: 'row', gap: 8, marginTop: 10 },
   addSectionInput: { flex: 1 },
   addSectionButton: { backgroundColor: '#0F172A', borderRadius: 12, paddingHorizontal: 14, justifyContent: 'center' },

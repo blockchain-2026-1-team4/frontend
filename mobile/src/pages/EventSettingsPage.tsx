@@ -28,6 +28,7 @@ export default function EventSettingsPage({ route }: any) {
   const [resaleStart, setResaleStart] = useState('');
   const [resaleEnd, setResaleEnd] = useState('');
   const [status, setStatus] = useState('ACTIVE');
+  const [statusDraft, setStatusDraft] = useState('ACTIVE');
   const [resaleOpen, setResaleOpen] = useState(false);
   const [statusOpen, setStatusOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -56,6 +57,7 @@ export default function EventSettingsPage({ route }: any) {
       setResaleStart((detail.resaleStart || '').slice(0, 16));
       setResaleEnd((detail.resaleEnd || '').slice(0, 16));
       setStatus(detail.status || 'ACTIVE');
+      setStatusDraft(detail.status || 'ACTIVE');
     } catch (error: any) {
       Alert.alert('이벤트 정보 로드 실패', errorMessage(error, '이벤트 정보를 불러오지 못했습니다.'));
     } finally {
@@ -134,6 +136,7 @@ export default function EventSettingsPage({ route }: any) {
     try {
       await backendApi.updateEventStatus(event.id, { status: nextStatus });
       setStatus(nextStatus);
+      setStatusDraft(nextStatus);
       setFeedback('이벤트 상태가 저장되었습니다.');
       Alert.alert('저장 완료', '이벤트 상태가 저장되었습니다.');
       await load();
@@ -234,14 +237,17 @@ export default function EventSettingsPage({ route }: any) {
                 ].map((item) => (
                   <TouchableOpacity
                     key={item.value}
-                    style={[styles.statusChip, status === item.value && styles.activeStatusChip]}
+                    style={[styles.statusChip, statusDraft === item.value && styles.activeStatusChip]}
                     disabled={saving || (event?.adminCanceled === true && item.value !== 'CANCELED')}
-                    onPress={() => saveStatus(item.value)}
+                    onPress={() => setStatusDraft(item.value)}
                   >
-                    <Text style={[styles.statusChipText, status === item.value && styles.activeStatusChipText]}>{item.label}</Text>
+                    <Text style={[styles.statusChipText, statusDraft === item.value && styles.activeStatusChipText]}>{item.label}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
+              <TouchableOpacity style={[styles.secondaryButton, saving && styles.disabledButton]} disabled={saving} onPress={() => saveStatus(statusDraft)}>
+                <Text style={styles.secondaryButtonText}>상태 저장</Text>
+              </TouchableOpacity>
             </>
           ) : null}
         </View>
