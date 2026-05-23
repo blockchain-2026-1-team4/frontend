@@ -315,11 +315,61 @@ npx tsc --noEmit
 
 ## Remaining Work
 
-- Decide whether every blockchain submission failure should be persisted as `FAILED`.
-- Add explorer links when a real blockchain network is configured.
-- Replace demo-oriented QR signing with real mobile wallet signing or a production-grade check-in token flow.
-- Decide whether reviewed events need a dedicated queue beyond the current filter.
-- Add ticket cancellation APIs for issued tickets, for example `PATCH /tickets/{ticketId}/cancel` or bulk cancellation by event.
-- Consider returning dispute target summaries directly from `GET /disputes/me` so the mobile app does not need per-item ticket/resale/event enrichment calls.
-- Add backend dashboard metrics for active ticket count if the admin dashboard should show exact selling-ticket counts without a placeholder.
-- Consider a dedicated event approval/review status separate from `ACTIVE`/`INACTIVE` if event registration review becomes more formal.
+### 핵심 백엔드 / 운영 구조 개선
+
+- 현재 데모용 QR signature(`mobile-dev-signature`) 구조를 실제 운영 가능한 방식으로 교체 필요
+  - wallet `signMessage` 기반 사용자 서명 검증
+  - 또는 서버 발급 체크인 토큰 구조 적용
+  - 체크인 API에서도 QR payload signature 검증 로직 추가 필요
+
+- 내 리셀 거래 전용 API 추가 필요
+  - 현재는 전체 리셀 목록 조회 후 프론트에서 sellerId / buyerId 기준으로 필터링 중
+  - 데이터 증가 시 비효율 및 권한 관리 문제가 발생할 수 있음
+  - 예시:
+    - `GET /resale-listings/me`
+    - `GET /resale-transactions/me`
+
+- 이미 발행된 티켓 취소 API 추가 필요
+  - 예시:
+    - `PATCH /tickets/{ticketId}/cancel`
+    - `PATCH /events/{eventId}/tickets/cancel-bulk`
+
+- `GET /disputes/me` 응답에 분쟁 대상 summary 정보 직접 포함 필요
+  - 현재 모바일 앱은 ticket / resale / event 정보를 개별 추가 조회로 보강 중
+  - API에서 아래 정보를 직접 제공하면 호출 수를 줄일 수 있음:
+    - 이벤트명
+    - 장소
+    - 이벤트 날짜
+    - 좌석 정보
+    - 리셀 가격 / 거래 일시
+
+- organizer / validator 권한 revoke의 온체인 연동 필요
+  - 현재는 DB role만 제거됨
+  - 스마트컨트랙트 revoke 함수 및 gateway 연동 추가 필요
+
+---
+
+### 관리자 / 운영 기능 개선
+
+- 관리자 대시보드의 “판매중 티켓 수” 집계 API 추가 필요
+  - 현재는 placeholder 또는 optional 값 기반 처리 중
+
+- 이벤트 운영 상태와 검토 상태 분리 검토 필요
+  - 현재는 `ACTIVE / INACTIVE` 중심 구조
+  - 추후 운영 규모 확장 시 아래와 같은 검토 상태 분리 가능:
+    - `PENDING_REVIEW`
+    - `APPROVED`
+    - `REJECTED`
+
+---
+
+### 문서 / 배포 정리
+
+- README 및 배포 문서 보강 필요
+  - 모바일 앱 테스트 방법
+  - Android 설치 및 실행 가이드
+  - `.env` 설정 예시
+  - 로컬 / 배포 환경 접속 구조
+  - 모바일 지갑 연동 구조
+  - 주최자 승인 및 권한 승격 흐름
+  - 전체 배포 아키텍처 정리
