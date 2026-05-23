@@ -72,11 +72,10 @@ export default function MyPage({ navigation }: any) {
     return <View style={styles.center}><ActivityIndicator size="large" color="#2563EB" /></View>;
   }
 
-  const menuItems = [
+  const quickLinks = [
     { id: 'tickets', label: '내 티켓 목록', screen: 'MyTickets' },
+    { id: 'resale', label: '내 리셀 티켓', screen: 'ResaleList', params: { scope: 'mine' } },
     { id: 'disputes', label: '내 분쟁 신고', screen: 'MyDisputes' },
-    { id: 'resale', label: '리셀 티켓 둘러보기', screen: 'ResaleList' },
-    { id: 'home', label: '이벤트 메인 이동', screen: 'Main' },
   ];
 
   return (
@@ -90,7 +89,7 @@ export default function MyPage({ navigation }: any) {
 
       <View style={styles.card}>
         <Text style={styles.cardTitle}>계정 정보</Text>
-        <Text style={styles.label}>이메일</Text>
+        <Text style={styles.label}>이메일 또는 지갑</Text>
         <Text style={styles.value}>{profile?.email || profile?.walletAddress || '-'}</Text>
 
         <Text style={styles.label}>권한</Text>
@@ -120,24 +119,18 @@ export default function MyPage({ navigation }: any) {
       </View>
 
       <View style={styles.card}>
-        <Text style={styles.cardTitle}>메인 화면 이동</Text>
-        <TouchableOpacity style={styles.secondaryButton} onPress={() => navigation.navigate('Main')}>
-          <Text style={styles.secondaryButtonText}>사용자 메인 이동</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.secondaryButton} onPress={() => navigation.navigate('Organizer')}>
-          <Text style={styles.secondaryButtonText}>주최자 메인 이동</Text>
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>기존 메뉴</Text>
-        {menuItems.map((item) => (
-          <TouchableOpacity key={item.id} style={styles.menuItem} onPress={() => navigation.navigate(item.screen)}>
+        <Text style={styles.cardTitle}>내 활동</Text>
+        {quickLinks.map((item) => (
+          <TouchableOpacity key={item.id} style={styles.menuItem} onPress={() => navigation.navigate(item.screen, item.params)}>
             <Text style={styles.menuLabel}>{item.label}</Text>
             <Text style={styles.arrow}>›</Text>
           </TouchableOpacity>
         ))}
       </View>
+
+      <TouchableOpacity style={styles.secondaryButton} onPress={() => navigation.navigate('Organizer')}>
+        <Text style={styles.secondaryButtonText}>주최자 센터로 이동</Text>
+      </TouchableOpacity>
 
       <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
         <Text style={styles.logoutText}>로그아웃</Text>

@@ -1,9 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, FlatList, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { backendApi } from '../lib/backend';
-import type { EventDetail, ResaleListing } from '../types/api';
+import { formatEventDate } from '../lib/ticketDisplay';
+import type { EventDetail, ResaleListing, UserProfile } from '../types/api';
 
 type SortMode = 'latest' | 'priceAsc' | 'priceDesc';
+type ScopeMode = 'all' | 'mine';
 
 type ResaleEventGroup = {
   eventId: string;
@@ -81,22 +83,37 @@ function sortListings(listings: ResaleListing[], sortMode: SortMode) {
   });
 }
 
+function isMine(listing: ResaleListing, me: UserProfile | null) {
+  if (!me?.id) return false;
+  return listing.sellerId === me.id || listing.buyerId === me.id;
+}
+
 export default function ResaleListPage({ navigation, route }: any) {
   const eventId = route?.params?.eventId;
+  const initialScope = route?.params?.scope === 'mine' ? 'mine' : 'all';
   const [listings, setListings] = useState<ResaleListing[]>([]);
   const [eventMap, setEventMap] = useState<Record<string, EventDetail>>({});
+  const [me, setMe] = useState<UserProfile | null>(null);
   const [eventQuery, setEventQuery] = useState('');
   const [seatQuery, setSeatQuery] = useState('');
   const [sortMode, setSortMode] = useState<SortMode>('latest');
+  const [scope, setScope] = useState<ScopeMode>(initialScope);
   const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setScope(initialScope);
+  }, [initialScope]);
 
   useEffect(() => {
     const load = async () => {
       setLoading(true);
       try {
-        const data = await backendApi.getResaleListings({ size: 50 });
+        const [profile, data] = await Promise.all([
+          backendApi.getMe().catch(() => null),
+          backendApi.getResaleListings({ size: 100 }),
+        ]);
+        setMe(profile);
         const items = data.items ?? [];
-        // TODO: Replace client-side filtering when backend supports eventId on GET /resale-listings.
         const filteredItems = eventId ? items.filter((item) => String(item.eventId) === String(eventId)) : items;
         const uniqueEventIds = Array.from(new Set(filteredItems.map((item) => String(item.eventId)).filter(Boolean)));
 
@@ -131,11 +148,16 @@ export default function ResaleListPage({ navigation, route }: any) {
         setLoading(false);
       }
     };
-    load();
+    void load();
   }, [eventId]);
 
+  const scopedListings = useMemo(
+    () => (scope === 'mine' ? listings.filter((item) => isMine(item, me)) : listings),
+    [listings, me, scope],
+  );
+
   const eventGroups = useMemo(() => {
-    const groups = listings.reduce<Record<string, ResaleEventGroup>>((acc, listing) => {
+    const groups = scopedListings.reduce<Record<string, ResaleEventGroup>>((acc, listing) => {
       const id = String(listing.eventId);
       acc[id] = acc[id] ?? { eventId: id, event: eventMap[id], listings: [] };
       acc[id].listings.push(listing);
@@ -146,21 +168,20 @@ export default function ResaleListPage({ navigation, route }: any) {
     return Object.values(groups)
       .filter((group) => !normalizedQuery || groupTitleOf(group).toLowerCase().includes(normalizedQuery))
       .sort((a, b) => groupTitleOf(a).localeCompare(groupTitleOf(b)));
-  }, [eventMap, eventQuery, listings]);
+  }, [eventMap, eventQuery, scopedListings]);
 
   const visibleListings = useMemo(() => {
     const normalizedQuery = seatQuery.trim().toLowerCase();
-    const filtered = listings.filter((item) => {
+    const filtered = scopedListings.filter((item) => {
       if (!normalizedQuery) return true;
-
       return seatLabelOf(item).toLowerCase().includes(normalizedQuery);
     });
 
     return sortListings(filtered, sortMode);
-  }, [listings, seatQuery, sortMode]);
+  }, [scopedListings, seatQuery, sortMode]);
 
   if (loading) {
-    return <View style={styles.center}><ActivityIndicator size="large" color="#007AFF" /></View>;
+    return <View style={styles.center}><ActivityIndicator size="large" color="#2563EB" /></View>;
   }
 
   if (!eventId) {
@@ -172,37 +193,36 @@ export default function ResaleListPage({ navigation, route }: any) {
           contentContainerStyle={styles.list}
           ListHeaderComponent={(
             <View style={styles.header}>
-              <Text style={styles.headerTitle}>리셀 가능한 이벤트</Text>
+              <Text style={styles.headerTitle}>{scope === 'mine' ? '내 리셀 티켓' : '리셀 가능한 이벤트'}</Text>
               <Text style={styles.headerDescription}>리셀 티켓이 등록된 이벤트를 선택해 티켓을 확인하세요.</Text>
-              <TextInput
-                style={styles.searchInput}
-                value={eventQuery}
-                onChangeText={setEventQuery}
-                placeholder="이벤트명 검색"
-                returnKeyType="search"
-              />
+              <View style={styles.filterRow}>
+                {[
+                  { id: 'all', label: '전체' },
+                  { id: 'mine', label: '내 리셀' },
+                ].map((item) => (
+                  <TouchableOpacity key={item.id} style={[styles.filterChip, scope === item.id && styles.activeFilterChip]} onPress={() => setScope(item.id as ScopeMode)}>
+                    <Text style={[styles.filterText, scope === item.id && styles.activeFilterText]}>{item.label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <TextInput style={styles.searchInput} value={eventQuery} onChangeText={setEventQuery} placeholder="이벤트명 검색" returnKeyType="search" />
             </View>
           )}
           renderItem={({ item }) => {
-            const eventDate = groupDateOf(item);
             const event = item.event;
-
             return (
-              <TouchableOpacity
-                style={styles.card}
-                onPress={() => navigation.navigate('ResaleList', { eventId: item.eventId })}
-              >
+              <TouchableOpacity style={styles.card} onPress={() => navigation.navigate('ResaleList', { eventId: item.eventId, scope })}>
                 <View style={styles.cardHeader}>
                   <Text style={styles.status}>{item.listings.length}개 리셀 티켓</Text>
                   <Text style={styles.price}>최저 {minPriceOf(item.listings)} WEI</Text>
                 </View>
                 <Text style={styles.title}>{groupTitleOf(item)}</Text>
-                <Text style={styles.meta}>{eventDate ? new Date(eventDate).toLocaleString() : '-'}</Text>
+                <Text style={styles.meta}>{formatEventDate(groupDateOf(item))}</Text>
                 <Text style={styles.meta}>{[event?.category, event?.venue].filter(Boolean).join(' · ') || '이벤트 정보 확인 중'}</Text>
               </TouchableOpacity>
             );
           }}
-          ListEmptyComponent={<Text style={styles.empty}>리셀 티켓이 등록된 이벤트가 없습니다.</Text>}
+          ListEmptyComponent={<Text style={styles.empty}>표시할 리셀 티켓이 없습니다.</Text>}
         />
       </View>
     );
@@ -218,41 +238,37 @@ export default function ResaleListPage({ navigation, route }: any) {
           <View style={styles.header}>
             <Text style={styles.headerTitle}>이 이벤트의 리셀 티켓</Text>
             <Text style={styles.headerDescription}>선택한 이벤트에 등록된 리셀 티켓입니다.</Text>
-            <TextInput
-              style={styles.searchInput}
-              value={seatQuery}
-              onChangeText={setSeatQuery}
-              placeholder="좌석 검색 예: A-12, VIP-3"
-              returnKeyType="search"
-            />
+            <View style={styles.filterRow}>
+              {[
+                { id: 'all', label: '전체' },
+                { id: 'mine', label: '내 리셀' },
+              ].map((item) => (
+                <TouchableOpacity key={item.id} style={[styles.filterChip, scope === item.id && styles.activeFilterChip]} onPress={() => setScope(item.id as ScopeMode)}>
+                  <Text style={[styles.filterText, scope === item.id && styles.activeFilterText]}>{item.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <TextInput style={styles.searchInput} value={seatQuery} onChangeText={setSeatQuery} placeholder="좌석 검색: A-12, VIP-3" returnKeyType="search" />
             <View style={styles.sortRow}>
               {SORT_OPTIONS.map((option) => (
-                <TouchableOpacity
-                  key={option.id}
-                  style={[styles.sortChip, sortMode === option.id && styles.activeSortChip]}
-                  onPress={() => setSortMode(option.id)}
-                >
+                <TouchableOpacity key={option.id} style={[styles.sortChip, sortMode === option.id && styles.activeSortChip]} onPress={() => setSortMode(option.id)}>
                   <Text style={[styles.sortText, sortMode === option.id && styles.activeSortText]}>{option.label}</Text>
                 </TouchableOpacity>
               ))}
             </View>
           </View>
         )}
-        renderItem={({ item }) => {
-          const eventDate = eventDateOf(item, eventMap);
-
-          return (
-            <TouchableOpacity style={styles.card} onPress={() => navigation.navigate('ResaleDetail', { listingId: item.id ?? item.listingId })}>
-              <View style={styles.cardHeader}>
-                <Text style={styles.status}>{statusLabelOf(item.status)}</Text>
-                <Text style={styles.price}>{item.priceWei ?? item.price} WEI</Text>
-              </View>
-              <Text style={styles.title}>{seatLabelOf(item)}</Text>
-              <Text style={styles.meta}>{eventTitleOf(item, eventMap)}</Text>
-              <Text style={styles.meta}>{eventDate ? new Date(eventDate).toLocaleString() : '-'}</Text>
-            </TouchableOpacity>
-          );
-        }}
+        renderItem={({ item }) => (
+          <TouchableOpacity style={styles.card} onPress={() => navigation.navigate('ResaleDetail', { listingId: item.id ?? item.listingId })}>
+            <View style={styles.cardHeader}>
+              <Text style={styles.status}>{statusLabelOf(item.status)}</Text>
+              <Text style={styles.price}>{item.priceWei ?? item.price} WEI</Text>
+            </View>
+            <Text style={styles.title}>{seatLabelOf(item)}</Text>
+            <Text style={styles.meta}>{eventTitleOf(item, eventMap)}</Text>
+            <Text style={styles.meta}>{formatEventDate(eventDateOf(item, eventMap))}</Text>
+          </TouchableOpacity>
+        )}
         ListEmptyComponent={<Text style={styles.empty}>조건에 맞는 리셀 티켓이 없습니다.</Text>}
       />
     </View>
@@ -260,23 +276,28 @@ export default function ResaleListPage({ navigation, route }: any) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F8F9FA' },
+  container: { flex: 1, backgroundColor: '#F4F7FB' },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  list: { padding: 16 },
+  list: { padding: 16, paddingBottom: 96 },
   header: { marginBottom: 14 },
-  headerTitle: { color: '#212529', fontSize: 22, fontWeight: '900', marginBottom: 6 },
-  headerDescription: { color: '#868E96', fontSize: 13, lineHeight: 19, marginBottom: 14 },
-  searchInput: { backgroundColor: '#fff', borderWidth: 1, borderColor: '#E9ECEF', borderRadius: 10, padding: 13, marginBottom: 10 },
+  headerTitle: { color: '#0F172A', fontSize: 22, fontWeight: '900', marginBottom: 6 },
+  headerDescription: { color: '#64748B', fontSize: 13, lineHeight: 19, marginBottom: 14 },
+  searchInput: { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 12, padding: 13, marginBottom: 10 },
+  filterRow: { flexDirection: 'row', gap: 8, marginBottom: 10 },
+  filterChip: { borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: '#FFFFFF' },
+  activeFilterChip: { borderColor: '#2563EB', backgroundColor: '#EFF6FF' },
+  filterText: { color: '#475569', fontSize: 12, fontWeight: '900' },
+  activeFilterText: { color: '#2563EB' },
   sortRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  sortChip: { borderWidth: 1, borderColor: '#DDE2E8', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: '#fff' },
-  activeSortChip: { backgroundColor: '#E7F1FF', borderColor: '#B7D7FF' },
-  sortText: { color: '#495057', fontSize: 12, fontWeight: '800' },
-  activeSortText: { color: '#007AFF' },
-  card: { backgroundColor: '#fff', borderRadius: 12, padding: 18, marginBottom: 12, borderWidth: 1, borderColor: '#E9ECEF' },
+  sortChip: { borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: '#FFFFFF' },
+  activeSortChip: { backgroundColor: '#EFF6FF', borderColor: '#BFDBFE' },
+  sortText: { color: '#475569', fontSize: 12, fontWeight: '800' },
+  activeSortText: { color: '#2563EB' },
+  card: { backgroundColor: '#FFFFFF', borderRadius: 16, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: '#E2E8F0' },
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 },
-  status: { color: '#007AFF', fontSize: 12, fontWeight: '900' },
-  price: { color: '#212529', fontWeight: '900' },
-  title: { color: '#212529', fontSize: 17, fontWeight: '900', marginBottom: 7 },
-  meta: { color: '#868E96', fontSize: 13, marginBottom: 3 },
-  empty: { textAlign: 'center', color: '#868E96', paddingVertical: 100 },
+  status: { color: '#2563EB', fontSize: 12, fontWeight: '900' },
+  price: { color: '#0F172A', fontWeight: '900' },
+  title: { color: '#0F172A', fontSize: 17, fontWeight: '900', marginBottom: 7 },
+  meta: { color: '#64748B', fontSize: 13, marginBottom: 3 },
+  empty: { textAlign: 'center', color: '#94A3B8', paddingVertical: 100, fontWeight: '800' },
 });

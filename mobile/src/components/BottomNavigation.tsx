@@ -16,22 +16,22 @@ type BottomNavigationProps = {
 const HIDDEN_ROUTES = new Set(['Landing', 'Auth', 'CheckInScan', 'OrganizerLogout']);
 
 const userTabs: TabItem[] = [
-  { label: '홈', target: 'Main', matches: ['Main'] },
-  { label: '검색', target: 'EventList', matches: ['EventList', 'EventDetail', 'TicketPurchase', 'PurchaseComplete'] },
-  { label: '리셀', target: 'ResaleList', matches: ['ResaleList', 'ResaleDetail'] },
+  { label: '홈', target: 'Main', matches: ['Main', 'EventList', 'EventDetail', 'TicketPurchase', 'PurchaseComplete'] },
   {
     label: '티켓',
     target: 'MyTickets',
     matches: ['MyTickets', 'TicketDetail', 'TicketQr', 'TicketResaleCreate', 'ResaleRegisterComplete'],
   },
-  { label: '마이', target: 'MyPage', matches: ['MyPage', 'DisputeCreate', 'MyDisputes'] },
+  { label: '리셀', target: 'ResaleList', matches: ['ResaleList', 'ResaleDetail'] },
+  { label: '분쟁', target: 'MyDisputes', matches: ['MyDisputes', 'DisputeCreate'] },
+  { label: '마이', target: 'MyPage', matches: ['MyPage'] },
 ];
 
 const organizerTabs: TabItem[] = [
   { label: '메인', target: 'Organizer', matches: ['Organizer'] },
   { label: '이벤트', target: 'MyEvents', matches: ['MyEvents', 'EventCreate', 'OrganizerEventDetail', 'EventSettings'] },
-  { label: '티켓', target: 'SalesStatus', matches: ['SalesStatus', 'TicketExplore', 'TicketIssue'] },
-  { label: '체크인', target: 'CheckInHome', matches: ['CheckInHome', 'CheckInManage', 'CheckInStatus', 'CheckInScan'] },
+  { label: '티켓', target: 'MyEvents', matches: ['SalesStatus', 'TicketExplore', 'TicketIssue'] },
+  { label: '체크인', target: 'MyEvents', matches: ['CheckInHome', 'CheckInManage', 'CheckInStatus', 'CheckInScan'] },
   { label: '내 정보', target: 'OrganizerProfile', matches: ['OrganizerProfile', 'OrganizerLogout'] },
 ];
 

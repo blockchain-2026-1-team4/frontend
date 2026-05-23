@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { errorMessage } from '../lib/account';
@@ -36,6 +36,7 @@ function getStatusBadge(status?: string) {
 
 export default function MyDisputesPage({ navigation }: any) {
   const [items, setItems] = useState<DisputeRecord[]>([]);
+  const [statusFilter, setStatusFilter] = useState('ALL');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
@@ -55,6 +56,16 @@ export default function MyDisputesPage({ navigation }: any) {
 
   useFocusEffect(useCallback(() => { void load(); }, [load]));
 
+  const filteredItems = useMemo(() => {
+    if (statusFilter === 'ALL') return items;
+    if (statusFilter === 'ACTIVE') return items.filter((item) => {
+      const status = item.status?.toUpperCase() ?? 'OPEN';
+      return EDITABLE_STATUSES.has(status) || PROCESSING_STATUSES.has(status);
+    });
+    if (statusFilter === 'DONE') return items.filter((item) => DONE_STATUSES.has(item.status?.toUpperCase() ?? ''));
+    return items;
+  }, [items, statusFilter]);
+
   if (loading) return <View style={styles.center}><ActivityIndicator size="large" color="#2563EB" /></View>;
 
   return (
@@ -71,9 +82,22 @@ export default function MyDisputesPage({ navigation }: any) {
 
       <FlatList
         contentContainerStyle={styles.list}
-        data={items}
+        data={filteredItems}
         keyExtractor={(item, index) => String(item.id ?? index)}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} />}
+        ListHeaderComponent={(
+          <View style={styles.filterRow}>
+            {[
+              { id: 'ALL', label: '전체' },
+              { id: 'ACTIVE', label: '처리중' },
+              { id: 'DONE', label: '완료' },
+            ].map((item) => (
+              <TouchableOpacity key={item.id} style={[styles.filterChip, statusFilter === item.id && styles.activeFilterChip]} onPress={() => setStatusFilter(item.id)}>
+                <Text style={[styles.filterText, statusFilter === item.id && styles.activeFilterText]}>{item.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
         ListEmptyComponent={<Text style={styles.empty}>접수한 분쟁 신고가 없습니다.</Text>}
         renderItem={({ item }) => {
           const statusKey = item.status?.toUpperCase() ?? 'OPEN';
@@ -115,6 +139,11 @@ const styles = StyleSheet.create({
   buttonText: { color: '#FFFFFF', fontWeight: '900', fontSize: 15 },
   error: { marginTop: 12, color: '#DC2626', fontWeight: '800' },
   list: { padding: 18, paddingBottom: 96 },
+  filterRow: { flexDirection: 'row', gap: 8, marginBottom: 14 },
+  filterChip: { borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: '#FFFFFF' },
+  activeFilterChip: { borderColor: '#2563EB', backgroundColor: '#EFF6FF' },
+  filterText: { color: '#475569', fontSize: 12, fontWeight: '900' },
+  activeFilterText: { color: '#2563EB' },
   empty: { color: '#94A3B8', textAlign: 'center', marginTop: 40, fontWeight: '800' },
   card: { backgroundColor: '#FFFFFF', borderRadius: 16, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: '#E2E8F0' },
   cardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },

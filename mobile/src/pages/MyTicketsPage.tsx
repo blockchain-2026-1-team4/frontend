@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { backendApi } from '../lib/backend';
 import { formatEventDate, formatTicketStatus } from '../lib/ticketDisplay';
@@ -12,6 +12,7 @@ function eventDate(ticket: TicketDetail, event?: EventDetail) {
 export default function MyTicketsPage({ navigation }: any) {
   const [tickets, setTickets] = useState<TicketDetail[]>([]);
   const [eventsById, setEventsById] = useState<Record<string, EventDetail>>({});
+  const [statusFilter, setStatusFilter] = useState('ALL');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -30,6 +31,14 @@ export default function MyTicketsPage({ navigation }: any) {
     };
     void loadTickets();
   }, []);
+
+  const filteredTickets = useMemo(() => {
+    if (statusFilter === 'ALL') return tickets;
+    if (statusFilter === 'OWNED') return tickets.filter((ticket) => ['ISSUED', 'OWNED', 'SOLD'].includes(String(ticket.status).toUpperCase()));
+    if (statusFilter === 'LISTED') return tickets.filter((ticket) => String(ticket.status).toUpperCase() === 'LISTED');
+    if (statusFilter === 'USED') return tickets.filter((ticket) => ['USED', 'EXPIRED'].includes(String(ticket.status).toUpperCase()));
+    return tickets;
+  }, [statusFilter, tickets]);
 
   const renderTicket = ({ item }: { item: TicketDetail }) => {
     const event = eventsById[item.eventId];
@@ -55,10 +64,24 @@ export default function MyTicketsPage({ navigation }: any) {
         <View style={styles.center}><ActivityIndicator size="large" color="#007AFF" /></View>
       ) : (
         <FlatList
-          data={tickets}
+          data={filteredTickets}
           keyExtractor={(item) => String(item.id ?? item.ticketId)}
           renderItem={renderTicket}
           contentContainerStyle={styles.list}
+          ListHeaderComponent={(
+            <View style={styles.filterRow}>
+              {[
+                { id: 'ALL', label: '전체' },
+                { id: 'OWNED', label: '소유중' },
+                { id: 'LISTED', label: '판매중' },
+                { id: 'USED', label: '종료' },
+              ].map((item) => (
+                <TouchableOpacity key={item.id} style={[styles.filterChip, statusFilter === item.id && styles.activeFilterChip]} onPress={() => setStatusFilter(item.id)}>
+                  <Text style={[styles.filterText, statusFilter === item.id && styles.activeFilterText]}>{item.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
           ListEmptyComponent={<Text style={styles.emptyText}>보유한 티켓이 없습니다.</Text>}
         />
       )}
@@ -70,6 +93,11 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8F9FA' },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   list: { padding: 20 },
+  filterRow: { flexDirection: 'row', gap: 8, marginBottom: 14 },
+  filterChip: { borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: '#FFFFFF' },
+  activeFilterChip: { borderColor: '#2563EB', backgroundColor: '#EFF6FF' },
+  filterText: { color: '#475569', fontSize: 12, fontWeight: '900' },
+  activeFilterText: { color: '#2563EB' },
   ticketCard: { backgroundColor: '#fff', borderRadius: 12, padding: 18, marginBottom: 14, flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: '#E9ECEF' },
   ticketInfo: { flex: 1, paddingRight: 12 },
   eventTitle: { fontSize: 17, fontWeight: '900', color: '#212529', marginBottom: 8 },
