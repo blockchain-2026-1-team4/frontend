@@ -19,6 +19,7 @@ const ROLE_LABEL: Record<string, string> = {
 };
 
 type UserStatusFilter = "ALL" | "ACTIVE" | "SUSPENDED" | "DELETED";
+type UserRoleFilter = "USER" | "ORGANIZER" | "VALIDATOR" | "ADMIN";
 const PAGE_SIZE = 20;
 
 function formatDate(value?: string) {
@@ -70,6 +71,7 @@ export function AdminUserManagePage() {
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
   const [filterStatus, setFilterStatus] = useState<UserStatusFilter>("ALL");
+  const [roleFilters, setRoleFilters] = useState<UserRoleFilter[]>([]);
   const [page, setPage] = useState(0);
   const [totalElements, setTotalElements] = useState<number | undefined>();
   const [totalPages, setTotalPages] = useState<number | undefined>();
@@ -118,18 +120,22 @@ export function AdminUserManagePage() {
 
   const filteredItems = useMemo(() => {
     const keyword = query.trim().toLowerCase();
-    if (!keyword) {
-      return items;
-    }
-
     return items.filter((user) => {
+      const userRoles = user.roles?.length ? user.roles : ["USER"];
+      const matchesRole = roleFilters.length === 0 || roleFilters.some((role) => userRoles.includes(role));
+      if (!matchesRole) {
+        return false;
+      }
+      if (!keyword) {
+        return true;
+      }
       const haystack = [user.email, user.displayName, user.walletAddress, user.id, ...(user.roles ?? [])]
         .filter(Boolean)
         .join(" ")
         .toLowerCase();
       return haystack.includes(keyword);
     });
-  }, [items, query]);
+  }, [items, query, roleFilters]);
 
   async function runAction(userId: string, action: "suspend" | "activate" | "delete" | "grantValidator" | "revokeValidator" | "grantOrganizer" | "revokeOrganizer") {
     const confirmMessages: Record<typeof action, string> = {
@@ -197,6 +203,18 @@ export function AdminUserManagePage() {
     { label: "삭제", value: "DELETED" },
   ];
 
+  const roleTabs: { label: string; value: UserRoleFilter }[] = [
+    { label: "사용자", value: "USER" },
+    { label: "주최자", value: "ORGANIZER" },
+    { label: "검증자", value: "VALIDATOR" },
+    { label: "관리자", value: "ADMIN" },
+  ];
+
+  function toggleRoleFilter(role: UserRoleFilter) {
+    setPage(0);
+    setRoleFilters((current) => (current.includes(role) ? current.filter((item) => item !== role) : [...current, role]));
+  }
+
   const showEmptyState = hasLoaded && filteredItems.length === 0 && !loading;
 
   return (
@@ -214,6 +232,9 @@ export function AdminUserManagePage() {
         .user-search-input::placeholder { color: #8a97a8; }
         .user-search-btn { border: 1px solid var(--border); background: var(--panel); color: var(--txt-main); border-radius: 10px; padding: 0.5rem 0.85rem; cursor: pointer; font-size: 0.9rem; font-weight: 600; }
         .user-filter-tabs { display: flex; gap: 0.4rem; margin-top: 1rem; flex-wrap: wrap; }
+        .user-filter-group { margin-top: 0.85rem; display: grid; gap: 0.45rem; }
+        .user-filter-title { color: var(--txt-sub); font-size: 0.78rem; font-weight: 800; }
+        .user-filter-help { color: var(--txt-sub); font-size: 0.75rem; line-height: 1.4; }
         .user-filter-tab { border: 1px solid var(--border); background: var(--panel-soft); color: var(--txt-sub); border-radius: 999px; padding: 0.38rem 0.9rem; font-size: 0.83rem; font-weight: 600; cursor: pointer; }
         .user-filter-tab.active { background: #e8f1ff; border-color: #cfe0ff; color: var(--accent-2); }
         .user-toast { background: #e8f5e9; border: 1px solid #a5d6a7; color: #2e7d32; border-radius: 10px; padding: 0.6rem 1rem; font-size: 0.88rem; font-weight: 600; margin-top: 0.75rem; }
@@ -280,20 +301,40 @@ export function AdminUserManagePage() {
             <strong>검증자</strong>: 현장에서 QR 체크인 처리를 수행할 수 있는 권한입니다. 전역 검증자는 모든 이벤트의 체크인을 처리할 수 있습니다.
           </div>
 
-          <div className="user-filter-tabs">
-            {filterTabs.map((tab) => (
-              <button
-                key={tab.value}
-                className={`user-filter-tab${filterStatus === tab.value ? " active" : ""}`}
-                onClick={() => {
-                  setPage(0);
-                  setFilterStatus(tab.value);
-                }}
-                type="button"
-              >
-                {tab.label}
-              </button>
-            ))}
+          <div className="user-filter-group">
+            <span className="user-filter-title">상태 필터</span>
+            <div className="user-filter-tabs">
+              {filterTabs.map((tab) => (
+                <button
+                  key={tab.value}
+                  className={`user-filter-tab${filterStatus === tab.value ? " active" : ""}`}
+                  onClick={() => {
+                    setPage(0);
+                    setFilterStatus(tab.value);
+                  }}
+                  type="button"
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="user-filter-group">
+            <span className="user-filter-title">역할 필터</span>
+            <div className="user-filter-tabs">
+              {roleTabs.map((tab) => (
+                <button
+                  key={tab.value}
+                  className={`user-filter-tab${roleFilters.includes(tab.value) ? " active" : ""}`}
+                  onClick={() => toggleRoleFilter(tab.value)}
+                  type="button"
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+            <span className="user-filter-help">역할은 여러 개를 동시에 선택할 수 있습니다.</span>
           </div>
 
           {actionMessage ? <div className="user-toast">{actionMessage}</div> : null}

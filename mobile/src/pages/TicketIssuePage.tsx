@@ -91,13 +91,6 @@ export default function TicketIssuePage({ navigation, route }: any) {
         backendApi.getEvent(eventId),
         backendApi.getEventTickets(eventId).catch(() => []),
       ]);
-      const sectionsFromTickets = Array.from(new Set(issuedTickets.map((ticket) => String(ticket.seatInfo || '').split('-')[0]).filter(Boolean)));
-      const merged = Array.from(new Set([...(DEFAULT_SEAT_SECTIONS.map((s) => s.toUpperCase())), ...sectionsFromTickets.map((s) => String(s).toUpperCase())]));
-      const defaults = Array.from(new Set(DEFAULT_SEAT_SECTIONS.map((s) => String(s).toUpperCase())));
-      const rest = merged.filter((s) => !defaults.includes(s)).sort((a, b) => a.localeCompare(b, 'ko-KR', { numeric: true }));
-      const finalSections = [...defaults, ...rest];
-      setSeatSections(finalSections);
-      setSeatSectionsDraft(finalSections);
       setEvent(eventDetail);
       setTickets(issuedTickets);
       setStartNumber(String(nextSeatNumber(issuedTickets, seatSection)));
@@ -126,11 +119,11 @@ export default function TicketIssuePage({ navigation, route }: any) {
   }, [issueCount, seatSection, startNumber]);
 
   const ticketSeatFilters = useMemo(() => {
-    const sections = Array.from(new Set([...seatSections, ...tickets.map((ticket) => seatSectionOf(ticket.seatInfo)).filter(Boolean)])).sort((a, b) =>
+    const sections = Array.from(new Set(seatSections)).sort((a, b) =>
       a.localeCompare(b, 'ko-KR', { numeric: true }),
     );
     return ['전체', ...sections];
-  }, [seatSections, tickets]);
+  }, [seatSections]);
 
   const filteredTickets = useMemo(() => {
     const normalized = query.trim().toLowerCase();
@@ -176,12 +169,15 @@ export default function TicketIssuePage({ navigation, route }: any) {
       return;
     }
 
-    setSeatSectionsDraft((current) => {
+    const mergeSections = (current: string[]) => {
       const merged = Array.from(new Set([...current.map((s) => String(s).toUpperCase()), value]));
       const defaults = Array.from(new Set(DEFAULT_SEAT_SECTIONS.map((s) => s.toUpperCase())));
       const rest = merged.filter((s) => !defaults.includes(s)).sort((a, b) => a.localeCompare(b, 'ko-KR', { numeric: true }));
       return [...defaults, ...rest];
-    });
+    };
+
+    setSeatSections((current) => mergeSections(current));
+    setSeatSectionsDraft((current) => mergeSections(current));
 
     setNewSection('');
     selectSection(value);
@@ -195,6 +191,7 @@ export default function TicketIssuePage({ navigation, route }: any) {
       return;
     }
 
+    setSeatSections((current) => current.filter((item) => item !== section));
     setSeatSectionsDraft((current) => current.filter((item) => item !== section));
     if (seatSection === section) {
       selectSection(DEFAULT_SEAT_SECTIONS[0]);
@@ -321,6 +318,7 @@ export default function TicketIssuePage({ navigation, route }: any) {
             </View>
           ))}
         </View>
+        <Text style={styles.helpText}>이미 발행된 티켓이 있는 구역은 삭제할 수 없습니다. 발행 티켓 취소 기능은 별도 API가 필요합니다.</Text>
 
         <View style={styles.addSectionRow}>
           <TextInput style={[styles.input, styles.addSectionInput]} value={newSection} onChangeText={setNewSection} placeholder="FLOOR, R석 등" autoCapitalize="characters" />

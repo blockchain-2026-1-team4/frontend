@@ -325,6 +325,16 @@ export default function DisputeCreatePage({ route, navigation }: any) {
             />
           </View>
         ) : null}
+        {((targetType === 'ticket' && !selectedTicket) || (targetType === 'resale' && !selectedResale)) && !loadingTargets ? (
+          <View style={styles.emptyTargetBox}>
+            <Text style={styles.emptyTargetTitle}>신고 대상을 선택해주세요.</Text>
+            <Text style={styles.emptyTargetText}>
+              {targetType === 'ticket'
+                ? '내 티켓 목록에서 문제가 있는 티켓을 선택하면 이벤트명, 좌석, 일시가 표시됩니다.'
+                : '관련 리셀 거래를 선택하면 이벤트명, 좌석, 가격 정보를 확인할 수 있습니다.'}
+            </Text>
+          </View>
+        ) : null}
 
         {isEditing ? <Text style={styles.helper}>신고 수정 시에는 분쟁 유형과 신고 내용만 변경할 수 있습니다.</Text> : null}
         {hasDirectTarget && !isEditing ? <Text style={styles.helper}>리셀 상세에서 선택한 신고 대상이 자동으로 설정되었습니다.</Text> : null}
@@ -367,9 +377,9 @@ function TargetSummary({ title, seat, date, price }: { title: string; seat?: str
   return (
     <View>
       <Text style={styles.summaryTitle}>{title}</Text>
-      <Text style={styles.summaryMeta}>좌석 {seat || '-'}</Text>
-      {price ? <Text style={styles.summaryMeta}>{price}</Text> : null}
-      <Text style={styles.summaryMeta}>{formatDate(date)}</Text>
+      <Text style={styles.summaryMeta}>좌석: {seat || '-'}</Text>
+      {price ? <Text style={styles.summaryMeta}>가격: {price}</Text> : null}
+      <Text style={styles.summaryMeta}>일시: {formatDate(date)}</Text>
     </View>
   );
 }
@@ -394,6 +404,9 @@ const styles = StyleSheet.create({
   selectedOptionCard: { borderColor: '#2563EB', backgroundColor: '#EFF6FF' },
   selectedBox: { marginTop: 14, borderWidth: 1, borderColor: '#BFDBFE', borderRadius: 14, padding: 14, backgroundColor: '#EFF6FF' },
   selectedLabel: { color: '#2563EB', fontWeight: '900', fontSize: 12, marginBottom: 6 },
+  emptyTargetBox: { marginTop: 14, borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 14, padding: 14, backgroundColor: '#F8FAFC' },
+  emptyTargetTitle: { color: '#0F172A', fontWeight: '900', fontSize: 14 },
+  emptyTargetText: { marginTop: 5, color: '#64748B', fontSize: 12, lineHeight: 18 },
   summaryTitle: { color: '#0F172A', fontSize: 16, fontWeight: '900', marginBottom: 6 },
   summaryMeta: { color: '#64748B', fontSize: 13, lineHeight: 20 },
   emptyText: { color: '#94A3B8', textAlign: 'center', fontWeight: '800', paddingVertical: 18 },

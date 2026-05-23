@@ -216,10 +216,9 @@ export function AdminEventsPage() {
         .ae-search { display: flex; gap: 0.5rem; align-items: center; }
         .ae-search input { border-radius: 10px; border: 1px solid var(--border-strong); padding: 0.5rem 0.75rem; font-size: 0.9rem; width: 240px; color: var(--txt-main); background: #fff; }
         .ae-search button { border: 1px solid var(--border); background: var(--panel); color: var(--txt-main); border-radius: 10px; padding: 0.5rem 0.85rem; cursor: pointer; font-size: 0.9rem; font-weight: 700; }
-        .ae-filter-row { display: flex; gap: 0.65rem; align-items: end; flex-wrap: wrap; margin-top: 0.8rem; }
-        .ae-filter-group { display: grid; gap: 0.28rem; }
+        .ae-filter-row { display: grid; gap: 0.72rem; margin-top: 0.85rem; }
+        .ae-filter-group { display: grid; gap: 0.38rem; }
         .ae-filter-label { color: var(--txt-sub); font-size: 0.78rem; font-weight: 800; }
-        .ae-select { min-width: 150px; border: 1px solid var(--border-strong); border-radius: 10px; padding: 0.46rem 0.7rem; background: #fff; color: var(--txt-main); font-size: 0.84rem; font-weight: 700; }
         .ae-tabs { display: flex; gap: 0.4rem; flex-wrap: wrap; }
         .ae-tab { border: 1px solid var(--border); background: var(--panel-soft); color: var(--txt-sub); border-radius: 999px; padding: 0.38rem 0.9rem; font-size: 0.83rem; font-weight: 700; cursor: pointer; }
         .ae-tab.active { background: #e8f1ff; border-color: #cfe0ff; color: var(--accent-2); }
@@ -278,40 +277,40 @@ export function AdminEventsPage() {
 
           <div className="ae-filter-row">
             <div className="ae-filter-group">
-              <label className="ae-filter-label" htmlFor="event-status-filter">이벤트 상태</label>
-              <select
-                className="ae-select"
-                id="event-status-filter"
-                value={filterStatus}
-                onChange={(event) => {
-                  setPage(0);
-                  setFilterStatus(event.target.value as FilterStatus);
-                }}
-              >
+              <span className="ae-filter-label">이벤트 상태</span>
+              <div className="ae-tabs">
                 {filterTabs.map((tab) => (
-                  <option key={tab.value} value={tab.value}>
+                  <button
+                    key={tab.value}
+                    className={`ae-tab${filterStatus === tab.value ? " active" : ""}`}
+                    onClick={() => {
+                      setPage(0);
+                      setFilterStatus(tab.value);
+                    }}
+                    type="button"
+                  >
                     {tab.label}
-                  </option>
+                  </button>
                 ))}
-              </select>
+              </div>
             </div>
             <div className="ae-filter-group">
-              <label className="ae-filter-label" htmlFor="event-flag-filter">검토 상태</label>
-              <select
-                className="ae-select"
-                id="event-flag-filter"
-                value={flaggedFilter}
-                onChange={(event) => {
-                  setPage(0);
-                  setFlaggedFilter(event.target.value as FlaggedFilter);
-                }}
-              >
+              <span className="ae-filter-label">검토 상태</span>
+              <div className="ae-tabs">
                 {flaggedTabs.map((tab) => (
-                  <option key={tab.value} value={tab.value}>
+                  <button
+                    key={tab.value}
+                    className={`ae-tab${flaggedFilter === tab.value ? " active" : ""}`}
+                    onClick={() => {
+                      setPage(0);
+                      setFlaggedFilter(tab.value);
+                    }}
+                    type="button"
+                  >
                     {tab.label}
-                  </option>
+                  </button>
                 ))}
-              </select>
+              </div>
             </div>
           </div>
 

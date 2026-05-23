@@ -49,6 +49,10 @@ export type AdminDashboardSummary = {
   soldTicketCount: number;
   usedTicketCount: number;
   activeResaleListingCount: number;
+  activeUserCount?: number;
+  activeTicketCount?: number;
+  processingDisputeCount?: number;
+  pendingEventCount?: number;
 };
 
 export type EventSummary = {

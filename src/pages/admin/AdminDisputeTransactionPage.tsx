@@ -253,7 +253,7 @@ export function AdminDisputeTransactionPage() {
         .dt-alert .button { border-color: #ffcdd2; background: #fff; color: #c62828; padding: 0.35rem 0.65rem; }
         .dt-toast { background: #e8f5e9; border: 1px solid #a5d6a7; color: #2e7d32; border-radius: 12px; padding: 0.75rem 1rem; font-weight: 700; }
         .dt-workspace { display: grid; grid-template-columns: minmax(360px, 0.95fr) minmax(420px, 1.15fr); gap: 1rem; align-items: start; }
-        .dt-panel { background: var(--panel); border: 1px solid var(--border); border-radius: 20px; box-shadow: var(--shadow); overflow: hidden; }
+        .dt-panel { background: var(--panel); border: 1px solid #dbe3ef; border-radius: 20px; box-shadow: 0 12px 26px rgba(15, 23, 42, 0.06); overflow: hidden; }
         .dt-panel-head { padding: 1rem 1.1rem; border-bottom: 1px solid var(--border); background: linear-gradient(180deg, #fff, #f7f9fc); display: flex; justify-content: space-between; gap: 0.8rem; align-items: center; flex-wrap: wrap; }
         .dt-panel-head h3 { margin: 0; font-size: 1rem; }
         .dt-tabs { display: flex; gap: 0.35rem; flex-wrap: wrap; }
@@ -263,9 +263,9 @@ export function AdminDisputeTransactionPage() {
         .dt-search input { width: 230px; border: 1px solid var(--border-strong); border-radius: 10px; padding: 0.5rem 0.7rem; }
         .dt-search button, .dt-review-actions button { border: 1px solid var(--border); background: var(--panel); border-radius: 10px; padding: 0.48rem 0.78rem; font-weight: 700; cursor: pointer; }
         .dt-scroll { max-height: 560px; overflow: auto; }
-        .dt-dispute-list { display: grid; }
-        .dt-dispute-item { display: grid; grid-template-columns: 1fr auto; gap: 0.65rem; padding: 0.9rem 1.1rem; border-bottom: 1px solid var(--border); background: transparent; text-align: left; cursor: pointer; color: var(--txt-main); }
-        .dt-dispute-item.active { background: #f3f8ff; }
+        .dt-dispute-list { display: grid; gap: 0.55rem; padding: 0.65rem; background: #f8fafc; }
+        .dt-dispute-item { display: grid; grid-template-columns: 1fr auto; gap: 0.65rem; padding: 0.9rem 1rem; border: 1px solid #e2e8f0; border-radius: 14px; background: #fff; text-align: left; cursor: pointer; color: var(--txt-main); box-shadow: 0 5px 14px rgba(15, 23, 42, 0.035); }
+        .dt-dispute-item.active { background: #f3f8ff; border-color: #bfdbfe; }
         .dt-dispute-main strong { display: block; font-size: 0.95rem; }
         .dt-sub { margin: 0.2rem 0 0; color: var(--txt-sub); font-size: 0.8rem; }
         .dt-badge { display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; padding: 0.28rem 0.62rem; font-size: 0.74rem; font-weight: 800; white-space: nowrap; }

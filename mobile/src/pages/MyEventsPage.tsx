@@ -144,6 +144,14 @@ export default function MyEventsPage({ navigation }: any) {
             <Text style={styles.statValue}>{total || '-'}</Text>
           </View>
         </View>
+        <View style={styles.cardActionRow}>
+          <TouchableOpacity
+            style={styles.selectButton}
+            onPress={() => navigation.navigate('OrganizerEventDetail', { eventId: item.id })}
+          >
+            <Text style={styles.selectButtonText}>선택</Text>
+          </TouchableOpacity>
+        </View>
       </TouchableOpacity>
     );
   };
@@ -290,6 +298,9 @@ const styles = StyleSheet.create({
   statItem: { flex: 1, borderRadius: 12, backgroundColor: '#F8FAFC', padding: 10 },
   statLabel: { color: '#64748B', fontSize: 11, fontWeight: '800' },
   statValue: { marginTop: 4, color: '#0F172A', fontSize: 17, fontWeight: '900' },
+  cardActionRow: { marginTop: 14, alignItems: 'flex-end' },
+  selectButton: { borderRadius: 12, backgroundColor: '#2563EB', paddingHorizontal: 18, paddingVertical: 10 },
+  selectButtonText: { color: '#FFFFFF', fontWeight: '900', fontSize: 13 },
   empty: { alignItems: 'center', paddingVertical: 80 },
   emptyTitle: { color: '#0F172A', fontSize: 18, fontWeight: '900' },
   emptyText: { marginTop: 8, color: '#64748B' },

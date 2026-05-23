@@ -192,14 +192,6 @@ export default function EventCreatePage({ navigation }: any) {
           </View>
         ) : null}
 
-        <TouchableOpacity
-          style={[styles.topSubmitButton, (submitting || created) && styles.disabledButton]}
-          disabled={submitting || created}
-          onPress={createEvent}
-        >
-          <Text style={styles.primaryButtonText}>{submitting ? '등록 중...' : created ? '등록 완료' : '이벤트 등록 후 티켓 발행'}</Text>
-        </TouchableOpacity>
-
         <View style={styles.card}>
           <Text style={styles.label}>이벤트명</Text>
           <TextInput style={styles.input} value={name} onChangeText={setName} placeholder="예: TRUST LIVE 2026" />
@@ -316,7 +308,6 @@ const styles = StyleSheet.create({
   errorText: { color: '#DC2626' },
   successText: { color: '#047857' },
   card: { marginTop: 16, backgroundColor: '#FFFFFF', borderRadius: 18, padding: 16, borderWidth: 1, borderColor: '#E2E8F0' },
-  topSubmitButton: { backgroundColor: '#2563EB', borderRadius: 14, paddingVertical: 15, alignItems: 'center', marginTop: 14 },
   label: { marginTop: 12, marginBottom: 6, color: '#334155', fontSize: 13, fontWeight: '800' },
   categoryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   categoryChip: { borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: '#FFFFFF' },
