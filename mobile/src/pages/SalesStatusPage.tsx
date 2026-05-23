@@ -105,49 +105,13 @@ export default function SalesStatusPage({ navigation, route }: any) {
 
       <View style={styles.card}>
         <View style={styles.sectionHead}>
-          <Text style={styles.sectionTitle}>빠른 필터</Text>
-        </View>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterList}>
-          {seatFilters.map((section) => (
-            <TouchableOpacity
-              key={section}
-              style={[styles.filterChip, selectedSeatSection === section && styles.activeFilterChip]}
-              onPress={() => setSelectedSeatSection(section)}
-            >
-              <Text style={[styles.filterChipText, selectedSeatSection === section && styles.activeFilterChipText]}>{section}</Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterList}>
-          {STATUS_FILTERS.map((item) => (
-            <TouchableOpacity
-              key={item.value}
-              style={[styles.filterChip, selectedStatus === item.value && styles.activeFilterChip]}
-              onPress={() => setSelectedStatus(item.value)}
-            >
-              <Text style={[styles.filterChipText, selectedStatus === item.value && styles.activeFilterChipText]}>{item.label}</Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-        <View style={styles.sortRow}>
-          <TouchableOpacity style={[styles.sortButton, sortMode === 'latest' && styles.activeSortButton]} onPress={() => setSortMode('latest')}>
-            <Text style={[styles.sortButtonText, sortMode === 'latest' && styles.activeSortButtonText]}>최신순</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.sortButton, sortMode === 'seat' && styles.activeSortButton]} onPress={() => setSortMode('seat')}>
-            <Text style={[styles.sortButtonText, sortMode === 'seat' && styles.activeSortButtonText]}>좌석순</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      <View style={styles.card}>
-        <View style={styles.sectionHead}>
           <Text style={styles.sectionTitle}>최근 티켓 미리보기</Text>
           <TouchableOpacity onPress={() => navigation?.navigate?.('TicketExplore', { eventId })}>
             <Text style={styles.linkText}>전체 티켓 탐색</Text>
           </TouchableOpacity>
         </View>
         {previewTickets.length === 0 ? (
-          <Text style={styles.emptyText}>조건에 맞는 티켓이 없습니다.</Text>
+          <Text style={styles.emptyText}>최근 발행된 티켓이 없습니다.</Text>
         ) : (
           previewTickets.map((item) => (
             <View key={ticketId(item)} style={styles.row}>

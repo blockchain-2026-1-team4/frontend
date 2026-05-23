@@ -163,14 +163,23 @@ export default function TicketIssuePage({ navigation, route }: any) {
   };
 
   const addSection = () => {
-    const value = newSection.trim().toUpperCase();
-    if (!value) return;
-    if (seatSections.includes(value)) {
+    // normalize input: uppercase, remove disallowed chars, trim
+    let value = String(newSection || '').toUpperCase().trim();
+    // allow letters, numbers, spaces and dash
+    value = value.replace(/[^A-Z0-9\s-]/g, '').trim();
+    if (!value) {
       setNewSection('');
-      selectSection(value);
       return;
     }
-    setSeatSections((current) => [...current, value]);
+
+    setSeatSections((current) => {
+      const merged = Array.from(new Set([...current.map((s) => String(s).toUpperCase()), value]));
+      // keep DEFAULT_SEAT_SECTIONS first, then alphabetical
+      const defaults = Array.from(new Set(DEFAULT_SEAT_SECTIONS.map((s) => s.toUpperCase())));
+      const rest = merged.filter((s) => !defaults.includes(s)).sort((a, b) => a.localeCompare(b, 'ko-KR', { numeric: true }));
+      return [...defaults, ...rest];
+    });
+
     setNewSection('');
     selectSection(value);
   };
