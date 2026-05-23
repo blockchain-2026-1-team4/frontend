@@ -3,11 +3,14 @@ import { ActivityIndicator, Alert, FlatList, ScrollView, StyleSheet, Text, Touch
 import { backendApi } from '../lib/backend';
 import type { EventDetail, ResaleListing, TicketDetail } from '../types/api';
 
+const PRIMARY_TICKET_PAGE_SIZE = 5;
+
 export default function EventDetailPage({ route, navigation }: any) {
   const { eventId } = route.params;
   const [event, setEvent] = useState<EventDetail | null>(null);
   const [tickets, setTickets] = useState<TicketDetail[]>([]);
   const [resales, setResales] = useState<ResaleListing[]>([]);
+  const [visiblePrimaryTicketCount, setVisiblePrimaryTicketCount] = useState(PRIMARY_TICKET_PAGE_SIZE);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -21,6 +24,7 @@ export default function EventDetailPage({ route, navigation }: any) {
         ]);
         setEvent(eventData);
         setTickets(ticketData);
+        setVisiblePrimaryTicketCount(PRIMARY_TICKET_PAGE_SIZE);
         // TODO: Replace client-side filtering when backend adds GET /resale-listings?eventId=...
         setResales((resaleData.items ?? []).filter((listing) => String(listing.eventId) === String(eventId)));
       } catch (error: any) {
@@ -36,6 +40,11 @@ export default function EventDetailPage({ route, navigation }: any) {
     () => tickets.filter((ticket) => ['ISSUED', 'AVAILABLE'].includes(String(ticket.status))),
     [tickets],
   );
+  const visiblePrimaryTickets = useMemo(
+    () => availableTickets.slice(0, visiblePrimaryTicketCount),
+    [availableTickets, visiblePrimaryTicketCount],
+  );
+  const hasHiddenPrimaryTickets = visiblePrimaryTicketCount < availableTickets.length;
 
   if (loading) {
     return <View style={styles.center}><ActivityIndicator size="large" color="#007AFF" /></View>;
@@ -69,10 +78,14 @@ export default function EventDetailPage({ route, navigation }: any) {
 
       <View style={styles.sectionHeader}>
         <Text style={styles.sectionTitle}>1차 판매 티켓</Text>
-        <Text style={styles.sectionHint}>{availableTickets.length}개</Text>
+        <Text style={styles.sectionHint}>
+          {availableTickets.length > 0
+            ? `${Math.min(visiblePrimaryTicketCount, availableTickets.length)} / ${availableTickets.length}개`
+            : '0개'}
+        </Text>
       </View>
       <FlatList
-        data={availableTickets.slice(0, 5)}
+        data={visiblePrimaryTickets}
         scrollEnabled={false}
         keyExtractor={(item) => String(item.id ?? item.ticketId)}
         ListEmptyComponent={<Text style={styles.empty}>구매 가능한 1차 티켓이 없습니다.</Text>}
@@ -86,6 +99,25 @@ export default function EventDetailPage({ route, navigation }: any) {
           </TouchableOpacity>
         )}
       />
+      {availableTickets.length > PRIMARY_TICKET_PAGE_SIZE ? (
+        <View style={styles.ticketPager}>
+          {hasHiddenPrimaryTickets ? (
+            <TouchableOpacity
+              style={styles.pagerButton}
+              onPress={() => setVisiblePrimaryTicketCount((count) => count + PRIMARY_TICKET_PAGE_SIZE)}
+            >
+              <Text style={styles.pagerButtonText}>1차 티켓 더 보기</Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={styles.pagerButton}
+              onPress={() => setVisiblePrimaryTicketCount(PRIMARY_TICKET_PAGE_SIZE)}
+            >
+              <Text style={styles.pagerButtonText}>처음 5개만 보기</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      ) : null}
 
       <View style={styles.sectionHeader}>
         <Text style={styles.sectionTitle}>리셀 티켓</Text>
@@ -135,6 +167,9 @@ const styles = StyleSheet.create({
   rowMeta: { color: '#868E96', fontSize: 13 },
   rowAction: { color: '#007AFF', fontWeight: '900' },
   empty: { color: '#868E96', paddingVertical: 16 },
+  ticketPager: { marginTop: 2, marginBottom: 10 },
+  pagerButton: { backgroundColor: '#fff', borderWidth: 1, borderColor: '#D0E4FF', borderRadius: 10, padding: 13, alignItems: 'center' },
+  pagerButtonText: { color: '#007AFF', fontWeight: '900' },
   secondaryButton: { borderWidth: 1, borderColor: '#007AFF', borderRadius: 10, padding: 16, alignItems: 'center', marginTop: 8 },
   secondaryButtonText: { color: '#007AFF', fontWeight: '900' },
 });
