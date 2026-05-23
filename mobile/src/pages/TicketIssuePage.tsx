@@ -57,6 +57,7 @@ export default function TicketIssuePage({ navigation, route }: any) {
   const [refreshing, setRefreshing] = useState(false);
   const [issueCount, setIssueCount] = useState('10');
   const [seatSections, setSeatSections] = useState(DEFAULT_SEAT_SECTIONS);
+  const [seatSectionsDraft, setSeatSectionsDraft] = useState<string[]>(DEFAULT_SEAT_SECTIONS);
   const [seatSection, setSeatSection] = useState('A');
   const [newSection, setNewSection] = useState('');
   const [startNumber, setStartNumber] = useState('1');
@@ -91,7 +92,12 @@ export default function TicketIssuePage({ navigation, route }: any) {
         backendApi.getEventTickets(eventId).catch(() => []),
       ]);
       const sectionsFromTickets = Array.from(new Set(issuedTickets.map((ticket) => String(ticket.seatInfo || '').split('-')[0]).filter(Boolean)));
-      setSeatSections((current) => Array.from(new Set([...current, ...DEFAULT_SEAT_SECTIONS, ...sectionsFromTickets])));
+      const merged = Array.from(new Set([...(DEFAULT_SEAT_SECTIONS.map((s) => s.toUpperCase())), ...sectionsFromTickets.map((s) => String(s).toUpperCase())]));
+      const defaults = Array.from(new Set(DEFAULT_SEAT_SECTIONS.map((s) => String(s).toUpperCase())));
+      const rest = merged.filter((s) => !defaults.includes(s)).sort((a, b) => a.localeCompare(b, 'ko-KR', { numeric: true }));
+      const finalSections = [...defaults, ...rest];
+      setSeatSections(finalSections);
+      setSeatSectionsDraft(finalSections);
       setEvent(eventDetail);
       setTickets(issuedTickets);
       setStartNumber(String(nextSeatNumber(issuedTickets, seatSection)));
@@ -163,18 +169,15 @@ export default function TicketIssuePage({ navigation, route }: any) {
   };
 
   const addSection = () => {
-    // normalize input: uppercase, remove disallowed chars, trim
     let value = String(newSection || '').toUpperCase().trim();
-    // allow letters, numbers, spaces and dash
     value = value.replace(/[^A-Z0-9\s-]/g, '').trim();
     if (!value) {
       setNewSection('');
       return;
     }
 
-    setSeatSections((current) => {
+    setSeatSectionsDraft((current) => {
       const merged = Array.from(new Set([...current.map((s) => String(s).toUpperCase()), value]));
-      // keep DEFAULT_SEAT_SECTIONS first, then alphabetical
       const defaults = Array.from(new Set(DEFAULT_SEAT_SECTIONS.map((s) => s.toUpperCase())));
       const rest = merged.filter((s) => !defaults.includes(s)).sort((a, b) => a.localeCompare(b, 'ko-KR', { numeric: true }));
       return [...defaults, ...rest];
@@ -192,10 +195,19 @@ export default function TicketIssuePage({ navigation, route }: any) {
       return;
     }
 
-    setSeatSections((current) => current.filter((item) => item !== section));
+    setSeatSectionsDraft((current) => current.filter((item) => item !== section));
     if (seatSection === section) {
       selectSection(DEFAULT_SEAT_SECTIONS[0]);
     }
+  };
+
+  const saveSections = () => {
+    setSeatSections(seatSectionsDraft);
+    Alert.alert('구역 저장', '구역 변경사항이 저장되었습니다.');
+  };
+
+  const cancelSectionChanges = () => {
+    setSeatSectionsDraft(seatSections);
   };
 
   const showError = (title: string, message: string) => {
@@ -296,7 +308,7 @@ export default function TicketIssuePage({ navigation, route }: any) {
 
         <Text style={styles.label}>좌석 구역</Text>
         <View style={styles.sectionGrid}>
-          {seatSections.map((section) => (
+          {seatSectionsDraft.map((section) => (
             <View key={section} style={styles.sectionChipGroup}>
               <TouchableOpacity style={[styles.sectionChip, seatSection === section && styles.activeSectionChip]} onPress={() => selectSection(section)}>
                 <Text style={[styles.sectionChipText, seatSection === section && styles.activeSectionChipText]}>{section}</Text>
@@ -316,6 +328,17 @@ export default function TicketIssuePage({ navigation, route }: any) {
             <Text style={styles.addSectionButtonText}>추가</Text>
           </TouchableOpacity>
         </View>
+
+        {JSON.stringify(seatSectionsDraft) !== JSON.stringify(seatSections) ? (
+          <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
+            <TouchableOpacity style={styles.primaryButton} onPress={saveSections}>
+              <Text style={styles.primaryButtonText}>구역 변경 저장</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.secondaryButton} onPress={cancelSectionChanges}>
+              <Text style={styles.secondaryButtonText}>취소</Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
 
         <Text style={styles.label}>시작 번호</Text>
         <TextInput style={styles.input} value={startNumber} onChangeText={setStartNumber} keyboardType="number-pad" inputMode="numeric" />
