@@ -60,6 +60,7 @@ export default function MyEventsPage({ navigation }: any) {
   const [sortMode, setSortMode] = useState<(typeof SORT_MODES)[number]['value']>('latest');
   const [query, setQuery] = useState('');
   const [page, setPage] = useState(1);
+  const [showSortOptions, setShowSortOptions] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -164,7 +165,7 @@ export default function MyEventsPage({ navigation }: any) {
           <Text style={styles.title}>내 이벤트</Text>
         </View>
         <TouchableOpacity style={styles.addButton} onPress={() => navigation.navigate('EventCreate')}>
-          <Text style={styles.addButtonText}>등록</Text>
+          <Text style={styles.addButtonText}>새 이벤트 등록</Text>
         </TouchableOpacity>
       </View>
 
@@ -192,13 +193,18 @@ export default function MyEventsPage({ navigation }: any) {
                 setPage(1);
               }}
             />
-            <View style={styles.sortRow}>
-              {SORT_MODES.map((item) => (
-                <TouchableOpacity key={item.value} style={[styles.sortChip, sortMode === item.value && styles.activeSortChip]} onPress={() => { setSortMode(item.value); setPage(1); }}>
-                  <Text style={[styles.sortChipText, sortMode === item.value && styles.activeSortChipText]}>{item.label}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
+            <TouchableOpacity style={styles.moreFilterButton} onPress={() => setShowSortOptions((value) => !value)}>
+              <Text style={styles.moreFilterText}>{showSortOptions ? '정렬 옵션 접기' : '정렬 옵션'}</Text>
+            </TouchableOpacity>
+            {showSortOptions ? (
+              <View style={styles.sortRow}>
+                {SORT_MODES.map((item) => (
+                  <TouchableOpacity key={item.value} style={[styles.sortChip, sortMode === item.value && styles.activeSortChip]} onPress={() => { setSortMode(item.value); setPage(1); }}>
+                    <Text style={[styles.sortChipText, sortMode === item.value && styles.activeSortChipText]}>{item.label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            ) : null}
             <View style={styles.pageHead}>
               <Text style={styles.pageHint}>검색 결과 {visibleEvents.length}건</Text>
               <Text style={styles.pageHint}>{currentPage} / {totalPages}</Text>
@@ -265,6 +271,8 @@ const styles = StyleSheet.create({
   activeFilterChip: { borderColor: '#2563EB', backgroundColor: '#EFF6FF' },
   filterChipText: { color: '#475569', fontSize: 12, fontWeight: '800' },
   activeFilterChipText: { color: '#2563EB' },
+  moreFilterButton: { borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 12, paddingVertical: 10, alignItems: 'center', backgroundColor: '#FFFFFF', marginBottom: 10 },
+  moreFilterText: { color: '#2563EB', fontWeight: '900', fontSize: 12 },
   sortRow: { flexDirection: 'row', gap: 8, marginBottom: 10 },
   sortChip: { flex: 1, borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 12, paddingVertical: 10, alignItems: 'center', backgroundColor: '#FFFFFF' },
   activeSortChip: { borderColor: '#2563EB', backgroundColor: '#EFF6FF' },

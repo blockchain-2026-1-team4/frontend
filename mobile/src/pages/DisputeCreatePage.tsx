@@ -17,6 +17,18 @@ type ResaleOption = {
   event?: EventDetail;
 };
 
+function isActiveDispute(status?: string) {
+  return ['OPEN', 'RECEIVED', 'REVIEWING', 'PROCESSING'].includes(String(status ?? '').toUpperCase());
+}
+
+function normalizeDisputeFailure(cause: any, fallback: string) {
+  const message = errorMessage(cause, fallback);
+  if (message.includes('이미 처리 중') || message.includes('CONFLICT')) return '이미 처리 중인 분쟁 신고가 있습니다.';
+  if (message.includes('권한') || message.includes('Forbidden') || message.includes('FORBIDDEN')) return '본인의 티켓 또는 거래만 신고할 수 있습니다.';
+  if (message.includes('상태') || message.includes('status')) return '접수 가능한 상태의 티켓 또는 거래가 아닙니다.';
+  return message || fallback;
+}
+
 const DISPUTE_TYPES = [
   { value: 'TICKET_NOT_DELIVERED', label: '티켓 미전달' },
   { value: 'PAYMENT_ISSUE', label: '결제 문제' },
@@ -203,6 +215,16 @@ export default function DisputeCreatePage({ route, navigation }: any) {
         });
         Alert.alert('수정 완료', '분쟁 신고 내용이 수정되었습니다.');
       } else {
+        const mine = await backendApi.getMyDisputes({ size: 100 }).catch(() => ({ items: [] }));
+        const duplicate = (mine.items ?? []).some((item) => {
+          if (!isActiveDispute(item.status)) return false;
+          const sameResale = resolvedResaleListingId.trim() && String(item.resaleListingId ?? '') === resolvedResaleListingId.trim();
+          const sameTicket = resolvedTicketId.trim() && String(item.ticketId ?? '') === resolvedTicketId.trim();
+          return Boolean(sameResale || sameTicket);
+        });
+        if (duplicate) {
+          throw new Error('이미 처리 중인 분쟁 신고가 있습니다.');
+        }
         await backendApi.createDispute({
           ticketId: resolvedTicketId.trim() || null,
           resaleListingId: resolvedResaleListingId.trim() || null,
@@ -213,7 +235,7 @@ export default function DisputeCreatePage({ route, navigation }: any) {
       }
       navigation.replace('MyDisputes');
     } catch (cause: any) {
-      const visibleMessage = normalizeFailureMessage(
+      const visibleMessage = normalizeDisputeFailure(
         cause,
         isEditing ? '분쟁 신고를 수정하지 못했습니다.' : '분쟁 신고를 접수하지 못했습니다.',
       );

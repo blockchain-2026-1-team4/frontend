@@ -17,21 +17,21 @@ const HIDDEN_ROUTES = new Set(['Landing', 'Auth', 'CheckInScan', 'OrganizerLogou
 
 const userTabs: TabItem[] = [
   { label: '홈', target: 'Main', matches: ['Main', 'EventList', 'EventDetail', 'TicketPurchase', 'PurchaseComplete'] },
+  { label: '리셀', target: 'ResaleList', matches: ['ResaleList', 'ResaleDetail'] },
   {
-    label: '티켓',
+    label: '내 티켓',
     target: 'MyTickets',
     matches: ['MyTickets', 'TicketDetail', 'TicketQr', 'TicketResaleCreate', 'ResaleRegisterComplete'],
   },
-  { label: '리셀', target: 'ResaleList', matches: ['ResaleList', 'ResaleDetail'] },
-  { label: '분쟁', target: 'MyDisputes', matches: ['MyDisputes', 'DisputeCreate'] },
-  { label: '마이', target: 'MyPage', matches: ['MyPage'] },
+  { label: '내 분쟁', target: 'MyDisputes', matches: ['MyDisputes', 'DisputeCreate'] },
+  { label: '내 정보', target: 'MyPage', matches: ['MyPage'] },
 ];
 
 const organizerTabs: TabItem[] = [
-  { label: '메인', target: 'Organizer', matches: ['Organizer'] },
-  { label: '이벤트', target: 'MyEvents', matches: ['MyEvents', 'EventCreate', 'OrganizerEventDetail', 'EventSettings'] },
-  { label: '티켓', target: 'MyEvents', matches: ['SalesStatus', 'TicketExplore', 'TicketIssue'] },
-  { label: '체크인', target: 'MyEvents', matches: ['CheckInHome', 'CheckInManage', 'CheckInStatus', 'CheckInScan'] },
+  { label: '센터', target: 'Organizer', matches: ['Organizer'] },
+  { label: '내 이벤트', target: 'MyEvents', matches: ['MyEvents', 'EventCreate', 'OrganizerEventDetail', 'EventSettings'] },
+  { label: '티켓', target: 'SalesStatus', matches: ['SalesStatus', 'TicketExplore', 'TicketIssue'] },
+  { label: '체크인', target: 'CheckInHome', matches: ['CheckInHome', 'CheckInManage', 'CheckInStatus', 'CheckInScan'] },
   { label: '내 정보', target: 'OrganizerProfile', matches: ['OrganizerProfile', 'OrganizerLogout'] },
 ];
 
@@ -117,7 +117,7 @@ const styles = StyleSheet.create({
   },
   label: {
     color: '#64748B',
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '900',
   },
   activeLabel: {

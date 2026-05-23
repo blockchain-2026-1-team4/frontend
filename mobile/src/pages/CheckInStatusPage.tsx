@@ -40,6 +40,7 @@ export default function CheckInStatusPage({ route }: any) {
   const [query, setQuery] = useState('');
   const [selectedResult, setSelectedResult] = useState<(typeof RESULT_FILTERS)[number]['value']>('ALL');
   const [sortMode, setSortMode] = useState<(typeof SORT_MODES)[number]['value']>('latest');
+  const [showSortOptions, setShowSortOptions] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -139,13 +140,18 @@ export default function CheckInStatusPage({ route }: any) {
               </TouchableOpacity>
             ))}
           </ScrollView>
-          <View style={styles.sortRow}>
-            {SORT_MODES.map((item) => (
-              <TouchableOpacity key={item.value} style={[styles.sortChip, sortMode === item.value && styles.activeSortChip]} onPress={() => { setSortMode(item.value); setPage(1); }}>
-                <Text style={[styles.sortChipText, sortMode === item.value && styles.activeSortChipText]}>{item.label}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
+          <TouchableOpacity style={styles.moreFilterButton} onPress={() => setShowSortOptions((value) => !value)}>
+            <Text style={styles.moreFilterText}>{showSortOptions ? '정렬 옵션 접기' : '정렬 옵션'}</Text>
+          </TouchableOpacity>
+          {showSortOptions ? (
+            <View style={styles.sortRow}>
+              {SORT_MODES.map((item) => (
+                <TouchableOpacity key={item.value} style={[styles.sortChip, sortMode === item.value && styles.activeSortChip]} onPress={() => { setSortMode(item.value); setPage(1); }}>
+                  <Text style={[styles.sortChipText, sortMode === item.value && styles.activeSortChipText]}>{item.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          ) : null}
           <View style={styles.pageHead}>
             <Text style={styles.pageHint}>검색된 입장 처리 기록 {filteredRecords.length}건</Text>
           </View>
@@ -203,6 +209,8 @@ const styles = StyleSheet.create({
   activeFilterChip: { borderColor: '#2563EB', backgroundColor: '#EFF6FF' },
   filterChipText: { color: '#475569', fontWeight: '800', fontSize: 12 },
   activeFilterChipText: { color: '#2563EB' },
+  moreFilterButton: { borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 12, paddingVertical: 10, alignItems: 'center', backgroundColor: '#FFFFFF', marginBottom: 10 },
+  moreFilterText: { color: '#2563EB', fontWeight: '900', fontSize: 12 },
   sortRow: { flexDirection: 'row', gap: 8, marginTop: 2, marginBottom: 10 },
   sortChip: { flex: 1, borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 12, paddingVertical: 10, alignItems: 'center', backgroundColor: '#FFFFFF' },
   activeSortChip: { borderColor: '#2563EB', backgroundColor: '#EFF6FF' },

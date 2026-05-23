@@ -148,6 +148,10 @@ export const backendApi = {
     return unwrap<DisputeRecord>(http.patch(`/disputes/${disputeId}`, payload));
   },
 
+  async cancelDispute(disputeId: string) {
+    return unwrap<DisputeRecord>(http.patch(`/disputes/${disputeId}/cancel`));
+  },
+
   async getMyDisputes(params?: { page?: number; size?: number }) {
     return unwrap<PageResult<DisputeRecord>>(http.get("/disputes/me", { params }));
   },

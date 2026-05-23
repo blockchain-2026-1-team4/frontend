@@ -73,8 +73,9 @@ export default function MyPage({ navigation }: any) {
   }
 
   const quickLinks = [
-    { id: 'tickets', label: '내 티켓 목록', screen: 'MyTickets' },
+    { id: 'home', label: '이벤트 메인 이동', screen: 'Main' },
     { id: 'resale', label: '내 리셀 티켓', screen: 'ResaleList', params: { scope: 'mine' } },
+    { id: 'tickets', label: '내 티켓 목록', screen: 'MyTickets' },
     { id: 'disputes', label: '내 분쟁 신고', screen: 'MyDisputes' },
   ];
 
@@ -85,7 +86,7 @@ export default function MyPage({ navigation }: any) {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void loadProfile(); }} />}
     >
       <Text style={styles.eyebrow}>My Account</Text>
-      <Text style={styles.title}>마이페이지</Text>
+      <Text style={styles.title}>내 정보</Text>
 
       <View style={styles.card}>
         <Text style={styles.cardTitle}>계정 정보</Text>

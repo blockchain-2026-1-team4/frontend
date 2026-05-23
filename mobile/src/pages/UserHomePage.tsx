@@ -49,7 +49,10 @@ export default function UserHomePage({ navigation }: any) {
   }, [selectedCategory]);
 
   const submitSearch = () => {
-    void loadEvents(keyword, selectedCategory);
+    navigation.navigate('EventList', {
+      query: keyword.trim(),
+      category: selectedCategory === 'ALL' ? undefined : selectedCategory,
+    });
   };
 
   const renderEventItem = ({ item }: { item: EventSummary }) => (

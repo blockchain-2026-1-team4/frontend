@@ -80,6 +80,16 @@ export default function App() {
         return;
       }
 
+      if (routeName === 'SalesStatus') {
+        navigationRef.navigate('SalesStatus');
+        return;
+      }
+
+      if (routeName === 'CheckInHome') {
+        navigationRef.navigate('CheckInHome');
+        return;
+      }
+
       navigationRef.navigate(routeName);
     }
   }, []);
