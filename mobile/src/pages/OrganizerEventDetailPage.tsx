@@ -205,28 +205,25 @@ export default function OrganizerEventDetailPage({ navigation, route }: any) {
         <Text style={styles.statusHint}>현재 상태 {formatEventStatus(event.status)}</Text>
       </View>
 
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>운영 메뉴</Text>
-        <MenuCard
-          title="판매 현황"
-          text={`판매 완료 ${soldTickets} · 잔여 좌석 ${availableTickets} · 가격 ${weiToEth(event.ticketPriceWei)}`}
-          onPress={() => navigation.navigate('SalesStatus', { eventId: event.id })}
-        />
-        <MenuCard
-          title="체크인 현황"
-          text={`체크인 완료 ${usedTickets}건 · 총 발행 티켓 ${tickets.length}장`}
-          onPress={() => navigation.navigate('CheckInStatus', { eventId: event.id })}
-        />
-        <MenuCard
-          title="이벤트 설정"
-          text="기본 정보, 리셀 정책, 이벤트 상태를 관리합니다."
-          onPress={() => navigation.navigate('EventSettings', { eventId: event.id })}
-        />
-        <MenuCard
-          title="체크인 관리"
-          text="QR 스캔 후 검증 결과를 확인하고 단계적으로 입장 처리합니다."
-          onPress={() => navigation.navigate('CheckInManage', { eventId: event.id })}
-        />
+      <View style={styles.card}> 
+        <Text style={styles.cardTitle}>빠른 연결</Text>
+        <View style={{ marginTop: 12, gap: 8 }}>
+          <TouchableOpacity style={styles.primaryButton} onPress={() => navigation.navigate('TicketIssue', { eventId: event.id })}>
+            <Text style={styles.primaryButtonText}>티켓 발행</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.secondaryButton} onPress={() => navigation.navigate('SalesStatus', { eventId: event.id })}>
+            <Text style={styles.secondaryButtonText}>판매 요약 보기</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.secondaryButton} onPress={() => navigation.navigate('CheckInStatus', { eventId: event.id })}>
+            <Text style={styles.secondaryButtonText}>체크인 현황 보기</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.secondaryButton} onPress={() => navigation.navigate('EventSettings', { eventId: event.id })}>
+            <Text style={styles.secondaryButtonText}>이벤트 설정</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.secondaryButton} onPress={() => navigation.navigate('CheckInManage', { eventId: event.id })}>
+            <Text style={styles.secondaryButtonText}>체크인 관리</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <View style={styles.card}>

@@ -92,8 +92,6 @@ export default function OrganizerProfilePage({ navigation }: any) {
   };
 
   const activeEvents = useMemo(() => events.filter((event) => event.status === 'ACTIVE').length, [events]);
-  const soldTotal = useMemo(() => events.reduce((sum, event) => sum + (event.soldTicketCount ?? 0), 0), [events]);
-  const checkInTotal = useMemo(() => events.reduce((sum, event) => sum + (checkInCountByEventId[event.id] ?? 0), 0), [checkInCountByEventId, events]);
 
   if (loading) {
     return (
@@ -138,34 +136,14 @@ export default function OrganizerProfilePage({ navigation }: any) {
         <Text style={styles.logoutButtonText}>로그아웃</Text>
       </TouchableOpacity>
 
-      <View style={styles.metricGrid}>
-        <Metric label="운영중 이벤트" value={activeEvents} />
-        <Metric label="총 판매량" value={soldTotal} />
-        <Metric label="총 체크인" value={checkInTotal} />
-      </View>
-
       <View style={styles.card}>
         <View style={styles.sectionHead}>
-          <Text style={styles.cardTitle}>내 운영 이벤트 미리보기</Text>
+          <Text style={styles.cardTitle}>계정 관련 바로가기</Text>
           <TouchableOpacity onPress={() => navigation.navigate('MyEvents')}>
-            <Text style={styles.linkText}>전체 보기</Text>
+            <Text style={styles.linkText}>내 이벤트 보기</Text>
           </TouchableOpacity>
         </View>
-        {events.length === 0 ? (
-          <Text style={styles.emptyText}>운영 중인 이벤트가 없습니다.</Text>
-        ) : (
-          events.slice(0, 5).map((event) => (
-            <TouchableOpacity key={event.id} style={styles.eventCard} onPress={() => navigation.navigate('OrganizerEventDetail', { eventId: event.id })}>
-              <Text style={styles.eventTitle}>{eventTitle(event)}</Text>
-              <Text style={styles.eventMeta}>장소 {event.venue || '-'}</Text>
-              <Text style={styles.eventMeta}>일시 {formatEventDate(event.eventAt || event.eventDateTime)}</Text>
-              <View style={styles.eventFoot}>
-                <Text style={styles.badge}>{formatEventStatus(event.status)}</Text>
-                <Text style={styles.eventCount}>판매된 티켓 {event.soldTicketCount ?? 0} · 체크인 완료 {checkInCountByEventId[event.id] ?? 0}</Text>
-              </View>
-            </TouchableOpacity>
-          ))
-        )}
+        <Text style={styles.sectionHint}>운영 통계는 홈 또는 이벤트 상세에서 확인하세요.</Text>
       </View>
     </ScrollView>
   );
