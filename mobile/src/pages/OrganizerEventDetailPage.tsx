@@ -214,16 +214,11 @@ export default function OrganizerEventDetailPage({ navigation, route }: any) {
           <TouchableOpacity style={styles.secondaryButton} onPress={() => navigation.navigate('SalesStatus', { eventId: event.id })}>
             <Text style={styles.secondaryButtonText}>판매 요약 보기</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.secondaryButton} onPress={() => navigation.navigate('CheckInStatus', { eventId: event.id })}>
-            <Text style={styles.secondaryButtonText}>체크인 현황 보기</Text>
-          </TouchableOpacity>
           <TouchableOpacity style={styles.secondaryButton} onPress={() => navigation.navigate('EventSettings', { eventId: event.id })}>
             <Text style={styles.secondaryButtonText}>이벤트 설정</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.secondaryButton} onPress={() => navigation.navigate('CheckInManage', { eventId: event.id })}>
-            <Text style={styles.secondaryButtonText}>체크인 관리</Text>
-          </TouchableOpacity>
         </View>
+        <Text style={[styles.cardText, { marginTop: 12 }]}>체크인 관련 기능은 체크인 탭에서 관리하세요. (현황·관리·QR 스캔)</Text>
       </View>
 
       <View style={styles.card}>
@@ -300,6 +295,7 @@ const styles = StyleSheet.create({
   dangerButton: { backgroundColor: '#FEF2F2', borderWidth: 1, borderColor: '#FECACA', borderRadius: 14, paddingVertical: 14, alignItems: 'center', marginTop: 10 },
   dangerButtonText: { color: '#DC2626', fontSize: 16, fontWeight: '900' },
   statusHint: { marginTop: 10, color: '#64748B', fontSize: 12, fontWeight: '800' },
+  cardText: { marginTop: 8, color: '#64748B', lineHeight: 21 },
   disabledButton: { opacity: 0.55 },
   sectionHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   pageText: { color: '#64748B', fontSize: 12, fontWeight: '800' },
