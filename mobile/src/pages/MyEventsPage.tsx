@@ -131,7 +131,7 @@ export default function MyEventsPage({ navigation }: any) {
 
         <View style={styles.stats}>
           <View style={styles.statItem}>
-            <Text style={styles.statLabel}>판매 완료</Text>
+            <Text style={styles.statLabel}>판매 완료 티켓</Text>
             <Text style={styles.statValue}>{sold}</Text>
           </View>
           <View style={styles.statItem}>
@@ -139,7 +139,7 @@ export default function MyEventsPage({ navigation }: any) {
             <Text style={styles.statValue}>{remaining}</Text>
           </View>
           <View style={styles.statItem}>
-            <Text style={styles.statLabel}>총 발행</Text>
+            <Text style={styles.statLabel}>총 발행 티켓</Text>
             <Text style={styles.statValue}>{total || '-'}</Text>
           </View>
         </View>

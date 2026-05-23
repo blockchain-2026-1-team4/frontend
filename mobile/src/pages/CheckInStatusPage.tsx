@@ -107,9 +107,9 @@ export default function CheckInStatusPage({ route }: any) {
           <Text style={styles.eyebrow}>Check-in Status</Text>
           <Text style={styles.title}>체크인 현황</Text>
           <View style={styles.metricGrid}>
-            <Metric label="입장 완료" value={used} />
-            <Metric label="성공 기록" value={success} />
-            <Metric label="전체 시도" value={records.length} />
+            <Metric label="체크인 완료 티켓" value={used} />
+            <Metric label="체크인 성공 기록" value={success} />
+            <Metric label="총 체크인 기록" value={records.length} />
           </View>
           <View style={styles.sectionHead}>
             <Text style={styles.sectionTitle}>체크인 기록</Text>
@@ -147,7 +147,7 @@ export default function CheckInStatusPage({ route }: any) {
             ))}
           </View>
           <View style={styles.pageHead}>
-            <Text style={styles.pageHint}>검색 결과 {filteredRecords.length}건</Text>
+            <Text style={styles.pageHint}>검색된 체크인 기록 {filteredRecords.length}건</Text>
           </View>
         </>
       }

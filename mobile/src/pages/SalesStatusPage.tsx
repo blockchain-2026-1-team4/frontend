@@ -123,9 +123,9 @@ export default function SalesStatusPage({ route }: any) {
           <Text style={styles.title}>판매 현황</Text>
           <Text style={styles.subtitle}>{event?.name || event?.title || '이벤트'} · {weiToEth(event?.ticketPriceWei)}</Text>
           <View style={styles.metricGrid}>
-            <Metric label="판매 완료" value={sold} />
+            <Metric label="판매 완료 티켓" value={sold} />
             <Metric label="잔여 좌석" value={available} />
-            <Metric label="사용 완료" value={used} />
+            <Metric label="사용 완료 티켓" value={used} />
           </View>
           <View style={styles.sectionHead}>
             <Text style={styles.sectionTitle}>티켓별 상태</Text>

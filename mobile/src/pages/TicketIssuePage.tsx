@@ -87,8 +87,7 @@ export default function TicketIssuePage({ navigation, route }: any) {
         backendApi.getEventTickets(eventId).catch(() => []),
       ]);
       const sectionsFromTickets = Array.from(new Set(issuedTickets.map((ticket) => String(ticket.seatInfo || '').split('-')[0]).filter(Boolean)));
-      const mergedSections = Array.from(new Set([...DEFAULT_SEAT_SECTIONS, ...sectionsFromTickets]));
-      setSeatSections(mergedSections);
+      setSeatSections((current) => Array.from(new Set([...current, ...DEFAULT_SEAT_SECTIONS, ...sectionsFromTickets])));
       setEvent(eventDetail);
       setTickets(issuedTickets);
       setStartNumber(String(nextSeatNumber(issuedTickets, seatSection)));
@@ -117,11 +116,11 @@ export default function TicketIssuePage({ navigation, route }: any) {
   }, [issueCount, seatSection, startNumber]);
 
   const ticketSeatFilters = useMemo(() => {
-    const sections = Array.from(new Set(tickets.map((ticket) => seatSectionOf(ticket.seatInfo)).filter(Boolean))).sort((a, b) =>
+    const sections = Array.from(new Set([...seatSections, ...tickets.map((ticket) => seatSectionOf(ticket.seatInfo)).filter(Boolean)])).sort((a, b) =>
       a.localeCompare(b, 'ko-KR', { numeric: true }),
     );
     return ['전체', ...sections];
-  }, [tickets]);
+  }, [seatSections, tickets]);
 
   const filteredTickets = useMemo(() => {
     const normalized = query.trim().toLowerCase();
@@ -259,9 +258,9 @@ export default function TicketIssuePage({ navigation, route }: any) {
       ) : null}
 
       <View style={styles.summaryGrid}>
-        <Summary label="총 티켓" value={totalCount || '-'} />
-        <Summary label="발행 완료" value={issuedCount} />
-        <Summary label="미발행" value={remainingCount} />
+        <Summary label="총 발행 티켓" value={totalCount || '-'} />
+        <Summary label="발행 완료 티켓" value={issuedCount} />
+        <Summary label="미발행 티켓" value={remainingCount} />
       </View>
 
       <View style={styles.card}>

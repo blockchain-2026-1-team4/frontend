@@ -183,9 +183,9 @@ export default function OrganizerEventDetailPage({ navigation, route }: any) {
       <Text style={styles.subtitle}>{event.venue} · {formatEventDate(event.eventAt || event.eventDateTime)}</Text>
 
       <View style={styles.metricGrid}>
-        <Metric label="총 발행" value={tickets.length} />
-        <Metric label="판매 완료" value={soldTickets} />
-        <Metric label="사용 완료" value={usedTickets} />
+        <Metric label="총 발행 티켓" value={tickets.length} />
+        <Metric label="판매 완료 티켓" value={soldTickets} />
+        <Metric label="사용 완료 티켓" value={usedTickets} />
       </View>
 
       <View style={styles.actions}>
@@ -210,7 +210,7 @@ export default function OrganizerEventDetailPage({ navigation, route }: any) {
         />
         <MenuCard
           title="체크인 현황"
-          text={`입장 처리 ${usedTickets}건 · 전체 발행 ${tickets.length}장`}
+          text={`체크인 완료 ${usedTickets}건 · 총 발행 티켓 ${tickets.length}장`}
           onPress={() => navigation.navigate('CheckInStatus', { eventId: event.id })}
         />
         <MenuCard
@@ -227,7 +227,7 @@ export default function OrganizerEventDetailPage({ navigation, route }: any) {
 
       <View style={styles.card}>
         <View style={styles.sectionHead}>
-          <Text style={styles.cardTitle}>최근 티켓</Text>
+          <Text style={styles.cardTitle}>최근 발행 티켓</Text>
           <Text style={styles.pageText}>{currentPage} / {totalPages}</Text>
         </View>
         <TextInput
@@ -263,7 +263,7 @@ export default function OrganizerEventDetailPage({ navigation, route }: any) {
             <Text style={[styles.sortButtonText, sortMode === 'seat' && styles.activeSortButtonText]}>좌석순</Text>
           </TouchableOpacity>
         </View>
-        {pagedTickets.length === 0 ? <Text style={styles.emptyText}>조건에 맞는 티켓이 없습니다.</Text> : pagedTickets.map((ticket) => (
+        {pagedTickets.length === 0 ? <Text style={styles.emptyText}>조건에 맞는 발행 티켓이 없습니다.</Text> : pagedTickets.map((ticket) => (
           <View key={ticketId(ticket)} style={styles.ticketRow}>
             <View style={styles.ticketInfo}>
               <Text style={styles.ticketTitle}>{ticket.seatInfo || '-'}</Text>

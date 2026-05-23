@@ -161,7 +161,7 @@ export default function OrganizerProfilePage({ navigation }: any) {
               <Text style={styles.eventMeta}>일시 {formatEventDate(event.eventAt || event.eventDateTime)}</Text>
               <View style={styles.eventFoot}>
                 <Text style={styles.badge}>{formatEventStatus(event.status)}</Text>
-                <Text style={styles.eventCount}>판매 {event.soldTicketCount ?? 0} · 체크인 {checkInCountByEventId[event.id] ?? 0}</Text>
+                <Text style={styles.eventCount}>판매된 티켓 {event.soldTicketCount ?? 0} · 체크인 완료 {checkInCountByEventId[event.id] ?? 0}</Text>
               </View>
             </TouchableOpacity>
           ))

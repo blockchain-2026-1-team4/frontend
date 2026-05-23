@@ -83,7 +83,16 @@ export default function CheckInHomePage({ navigation }: any) {
   );
 
   const todayEvents = useMemo(() => events.filter((event) => isToday(event.eventAt || event.eventDateTime)), [events]);
-  const quickEvent = todayEvents[0] || events[0] || null;
+  const sortedTodayEvents = useMemo(() => {
+    return [...todayEvents].sort((a, b) => {
+      if (a.status === 'ACTIVE' && b.status !== 'ACTIVE') return -1;
+      if (a.status !== 'ACTIVE' && b.status === 'ACTIVE') return 1;
+      const aTime = new Date(a.eventAt || a.eventDateTime || '').getTime();
+      const bTime = new Date(b.eventAt || b.eventDateTime || '').getTime();
+      return (Number.isNaN(aTime) ? 0 : aTime) - (Number.isNaN(bTime) ? 0 : bTime);
+    });
+  }, [todayEvents]);
+  const recentEventId = recentCheckIns[0]?.eventId;
 
   if (loading) {
     return (
@@ -105,28 +114,17 @@ export default function CheckInHomePage({ navigation }: any) {
       <Text style={styles.subtitle}>체크인할 이벤트를 먼저 고르고, 이후 실제 입장 처리는 관리 화면에서 진행하세요.</Text>
 
       <View style={styles.card}>
-        <Text style={styles.cardTitle}>이벤트 선택</Text>
-        <Text style={styles.cardText}>
-          {quickEvent ? `${eventTitle(quickEvent)} 체크인을 바로 이어서 진행할 수 있습니다.` : '운영중인 이벤트가 없습니다.'}
-        </Text>
-        <TouchableOpacity
-          style={[styles.primaryButton, !quickEvent && styles.disabledButton]}
-          disabled={!quickEvent}
-          onPress={() => navigation.navigate('CheckInManage', { eventId: quickEvent?.id })}
-        >
-          <Text style={styles.primaryButtonText}>입장 처리</Text>
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.card}>
         <View style={styles.sectionHead}>
           <Text style={styles.cardTitle}>오늘 체크인 예정 이벤트</Text>
-          <Text style={styles.sectionHint}>{todayEvents.length}건</Text>
+          <Text style={styles.sectionHint}>{sortedTodayEvents.length}건</Text>
         </View>
-        {todayEvents.length === 0 ? (
+        {sortedTodayEvents.length === 0 ? (
           <Text style={styles.emptyText}>오늘 체크인 예정 이벤트가 없습니다.</Text>
         ) : (
-          todayEvents.map((event) => (
+          sortedTodayEvents.map((event) => {
+            const highlighted = event.id === recentEventId;
+
+            return (
             <View key={event.id} style={styles.eventRow}>
               <View style={styles.eventInfo}>
                 <Text style={styles.eventTitle}>{eventTitle(event)}</Text>
@@ -135,22 +133,23 @@ export default function CheckInHomePage({ navigation }: any) {
               </View>
               <View style={styles.eventActions}>
                 <Text style={styles.badge}>{formatEventStatus(event.status)}</Text>
-                <TouchableOpacity style={styles.rowButton} onPress={() => navigation.navigate('CheckInManage', { eventId: event.id })}>
+                <TouchableOpacity style={[styles.rowButton, highlighted && styles.primaryRowButton]} onPress={() => navigation.navigate('CheckInManage', { eventId: event.id })}>
                   <Text style={styles.rowButtonText}>입장 처리</Text>
                 </TouchableOpacity>
               </View>
             </View>
-          ))
+            );
+          })
         )}
       </View>
 
       <View style={styles.card}>
         <View style={styles.sectionHead}>
-          <Text style={styles.cardTitle}>최근 입장 처리</Text>
+          <Text style={styles.cardTitle}>최근 체크인 기록</Text>
           <Text style={styles.sectionHint}>{recentCheckIns.length}건</Text>
         </View>
         {recentCheckIns.length === 0 ? (
-          <Text style={styles.emptyText}>최근 입장 처리 기록이 없습니다.</Text>
+          <Text style={styles.emptyText}>최근 체크인 기록이 없습니다.</Text>
         ) : (
           recentCheckIns.map((item, index) => (
             <TouchableOpacity key={`${item.eventId}-${item.seatInfo}-${index}`} style={styles.checkInRow} onPress={() => navigation.navigate('CheckInStatus', { eventId: item.eventId })}>
@@ -193,6 +192,7 @@ const styles = StyleSheet.create({
   eventActions: { alignItems: 'flex-end', gap: 8 },
   badge: { overflow: 'hidden', borderRadius: 999, backgroundColor: '#E0F2FE', color: '#0369A1', paddingHorizontal: 9, paddingVertical: 5, fontSize: 11, fontWeight: '900' },
   rowButton: { borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, backgroundColor: '#FFFFFF' },
+  primaryRowButton: { borderColor: '#2563EB', backgroundColor: '#EFF6FF' },
   rowButtonText: { color: '#0F172A', fontWeight: '900', fontSize: 12 },
   linkText: { color: '#2563EB', fontWeight: '900', fontSize: 12 },
 });

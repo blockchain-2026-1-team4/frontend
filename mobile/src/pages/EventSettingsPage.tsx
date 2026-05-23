@@ -214,8 +214,8 @@ export default function EventSettingsPage({ route }: any) {
         <View style={[styles.card, styles.sectionDanger]}>
           <TouchableOpacity style={styles.collapseHeader} onPress={() => setStatusOpen((value) => !value)}>
             <View>
-              <Text style={styles.sectionEyebrow}>위험도 높은 상태</Text>
-              <Text style={styles.cardTitle}>이벤트 상태</Text>
+              <Text style={styles.sectionEyebrow}>운영 상태 관리</Text>
+              <Text style={styles.cardTitle}>이벤트 상태 변경</Text>
             </View>
             <Text style={styles.chevron}>{statusOpen ? '⌃' : '⌄'}</Text>
           </TouchableOpacity>
@@ -225,7 +225,7 @@ export default function EventSettingsPage({ route }: any) {
               {event?.adminCanceled ? (
                 <Text style={styles.warningText}>관리자가 취소한 이벤트입니다. 주최자는 재활성화할 수 없습니다.</Text>
               ) : null}
-              <Text style={styles.statusDescription}>{statusDescription}</Text>
+              <Text style={styles.statusDescription}>운영중지 또는 이벤트 취소는 판매 및 체크인에 영향을 줄 수 있습니다.</Text>
               <View style={styles.statusGrid}>
                 {[
                   { value: 'ACTIVE', label: '운영중' },
