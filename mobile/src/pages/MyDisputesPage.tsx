@@ -7,9 +7,12 @@ import type { DisputeRecord } from '../types/api';
 
 const STATUS_LABEL: Record<string, string> = {
   OPEN: '접수',
-  REVIEWING: '검토중',
-  RESOLVED: '해결',
+  RECEIVED: '접수',
+  REVIEWING: '처리 중',
+  PROCESSING: '처리 중',
+  RESOLVED: '해결 완료',
   REJECTED: '반려',
+  CLOSED: '종료',
 };
 
 const TYPE_LABEL: Record<string, string> = {
@@ -18,6 +21,18 @@ const TYPE_LABEL: Record<string, string> = {
   FRAUD_SUSPECTED: '사기 의심',
   OTHER: '기타',
 };
+
+const EDITABLE_STATUSES = new Set(['OPEN', 'RECEIVED']);
+const PROCESSING_STATUSES = new Set(['REVIEWING', 'PROCESSING']);
+const DONE_STATUSES = new Set(['RESOLVED', 'REJECTED', 'CLOSED']);
+
+function getStatusBadge(status?: string) {
+  const key = status?.toUpperCase() ?? 'OPEN';
+  if (EDITABLE_STATUSES.has(key)) return { label: '수정 가능', style: styles.badgeEditable, textStyle: styles.badgeEditableText };
+  if (PROCESSING_STATUSES.has(key)) return { label: '처리 중', style: styles.badgeProcessing, textStyle: styles.badgeProcessingText };
+  if (DONE_STATUSES.has(key)) return { label: '해결 완료', style: styles.badgeDone, textStyle: styles.badgeDoneText };
+  return { label: STATUS_LABEL[key] ?? key, style: styles.badgeDefault, textStyle: styles.badgeDefaultText };
+}
 
 export default function MyDisputesPage({ navigation }: any) {
   const [items, setItems] = useState<DisputeRecord[]>([]);
@@ -47,7 +62,7 @@ export default function MyDisputesPage({ navigation }: any) {
       <View style={styles.header}>
         <Text style={styles.eyebrow}>Disputes</Text>
         <Text style={styles.title}>내 분쟁 신고</Text>
-        <Text style={styles.subtitle}>내가 접수한 신고와 관리자 처리 상태를 확인합니다.</Text>
+        <Text style={styles.subtitle}>접수한 신고의 처리 상태를 확인하고, 접수 단계 신고는 내용을 수정할 수 있습니다.</Text>
         <TouchableOpacity style={styles.button} onPress={() => navigation.navigate('DisputeCreate')}>
           <Text style={styles.buttonText}>새 분쟁 신고</Text>
         </TouchableOpacity>
@@ -60,15 +75,30 @@ export default function MyDisputesPage({ navigation }: any) {
         keyExtractor={(item, index) => String(item.id ?? index)}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} />}
         ListEmptyComponent={<Text style={styles.empty}>접수한 분쟁 신고가 없습니다.</Text>}
-        renderItem={({ item }) => (
-          <View style={styles.card}>
-            <Text style={styles.status}>{STATUS_LABEL[item.status ?? 'OPEN'] ?? item.status ?? '접수'}</Text>
-            <Text style={styles.cardTitle}>{TYPE_LABEL[item.type ?? 'OTHER'] ?? item.type ?? '분쟁'}</Text>
-            <Text style={styles.meta}>티켓 {item.ticketId ?? '-'} · 리셀 {item.resaleListingId ?? '-'}</Text>
-            <Text style={styles.description}>{item.description}</Text>
-            {item.resolutionNote ? <Text style={styles.note}>처리 메모: {item.resolutionNote}</Text> : null}
-          </View>
-        )}
+        renderItem={({ item }) => {
+          const statusKey = item.status?.toUpperCase() ?? 'OPEN';
+          const editable = EDITABLE_STATUSES.has(statusKey);
+          const badge = getStatusBadge(statusKey);
+          return (
+            <View style={styles.card}>
+              <View style={styles.cardHeader}>
+                <Text style={styles.status}>{STATUS_LABEL[statusKey] ?? item.status ?? '접수'}</Text>
+                <View style={[styles.badge, badge.style]}>
+                  <Text style={[styles.badgeText, badge.textStyle]}>{badge.label}</Text>
+                </View>
+              </View>
+              <Text style={styles.cardTitle}>{TYPE_LABEL[item.type ?? 'OTHER'] ?? item.type ?? '분쟁'}</Text>
+              <Text style={styles.meta}>티켓 {item.ticketId ?? '-'} · 리셀 {item.resaleListingId ?? '-'}</Text>
+              <Text style={styles.description}>{item.description}</Text>
+              {item.resolutionNote ? <Text style={styles.note}>처리 메모: {item.resolutionNote}</Text> : null}
+              {editable ? (
+                <TouchableOpacity style={styles.editButton} onPress={() => navigation.navigate('DisputeCreate', { dispute: item })}>
+                  <Text style={styles.editButtonText}>신고 내용 수정</Text>
+                </TouchableOpacity>
+              ) : null}
+            </View>
+          );
+        }}
       />
     </View>
   );
@@ -87,9 +117,22 @@ const styles = StyleSheet.create({
   list: { padding: 18, paddingBottom: 96 },
   empty: { color: '#94A3B8', textAlign: 'center', marginTop: 40, fontWeight: '800' },
   card: { backgroundColor: '#FFFFFF', borderRadius: 16, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: '#E2E8F0' },
+  cardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
   status: { color: '#2563EB', fontWeight: '900', marginBottom: 6 },
   cardTitle: { color: '#0F172A', fontSize: 18, fontWeight: '900' },
   meta: { marginTop: 6, color: '#64748B', fontSize: 12 },
   description: { marginTop: 10, color: '#334155', lineHeight: 20 },
   note: { marginTop: 10, color: '#166534', fontWeight: '800', lineHeight: 20 },
+  badge: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 },
+  badgeText: { fontSize: 12, fontWeight: '900' },
+  badgeEditable: { backgroundColor: '#EFF6FF' },
+  badgeEditableText: { color: '#2563EB' },
+  badgeProcessing: { backgroundColor: '#FFF7ED' },
+  badgeProcessingText: { color: '#C2410C' },
+  badgeDone: { backgroundColor: '#F1F5F9' },
+  badgeDoneText: { color: '#475569' },
+  badgeDefault: { backgroundColor: '#F8FAFC' },
+  badgeDefaultText: { color: '#64748B' },
+  editButton: { marginTop: 14, borderWidth: 1, borderColor: '#2563EB', borderRadius: 12, paddingVertical: 11, alignItems: 'center' },
+  editButtonText: { color: '#2563EB', fontWeight: '900' },
 });
