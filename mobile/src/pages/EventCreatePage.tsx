@@ -266,57 +266,6 @@ export default function EventCreatePage({ navigation }: any) {
     setExpandedRoundIds((current) => current.filter((item) => item !== id));
   };
 
-  const completeSaleRound = (round: EventRoundDraft) => {
-    const messages: string[] = [];
-    const saleStart = toDateTimeIso(round.saleStartDate, round.saleStartTime);
-    const saleEnd = toDateTimeIso(round.saleEndDate, round.saleEndTime);
-    const roundStart = roundStartIso(round);
-
-    if (saleStart < new Date().toISOString()) {
-      messages.push('[티켓 판매 기간] 판매 시작 시간은 현재 시간 이후로 설정해주세요.');
-    }
-    if (saleEnd < saleStart) {
-      messages.push('[티켓 판매 기간] 판매 종료 시간은 판매 시작 시간 이후로 설정해주세요.');
-    }
-    if (saleEnd > roundStart) {
-      messages.push('[티켓 판매 기간] 티켓 판매는 공연 시작 전에 종료되어야 합니다.');
-    }
-
-    setSaleRoundErrors((current) => ({ ...current, [round.id]: messages }));
-    if (messages.length === 0) {
-      setSaleRoundCompletedIds((current) => ({ ...current, [round.id]: true }));
-      setActiveSaleRoundId(null);
-    } else {
-      setSaleRoundCompletedIds((current) => ({ ...current, [round.id]: false }));
-    }
-  };
-
-  const completeGlobalSalePeriod = () => {
-    const messages: string[] = [];
-    const globalStart = toDateTimeIso(globalSaleStart, globalSaleStartTime);
-    const globalEnd = toDateTimeIso(globalSaleEnd, globalSaleEndTime);
-
-    if (globalStart < new Date().toISOString()) {
-      messages.push('[티켓 판매 기간] 전체 판매 시작 시간은 현재 시간 이후로 설정해주세요.');
-    }
-    if (globalEnd < globalStart) {
-      messages.push('[티켓 판매 기간] 전체 판매 종료 시간은 판매 시작 시간 이후로 설정해주세요.');
-    }
-    rounds.forEach((round, index) => {
-      if (globalEnd > roundStartIso(round)) {
-        messages.push(`[티켓 판매 기간] ${index + 1}회차 티켓 판매는 공연 시작 전에 종료되어야 합니다.`);
-      }
-    });
-
-    setSaleMessages(messages);
-    if (messages.length === 0) {
-      setGlobalSaleCompleted(true);
-      setGlobalSaleExpanded(false);
-    } else {
-      setGlobalSaleCompleted(false);
-    }
-  };
-
   const syncGlobalSaleToRounds = (
     nextStartDate = globalSaleStart,
     nextStartTime = globalSaleStartTime,
@@ -433,8 +382,6 @@ export default function EventCreatePage({ navigation }: any) {
     const nextErrors: string[] = [];
     const nextInvalid: Record<string, boolean> = {};
     const nextRoundMessages: Record<string, string[]> = {};
-    const nextSaleMessages: string[] = [];
-    const nextSaleRoundErrors: Record<string, string[]> = {};
 
     if (!category) {
       nextErrors.push('카테고리를 선택해야 합니다.');
@@ -462,12 +409,6 @@ export default function EventCreatePage({ navigation }: any) {
       const startsAt = new Date(toDateTimeIso(round.eventDate, round.startTime));
       const endsAtRaw = new Date(toDateTimeIso(round.eventDate, round.endTime));
       const endsAt = endsAtRaw <= startsAt ? new Date(endsAtRaw.getTime() + 24 * 60 * 60 * 1000) : endsAtRaw;
-      const saleStartDate = round.useGlobalSalePeriod ? globalSaleStart : round.saleStartDate;
-      const saleStartTime = round.useGlobalSalePeriod ? globalSaleStartTime : round.saleStartTime;
-      const saleEndDate = round.useGlobalSalePeriod ? globalSaleEnd : round.saleEndDate;
-      const saleEndTime = round.useGlobalSalePeriod ? globalSaleEndTime : round.saleEndTime;
-      const saleStart = toDateTimeIso(saleStartDate, saleStartTime);
-      const saleEnd = toDateTimeIso(saleEndDate, saleEndTime);
 
       if (Number.isNaN(startsAt.getTime()) || Number.isNaN(endsAt.getTime())) {
         nextErrors.push(`[공연 일정] ${roundNumber}회차의 공연일과 시간을 입력해주세요.`);
@@ -477,34 +418,8 @@ export default function EventCreatePage({ navigation }: any) {
       } else {
         nextRoundMessages[round.id] = [];
       }
-      if (roundSaleOverrideEnabled) {
-        const saleRoundMessages: string[] = [];
-        if (saleStart < new Date().toISOString()) {
-          saleRoundMessages.push('[티켓 판매 기간] 판매 시작 시간은 현재 시간 이후로 설정해주세요.');
-        }
-        if (saleEnd < saleStart) {
-          saleRoundMessages.push('[티켓 판매 기간] 판매 종료 시간은 판매 시작 시간 이후로 설정해주세요.');
-        }
-        if (saleEnd > startsAt.toISOString()) {
-          saleRoundMessages.push('[티켓 판매 기간] 티켓 판매는 공연 시작 전에 종료되어야 합니다.');
-        }
-        nextSaleRoundErrors[round.id] = saleRoundMessages;
-      } else {
-        if (saleStart < new Date().toISOString()) {
-          nextSaleMessages.push(`[티켓 판매 기간] ${roundNumber}회차 판매 시작 시간은 현재 시간 이후로 설정해주세요.`);
-          nextInvalid.globalSale = true;
-        }
-        if (saleEnd < saleStart) {
-          nextSaleMessages.push(`[티켓 판매 기간] ${roundNumber}회차 판매 종료 시간은 판매 시작 시간 이후로 설정해주세요.`);
-          nextInvalid.globalSale = true;
-        }
-        if (saleEnd > startsAt.toISOString()) {
-          nextSaleMessages.push(`[티켓 판매 기간] ${roundNumber}회차 티켓 판매는 공연 시작 전에 종료되어야 합니다.`);
-          nextInvalid.globalSale = true;
-        }
-      }
 
-      return { index, startsAt, endsAt, saleStart, saleEnd };
+      return { index, startsAt, endsAt };
     }).sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime());
 
     ranges.forEach((range, index) => {
@@ -515,44 +430,13 @@ export default function EventCreatePage({ navigation }: any) {
       }
     });
 
-    if (!roundSaleOverrideEnabled) {
-      const globalStart = toDateTimeIso(globalSaleStart, globalSaleStartTime);
-      const globalEnd = toDateTimeIso(globalSaleEnd, globalSaleEndTime);
-      if (globalStart < new Date().toISOString()) {
-        nextSaleMessages.push('[티켓 판매 기간] 전체 판매 시작 시간은 현재 시간 이후로 설정해주세요.');
-        nextInvalid.globalSale = true;
-      }
-      if (globalEnd < globalStart) {
-        nextSaleMessages.push('[티켓 판매 기간] 전체 판매 종료 시간은 판매 시작 시간 이후로 설정해주세요.');
-        nextInvalid.globalSale = true;
-      }
-      ranges.forEach((range, index) => {
-        if (globalEnd > range.startsAt.toISOString()) {
-          nextSaleMessages.push(`[티켓 판매 기간] ${index + 1}회차 티켓 판매는 공연 시작 전에 종료되어야 합니다.`);
-          nextInvalid.globalSale = true;
-        }
-      });
-    }
-
-    const hasBlockingIssues = nextErrors.length > 0 || nextSaleMessages.length > 0 || Object.values(nextSaleRoundErrors).some((messages) => messages.length > 0);
-
     setErrors(nextErrors);
     setInvalidFields(nextInvalid);
     setRoundMessages(nextRoundMessages);
-    if (!roundSaleOverrideEnabled) {
-      setSaleMessages(nextSaleMessages);
-      setSaleRoundErrors({});
-    }
-    if (roundSaleOverrideEnabled) {
-      setSaleRoundErrors(nextSaleRoundErrors);
-      setSaleMessages([]);
-    }
-    if (hasBlockingIssues) {
+    setSaleMessages([]);
+    setSaleRoundErrors({});
+    if (nextErrors.length > 0) {
       if (nextInvalid.rounds) setExpandedRoundIds(rounds.map((round) => round.id));
-      if (roundSaleOverrideEnabled) {
-        const firstSaleRoundId = Object.entries(nextSaleRoundErrors).find(([, messages]) => messages.length > 0)?.[0];
-        if (firstSaleRoundId) setActiveSaleRoundId(firstSaleRoundId);
-      }
       const firstField = Object.keys(FIELD_OFFSET).find((field) => nextInvalid[field]);
       scrollRef.current?.scrollTo({ y: FIELD_OFFSET[firstField || 'category'], animated: true });
       return false;
@@ -633,7 +517,7 @@ export default function EventCreatePage({ navigation }: any) {
       }
 
       Alert.alert('등록 완료', '이벤트가 등록되었습니다. 티켓 설정으로 이동합니다.');
-      navigation.replace('TicketIssue', { eventId: createdEvent.id });
+      navigation.replace('TicketIssue', { eventId: createdEvent.id, returnTo: 'create' });
     } catch (error: any) {
       setErrors([errorMessage(error, '이벤트를 등록하지 못했습니다.')]);
       scrollRef.current?.scrollTo({ y: 0, animated: true });
@@ -758,136 +642,6 @@ export default function EventCreatePage({ navigation }: any) {
           <TouchableOpacity style={styles.addRoundButton} onPress={addRound}>
             <Text style={styles.addRoundButtonText}>+ 회차 추가</Text>
           </TouchableOpacity>
-        </View>
-
-        <View style={[styles.card, invalidFields.globalSale && styles.invalidRound]}>
-          <View style={styles.saleHeader}>
-            <View style={styles.saleHeaderCopy}>
-              <Text style={styles.roundTitle}>티켓 판매 기간</Text>
-            </View>
-          </View>
-          <View style={styles.saleBody}>
-            <View style={styles.modeRow}>
-              <TouchableOpacity style={[styles.modeButton, !roundSaleOverrideEnabled && styles.activeModeButton]} onPress={() => setRoundSaleOverride(false)}>
-                <Text style={styles.modeButtonText}>전체 판매 기간 설정</Text>
-                <Text style={styles.modeHint}>모든 회차에 같은 판매 기간을 적용합니다.</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.modeButton, roundSaleOverrideEnabled && styles.activeModeButton]} onPress={() => setRoundSaleOverride(true)}>
-                <Text style={styles.modeButtonText}>회차별 판매 기간 설정</Text>
-                <Text style={styles.modeHint}>회차마다 다른 판매 기간을 설정합니다.</Text>
-              </TouchableOpacity>
-            </View>
-
-            {roundSaleOverrideEnabled ? (
-              Object.values(saleRoundErrors).some((messages) => messages.length > 0) ? (
-                <View style={styles.inlineWarningBox}>
-                  {Object.entries(saleRoundErrors).flatMap(([roundId, messages]) => messages.map((message) => <Text key={`${roundId}-${message}`} style={styles.inlineWarningText}>· {message}</Text>))}
-                </View>
-              ) : null
-            ) : saleMessages.length > 0 ? (
-              <View style={styles.inlineWarningBox}>
-                {saleMessages.map((message) => <Text key={message} style={styles.inlineWarningText}>· {message}</Text>)}
-              </View>
-            ) : null}
-
-            {!roundSaleOverrideEnabled ? (
-              <View style={styles.salePeriodBlock}>
-                <TouchableOpacity style={styles.roundHeader} onPress={() => setGlobalSaleExpanded((current) => !current)} activeOpacity={0.82}>
-                  <View style={styles.roundHeaderCopy}>
-                    <Text style={styles.roundTitle}>{globalSaleExpanded ? '▼' : '▶'} 전체 판매 기간 설정</Text>
-                    {!globalSaleExpanded ? (
-                      <Text style={styles.roundSummary}>{formatDateTime(globalSaleStart, globalSaleStartTime)} ~ {formatDateTime(globalSaleEnd, globalSaleEndTime)}</Text>
-                    ) : null}
-                  </View>
-                </TouchableOpacity>
-                {globalSaleExpanded ? (
-                  <View style={styles.saleBody}>
-                    <View style={styles.saleBoundaryGroup}>
-                      <View style={styles.saleBoundaryCard}>
-                        <Text style={styles.saleBoundaryTitle}>판매 시작</Text>
-                        <View style={styles.saleBoundaryRow}>
-                          <View style={styles.saleBoundaryField}>
-                            <Text style={styles.flatLabel}>날짜</Text>
-                            <SingleDatePicker value={globalSaleStart} onChange={updateGlobalSaleStartDate} markedRounds={rounds.map((round, index) => ({ date: round.eventDate, label: `${index + 1}회차` }))} />
-                          </View>
-                          <View style={styles.saleBoundaryField}>
-                            <Text style={styles.flatLabel}>시간</Text>
-                            <TimeWheelPickerBase label="판매 시작 시간" value={globalSaleStartTime} onChange={updateGlobalSaleStartTime} />
-                          </View>
-                        </View>
-                      </View>
-                      <View style={styles.saleBoundaryCard}>
-                        <Text style={styles.saleBoundaryTitle}>판매 종료</Text>
-                        <View style={styles.saleBoundaryRow}>
-                          <View style={styles.saleBoundaryField}>
-                            <Text style={styles.flatLabel}>날짜</Text>
-                            <SingleDatePicker value={globalSaleEnd} onChange={updateGlobalSaleEndDate} markedRounds={rounds.map((round, index) => ({ date: round.eventDate, label: `${index + 1}회차` }))} />
-                          </View>
-                          <View style={styles.saleBoundaryField}>
-                            <Text style={styles.flatLabel}>시간</Text>
-                            <TimeWheelPickerBase label="판매 종료 시간" value={globalSaleEndTime} onChange={updateGlobalSaleEndTime} />
-                          </View>
-                        </View>
-                      </View>
-                    </View>
-                    <TouchableOpacity style={styles.saleCompleteButton} onPress={completeGlobalSalePeriod}>
-                      <Text style={styles.saleCompleteText}>완료</Text>
-                    </TouchableOpacity>
-                  </View>
-                ) : null}
-              </View>
-            ) : null}
-
-            {roundSaleOverrideEnabled ? (
-              <View style={styles.roundSaleList}>
-                {rounds.map((round, index) => (
-                  <View key={round.id} style={styles.roundSaleItem}>
-                    <TouchableOpacity style={styles.roundHeader} onPress={() => setActiveSaleRoundId((current) => current === round.id ? null : round.id)} activeOpacity={0.82}>
-                      <View style={styles.roundHeaderCopy}>
-                        <Text style={styles.roundTitle}>{activeSaleRoundId === round.id ? '▼' : '▶'} {index + 1}회차 판매 기간</Text>
-                        <Text style={styles.roundSummary}>{formatDateTime(round.saleStartDate, round.saleStartTime)} ~ {formatDateTime(round.saleEndDate, round.saleEndTime)}</Text>
-                      </View>
-                    </TouchableOpacity>
-                    {activeSaleRoundId === round.id ? (
-                      <View style={styles.saleBody}>
-                        <View style={styles.saleBoundaryGroup}>
-                          <View style={styles.saleBoundaryCard}>
-                            <Text style={styles.saleBoundaryTitle}>판매 시작</Text>
-                            <View style={styles.saleBoundaryRow}>
-                              <View style={styles.saleBoundaryField}>
-                                <Text style={styles.flatLabel}>날짜</Text>
-                                <SingleDatePicker value={round.saleStartDate} onChange={(value) => updateRound(round.id, { saleStartDate: value, useGlobalSalePeriod: false })} markedRounds={rounds.map((item, itemIndex) => ({ date: item.eventDate, label: `${itemIndex + 1}회차` }))} />
-                              </View>
-                              <View style={styles.saleBoundaryField}>
-                                <Text style={styles.flatLabel}>시간</Text>
-                                <TimeWheelPickerBase label="판매 시작 시간" value={round.saleStartTime} onChange={(value) => updateRound(round.id, { saleStartTime: value, useGlobalSalePeriod: false })} />
-                              </View>
-                            </View>
-                          </View>
-                          <View style={styles.saleBoundaryCard}>
-                            <Text style={styles.saleBoundaryTitle}>판매 종료</Text>
-                            <View style={styles.saleBoundaryRow}>
-                              <View style={styles.saleBoundaryField}>
-                                <Text style={styles.flatLabel}>날짜</Text>
-                                <SingleDatePicker value={round.saleEndDate} onChange={(value) => updateRound(round.id, { saleEndDate: value, useGlobalSalePeriod: false })} markedRounds={rounds.map((item, itemIndex) => ({ date: item.eventDate, label: `${itemIndex + 1}회차` }))} />
-                              </View>
-                              <View style={styles.saleBoundaryField}>
-                                <Text style={styles.flatLabel}>시간</Text>
-                                <TimeWheelPickerBase label="판매 종료 시간" value={round.saleEndTime} onChange={(value) => updateRound(round.id, { saleEndTime: value, useGlobalSalePeriod: false })} />
-                              </View>
-                            </View>
-                          </View>
-                        </View>
-                        <TouchableOpacity style={styles.applyRoundButton} onPress={() => completeSaleRound(round)}>
-                          <Text style={styles.applyRoundText}>완료</Text>
-                        </TouchableOpacity>
-                      </View>
-                    ) : null}
-                  </View>
-                ))}
-              </View>
-            ) : null}
-          </View>
         </View>
 
         {errors.length > 0 ? (
