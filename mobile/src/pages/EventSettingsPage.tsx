@@ -329,16 +329,16 @@ export default function EventSettingsPage({ navigation, route }: any) {
     if (!venue.trim()) nextErrors.push('장소를 입력해주세요.');
     if (!description.trim()) nextErrors.push('소개를 입력해주세요.');
     if (!globalSaleStart || !globalSaleEnd || toDateTimeIso(globalSaleEnd, globalSaleEndTime) < toDateTimeIso(globalSaleStart, globalSaleStartTime)) {
-      nextErrors.push('티켓 판매 기간을 올바르게 선택해주세요.');
+      nextErrors.push('티켓 판매 시작과 종료를 다시 확인해주세요.');
     }
     rounds.forEach((round, index) => {
       const roundNo = index + 1;
-      if (!round.eventDate || !round.startTime || !round.endTime) nextErrors.push(`${roundNo}회차 일정을 입력해주세요.`);
-      if (round.endTime <= round.startTime) nextErrors.push(`${roundNo}회차 종료 시간은 시작 시간보다 늦어야 합니다.`);
+      if (!round.eventDate || !round.startTime || !round.endTime) nextErrors.push(`${roundNo}회차 날짜와 시간을 입력해주세요.`);
+      if (round.endTime <= round.startTime) nextErrors.push(`${roundNo}회차 종료 시간은 시작 시간 이후로 설정해주세요.`);
       const saleStart = round.useGlobalSalePeriod ? toDateTimeIso(globalSaleStart, globalSaleStartTime) : toDateTimeIso(round.saleStartDate, round.saleStartTime);
       const saleEnd = round.useGlobalSalePeriod ? toDateTimeIso(globalSaleEnd, globalSaleEndTime) : toDateTimeIso(round.saleEndDate, round.saleEndTime);
-      if (saleEnd < saleStart) nextErrors.push(`${roundNo}회차 판매 종료 일시는 시작 일시보다 늦어야 합니다.`);
-      if (saleEnd > roundStartIso(round)) nextErrors.push(`${roundNo}회차 판매 종료 일시는 공연 시작 일시보다 빠르거나 같아야 합니다.`);
+      if (saleEnd < saleStart) nextErrors.push(`${roundNo}회차 판매 종료는 판매 시작 이후로 설정해주세요.`);
+      if (saleEnd > roundStartIso(round)) nextErrors.push(`${roundNo}회차 판매는 공연 시작 전까지만 열 수 있습니다.`);
     });
     setErrors(nextErrors);
     if (nextErrors.length > 0) {

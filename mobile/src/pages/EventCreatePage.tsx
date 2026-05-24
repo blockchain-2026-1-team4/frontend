@@ -249,7 +249,7 @@ export default function EventCreatePage({ navigation }: any) {
       const startsAt = toDateTimeIso(target.eventDate, target.startTime);
       const endsAt = toDateTimeIso(target.eventDate, target.endTime);
       if (endsAt <= startsAt) {
-        setRoundMessages((current) => ({ ...current, [id]: ['종료 시간이 시작 시간보다 빠릅니다. 다음 날 종료되는 일정으로 처리됩니다.'] }));
+        setRoundMessages((current) => ({ ...current, [id]: ['종료 시간이 시작 시간보다 빠릅니다. 다음 날 종료 일정으로 처리됩니다.'] }));
         setErrors([]);
         setInvalidFields((current) => ({ ...current, rounds: false }));
         if (!roundAcknowledgedIds[id]) {
@@ -273,13 +273,13 @@ export default function EventCreatePage({ navigation }: any) {
     const roundStart = roundStartIso(round);
 
     if (saleStart < new Date().toISOString()) {
-      messages.push('판매 시작 일시는 현재 시각보다 빠를 수 없습니다.');
+      messages.push('판매 시작 시간은 현재 시간 이후여야 합니다.');
     }
     if (saleEnd < saleStart) {
-      messages.push('판매 종료 일시는 시작 일시보다 빨라야 합니다.');
+      messages.push('판매 종료 시간은 판매 시작 시간 이후여야 합니다.');
     }
     if (saleEnd > roundStart) {
-      messages.push('판매 종료 일시는 공연 시작 일시보다 빠르거나 같아야 합니다.');
+      messages.push('티켓 판매는 공연 시작 전에 종료되어야 합니다.');
     }
 
     setSaleRoundErrors((current) => ({ ...current, [round.id]: messages }));
@@ -297,14 +297,14 @@ export default function EventCreatePage({ navigation }: any) {
     const globalEnd = toDateTimeIso(globalSaleEnd, globalSaleEndTime);
 
     if (globalStart < new Date().toISOString()) {
-      messages.push('전체 판매 시작 일시는 현재 시각보다 빠를 수 없습니다.');
+      messages.push('전체 판매 시작 시간은 현재 시간 이후여야 합니다.');
     }
     if (globalEnd < globalStart) {
-      messages.push('전체 판매 종료 일시는 시작 일시보다 빨라야 합니다.');
+      messages.push('전체 판매 종료 시간은 판매 시작 시간 이후여야 합니다.');
     }
     rounds.forEach((round, index) => {
       if (globalEnd > roundStartIso(round)) {
-        messages.push(`${index + 1}회차 판매 종료 일시는 공연 시작 일시보다 빠르거나 같아야 합니다.`);
+        messages.push(`${index + 1}회차 판매는 해당 공연 시작 전에 종료되어야 합니다.`);
       }
     });
 
@@ -437,23 +437,23 @@ export default function EventCreatePage({ navigation }: any) {
     const nextSaleRoundErrors: Record<string, string[]> = {};
 
     if (!category) {
-      nextErrors.push('카테고리를 선택해주세요.');
+      nextErrors.push('카테고리를 선택해야 합니다.');
       nextInvalid.category = true;
     }
     if (!name.trim()) {
-      nextErrors.push('이벤트명을 입력해주세요.');
+      nextErrors.push('이벤트 이름을 입력해야 합니다.');
       nextInvalid.name = true;
     }
     if (!venue.trim()) {
-      nextErrors.push('장소를 입력해주세요.');
+      nextErrors.push('장소를 입력해야 합니다.');
       nextInvalid.venue = true;
     }
     if (!description.trim()) {
-      nextErrors.push('소개를 입력해주세요.');
+      nextErrors.push('소개를 입력해야 합니다.');
       nextInvalid.description = true;
     }
     if (rounds.length === 0) {
-      nextErrors.push('최소 1개 회차가 필요합니다.');
+      nextErrors.push('최소 1개의 회차를 등록해야 합니다.');
       nextInvalid.rounds = true;
     }
 
@@ -470,36 +470,36 @@ export default function EventCreatePage({ navigation }: any) {
       const saleEnd = toDateTimeIso(saleEndDate, saleEndTime);
 
       if (Number.isNaN(startsAt.getTime()) || Number.isNaN(endsAt.getTime())) {
-        nextErrors.push(`${roundNumber}회차 시간을 설정해주세요.`);
+        nextErrors.push(`${roundNumber}회차 시간을 설정해야 합니다.`);
         nextInvalid.rounds = true;
       } else if (endsAtRaw <= startsAt) {
-        nextRoundMessages[round.id] = ['종료 시간이 시작 시간보다 빠릅니다. 다음 날 종료되는 일정으로 처리됩니다.'];
+        nextRoundMessages[round.id] = ['종료 시간이 시작 시간보다 빠릅니다. 다음 날 종료 일정으로 처리됩니다.'];
       } else {
         nextRoundMessages[round.id] = [];
       }
       if (roundSaleOverrideEnabled) {
         const saleRoundMessages: string[] = [];
         if (saleStart < new Date().toISOString()) {
-          saleRoundMessages.push('판매 시작 일시는 현재 시각보다 빠를 수 없습니다.');
+          saleRoundMessages.push('판매 시작 시간은 현재 시간 이후여야 합니다.');
         }
         if (saleEnd < saleStart) {
-          saleRoundMessages.push('판매 종료 일시는 시작 일시보다 빨라야 합니다.');
+          saleRoundMessages.push('판매 종료 시간은 시작 시간 이후여야 합니다.');
         }
         if (saleEnd > startsAt.toISOString()) {
-          saleRoundMessages.push('판매 종료 일시는 공연 시작 일시보다 빠르거나 같아야 합니다.');
+          saleRoundMessages.push('티켓 판매는 공연 시작 전에 종료되어야 합니다.');
         }
         nextSaleRoundErrors[round.id] = saleRoundMessages;
       } else {
         if (saleStart < new Date().toISOString()) {
-          nextSaleMessages.push(`${roundNumber}회차 판매 시작 일시는 현재 시각보다 빠를 수 없습니다.`);
+          nextSaleMessages.push(`${roundNumber}회차 판매 시작 시간은 현재 시간 이후여야 합니다.`);
           nextInvalid.globalSale = true;
         }
         if (saleEnd < saleStart) {
-          nextSaleMessages.push(`${roundNumber}회차 판매 시작 일시는 판매 종료 일시보다 빨라야 합니다.`);
+          nextSaleMessages.push(`${roundNumber}회차 판매 종료 시간은 시작 시간 이후여야 합니다.`);
           nextInvalid.globalSale = true;
         }
         if (saleEnd > startsAt.toISOString()) {
-          nextSaleMessages.push(`${roundNumber}회차 판매 종료 일시는 공연 시작 일시보다 빠르거나 같아야 합니다.`);
+          nextSaleMessages.push(`${roundNumber}회차 판매는 해당 공연 시작 전에 종료되어야 합니다.`);
           nextInvalid.globalSale = true;
         }
       }
@@ -519,16 +519,16 @@ export default function EventCreatePage({ navigation }: any) {
       const globalStart = toDateTimeIso(globalSaleStart, globalSaleStartTime);
       const globalEnd = toDateTimeIso(globalSaleEnd, globalSaleEndTime);
       if (globalStart < new Date().toISOString()) {
-        nextSaleMessages.push('전체 판매 시작 일시는 현재 시각보다 빠를 수 없습니다.');
+        nextSaleMessages.push('전체 판매 시작 시간은 현재 시간 이후여야 합니다.');
         nextInvalid.globalSale = true;
       }
       if (globalEnd < globalStart) {
-        nextSaleMessages.push('전체 판매 시작 일시는 판매 종료 일시보다 빨라야 합니다.');
+        nextSaleMessages.push('전체 판매 종료 시간은 시작 시간 이후여야 합니다.');
         nextInvalid.globalSale = true;
       }
       ranges.forEach((range, index) => {
         if (globalEnd > range.startsAt.toISOString()) {
-          nextSaleMessages.push(`${index + 1}회차 판매 종료 일시는 공연 시작 일시보다 빠르거나 같아야 합니다.`);
+          nextSaleMessages.push(`${index + 1}회차 판매는 해당 공연 시작 전에 종료되어야 합니다.`);
           nextInvalid.globalSale = true;
         }
       });
