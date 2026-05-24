@@ -106,6 +106,14 @@ function buildRound(index: number, eventDate: string, saleStart: string, saleEnd
   };
 }
 
+function earliestRoundDate(rounds: EventRoundDraft[]) {
+  return [...rounds].sort((a, b) => a.eventDate.localeCompare(b.eventDate))[0]?.eventDate || localDate(new Date());
+}
+
+function defaultSaleEndForRounds(rounds: EventRoundDraft[]) {
+  return addDays(earliestRoundDate(rounds), -1);
+}
+
 function posterFile(asset: PosterAsset) {
   const name = asset.fileName || `poster-${Date.now()}.jpg`;
   const type = asset.mimeType || (name.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg');
@@ -133,13 +141,28 @@ export default function EventCreatePage({ navigation }: any) {
   const [globalSaleStart, setGlobalSaleStart] = useState(defaultSaleStart);
   const [globalSaleEnd, setGlobalSaleEnd] = useState(defaultSaleEnd);
   const [roundSaleOverrideEnabled, setRoundSaleOverrideEnabled] = useState(false);
-  const [salePeriodExpanded, setSalePeriodExpanded] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
   const [invalidFields, setInvalidFields] = useState<Record<string, boolean>>({});
   const [submitting, setSubmitting] = useState(false);
 
   const updateRound = (id: string, patch: Partial<EventRoundDraft>) => {
-    setRounds((current) => current.map((round) => (round.id === id ? { ...round, ...patch } : round)));
+    setRounds((current) => {
+      const nextRounds = current.map((round) => (round.id === id ? { ...round, ...patch } : round));
+      if (patch.eventDate) {
+        const nextSaleEnd = defaultSaleEndForRounds(nextRounds);
+        setGlobalSaleEnd(nextSaleEnd);
+        return nextRounds.map((round) => {
+          if (!roundSaleOverrideEnabled || round.useGlobalSalePeriod) {
+            return { ...round, saleEndDate: nextSaleEnd };
+          }
+          if (round.id === id) {
+            return { ...round, saleEndDate: addDays(round.eventDate, -1) };
+          }
+          return round;
+        });
+      }
+      return nextRounds;
+    });
   };
 
   const toggleRound = (id: string) => {
@@ -147,6 +170,18 @@ export default function EventCreatePage({ navigation }: any) {
   };
 
   const saveRound = (id: string) => {
+    const target = rounds.find((round) => round.id === id);
+    if (target) {
+      const startsAt = new Date(`${target.eventDate}T${target.startTime}:00`);
+      const endsAt = new Date(`${target.eventDate}T${target.endTime}:00`);
+      if (endsAt <= startsAt) {
+        setErrors(['종료 시간은 시작 시간보다 늦어야 합니다.']);
+        setInvalidFields({ rounds: true });
+        return;
+      }
+    }
+    setErrors([]);
+    setInvalidFields((current) => ({ ...current, rounds: false }));
     setExpandedRoundIds((current) => current.filter((item) => item !== id));
   };
 
@@ -189,7 +224,16 @@ export default function EventCreatePage({ navigation }: any) {
         text: '삭제',
         style: 'destructive',
         onPress: () => {
-          setRounds((latest) => latest.filter((round) => round.id !== id).map((round, index) => ({ ...round, title: `${index + 1}회차` })));
+          setRounds((latest) => {
+            const nextRounds = latest.filter((round) => round.id !== id).map((round, index) => ({ ...round, title: `${index + 1}회차` }));
+            const nextSaleEnd = defaultSaleEndForRounds(nextRounds);
+            setGlobalSaleEnd(nextSaleEnd);
+            return nextRounds.map((round) => (
+              !roundSaleOverrideEnabled || round.useGlobalSalePeriod
+                ? { ...round, saleEndDate: nextSaleEnd }
+                : round
+            ));
+          });
           setExpandedRoundIds((current) => current.filter((item) => item !== id));
         },
       },
@@ -254,7 +298,7 @@ export default function EventCreatePage({ navigation }: any) {
         nextErrors.push(`${roundNumber}회차 시간을 설정해주세요.`);
         nextInvalid.rounds = true;
       } else if (endsAt <= startsAt) {
-        nextErrors.push(`${roundNumber}회차 종료 시간이 시작 시간보다 빠릅니다. 다음 날 종료되는 일정은 현재 지원하지 않습니다.`);
+        nextErrors.push(`${roundNumber}회차 종료 시간은 시작 시간보다 늦어야 합니다. overnight 공연은 현재 지원하지 않습니다.`);
         nextInvalid.rounds = true;
       }
       if (!saleStart || !saleEnd || saleEnd < saleStart) {
@@ -281,7 +325,6 @@ export default function EventCreatePage({ navigation }: any) {
     setInvalidFields(nextInvalid);
     if (nextErrors.length > 0) {
       if (nextInvalid.rounds) setExpandedRoundIds(rounds.map((round) => round.id));
-      if (nextInvalid.globalSale) setSalePeriodExpanded(true);
       const firstField = Object.keys(FIELD_OFFSET).find((field) => nextInvalid[field]);
       scrollRef.current?.scrollTo({ y: FIELD_OFFSET[firstField || 'category'], animated: true });
       return false;
@@ -478,51 +521,47 @@ export default function EventCreatePage({ navigation }: any) {
         </View>
 
         <View style={[styles.card, invalidFields.globalSale && styles.invalidRound]}>
-          <TouchableOpacity style={styles.saleHeader} onPress={() => setSalePeriodExpanded((value) => !value)}>
+          <View style={styles.saleHeader}>
             <View style={styles.saleHeaderCopy}>
               <Text style={styles.cardTitle}>티켓 판매 기간</Text>
-              <Text style={styles.saleSummary}>판매 시작: {formatDotDate(globalSaleStart)}</Text>
-              <Text style={styles.saleSummary}>판매 종료: {formatDotDate(globalSaleEnd)}{roundSaleOverrideEnabled ? ' · 회차별 설정' : ''}</Text>
+              <Text style={styles.saleRangeText}>{formatDotDate(globalSaleStart)} ~ {formatDotDate(globalSaleEnd)}</Text>
             </View>
-            <Text style={styles.collapseText}>{salePeriodExpanded ? '접기' : '펼치기'}</Text>
-          </TouchableOpacity>
-          {salePeriodExpanded ? (
-            <View style={styles.saleBody}>
-              {!roundSaleOverrideEnabled ? (
-                <CompactRangePicker
-                  title="티켓 판매 기간"
-                  compactTitle="전체 판매 기간"
-                  startDate={globalSaleStart}
-                  endDate={globalSaleEnd}
-                  onChange={setGlobalSalePeriod}
-                  ctaLabel="판매 기간 선택"
-                  markedRounds={rounds.map((round, index) => ({ date: round.eventDate, label: `${index + 1}회차` }))}
-                />
-              ) : null}
-              {!roundSaleOverrideEnabled ? (
-                <Text style={styles.helpText}>회차별로 판매 기간을 따로 설정할 수 있습니다. 활성화하면 현재 티켓 판매 기간이 각 회차에 복사됩니다.</Text>
-              ) : null}
-              <TouchableOpacity style={styles.checkRow} onPress={() => setRoundSaleOverride(!roundSaleOverrideEnabled)}>
-                <Text style={[styles.checkbox, roundSaleOverrideEnabled && styles.checkedBox]}>{roundSaleOverrideEnabled ? '✓' : ''}</Text>
-                <Text style={styles.checkLabel}>회차별 판매 기간 설정</Text>
-              </TouchableOpacity>
-              {roundSaleOverrideEnabled ? (
-                <View style={styles.roundSaleList}>
-                  {rounds.map((round, index) => (
-                    <CompactRangePicker
-                      key={round.id}
-                      title={`${index + 1}회차 판매 기간`}
-                      compactTitle={`${index + 1}회차`}
-                      startDate={round.saleStartDate}
-                      endDate={round.saleEndDate}
-                      onChange={(start, end) => updateRound(round.id, { saleStartDate: start, saleEndDate: end, useGlobalSalePeriod: false })}
-                      markedRounds={rounds.map((item, itemIndex) => ({ date: item.eventDate, label: `${itemIndex + 1}회차` }))}
-                    />
-                  ))}
-                </View>
-              ) : null}
-            </View>
-          ) : null}
+          </View>
+          <View style={styles.saleBody}>
+            {!roundSaleOverrideEnabled ? (
+              <CompactRangePicker
+                title="티켓 판매 기간"
+                compactTitle="전체 판매 기간"
+                startDate={globalSaleStart}
+                endDate={globalSaleEnd}
+                onChange={setGlobalSalePeriod}
+                ctaLabel="판매 기간 변경"
+                markedRounds={rounds.map((round, index) => ({ date: round.eventDate, label: `${index + 1}회차` }))}
+              />
+            ) : null}
+            {!roundSaleOverrideEnabled ? (
+              <Text style={styles.helpText}>회차별로 판매 기간을 따로 설정할 수 있습니다. 활성화하면 현재 티켓 판매 기간이 각 회차에 복사됩니다.</Text>
+            ) : null}
+            <TouchableOpacity style={styles.checkRow} onPress={() => setRoundSaleOverride(!roundSaleOverrideEnabled)}>
+              <Text style={[styles.checkbox, roundSaleOverrideEnabled && styles.checkedBox]}>{roundSaleOverrideEnabled ? '✓' : ''}</Text>
+              <Text style={styles.checkLabel}>회차별 판매 기간 설정</Text>
+            </TouchableOpacity>
+            {roundSaleOverrideEnabled ? (
+              <View style={styles.roundSaleList}>
+                {rounds.map((round, index) => (
+                  <CompactRangePicker
+                    key={round.id}
+                    title={`${index + 1}회차 판매 기간`}
+                    compactTitle={`${index + 1}회차`}
+                    startDate={round.saleStartDate}
+                    endDate={round.saleEndDate}
+                    onChange={(start, end) => updateRound(round.id, { saleStartDate: start, saleEndDate: end, useGlobalSalePeriod: false })}
+                    markedRounds={rounds.map((item, itemIndex) => ({ date: item.eventDate, label: `${itemIndex + 1}회차` }))}
+                  />
+                ))}
+              </View>
+            ) : null}
+          </View>
         </View>
 
         {errors.length > 0 ? (
@@ -853,8 +892,8 @@ const styles = StyleSheet.create({
   checkLabel: { color: '#0F172A', fontWeight: '800' },
   saleHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
   saleHeaderCopy: { flex: 1 },
+  saleRangeText: { marginTop: 6, color: '#0F172A', fontSize: 15, fontWeight: '900' },
   saleSummary: { marginTop: 4, color: '#64748B', fontSize: 12, fontWeight: '800', lineHeight: 17 },
-  collapseText: { color: '#2563EB', fontWeight: '900', fontSize: 12 },
   saleBody: { marginTop: 2 },
   rangePickerBox: { marginTop: 9 },
   rangePickerTitle: { color: '#64748B', fontSize: 12, fontWeight: '900' },
