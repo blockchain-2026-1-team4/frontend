@@ -48,11 +48,11 @@ const TIME_OPTIONS = Array.from({ length: 48 }, (_, index) => {
 
 const FIELD_OFFSET: Record<string, number> = {
   category: 100,
-  name: 180,
-  venue: 270,
-  description: 360,
-  rounds: 650,
-  globalSale: 920,
+  name: 170,
+  venue: 260,
+  description: 350,
+  rounds: 610,
+  globalSale: 900,
 };
 
 function localDate(date: Date) {
@@ -88,14 +88,14 @@ function roundEndIso(round: EventRoundDraft) {
   return new Date(`${round.eventDate}T${round.endTime}:00`).toISOString();
 }
 
-function buildRound(index: number, eventDate: string, globalSaleStart: string, globalSaleEnd: string): EventRoundDraft {
+function buildRound(index: number, eventDate: string, globalSaleStart: string, globalSaleEnd: string, useGlobalSalePeriod = true): EventRoundDraft {
   return {
     id: `${Date.now()}-${index}-${Math.random().toString(16).slice(2)}`,
     title: `${index + 1}회차`,
     eventDate,
     startTime: index === 0 ? '19:00' : '14:00',
     endTime: index === 0 ? '21:00' : '16:00',
-    useGlobalSalePeriod: true,
+    useGlobalSalePeriod,
     saleStartDate: globalSaleStart,
     saleEndDate: globalSaleEnd,
   };
@@ -120,12 +120,13 @@ export default function EventCreatePage({ navigation }: any) {
   const [venue, setVenue] = useState('');
   const [venuePlaceId] = useState<string | null>(null);
   const [description, setDescription] = useState('');
-  const [descriptionHeight, setDescriptionHeight] = useState(104);
+  const [descriptionHeight, setDescriptionHeight] = useState(96);
   const [poster, setPoster] = useState<PosterAsset | null>(null);
   const [rounds, setRounds] = useState<EventRoundDraft[]>([initialRound]);
   const [expandedRoundIds, setExpandedRoundIds] = useState<string[]>([]);
   const [globalSaleStart, setGlobalSaleStart] = useState(defaultSaleStart);
   const [globalSaleEnd, setGlobalSaleEnd] = useState(defaultSaleEnd);
+  const [roundSaleOverrideEnabled, setRoundSaleOverrideEnabled] = useState(false);
   const [salePeriodExpanded, setSalePeriodExpanded] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
   const [invalidFields, setInvalidFields] = useState<Record<string, boolean>>({});
@@ -139,10 +140,34 @@ export default function EventCreatePage({ navigation }: any) {
     setExpandedRoundIds((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
   };
 
+  const saveRound = (id: string) => {
+    setExpandedRoundIds((current) => current.filter((item) => item !== id));
+  };
+
+  const setGlobalSalePeriod = (start: string, end: string) => {
+    setGlobalSaleStart(start);
+    setGlobalSaleEnd(end);
+    setRounds((current) => current.map((round) => (
+      roundSaleOverrideEnabled
+        ? round
+        : { ...round, saleStartDate: start, saleEndDate: end, useGlobalSalePeriod: true }
+    )));
+  };
+
+  const setRoundSaleOverride = (enabled: boolean) => {
+    setRoundSaleOverrideEnabled(enabled);
+    setRounds((current) => current.map((round) => ({
+      ...round,
+      useGlobalSalePeriod: !enabled,
+      saleStartDate: round.saleStartDate || globalSaleStart,
+      saleEndDate: round.saleEndDate || globalSaleEnd,
+    })));
+  };
+
   const addRound = () => {
     setRounds((current) => {
       const nextDate = addDays(current.at(-1)?.eventDate || defaultEventDate, 1);
-      const next = buildRound(current.length, nextDate, globalSaleStart, globalSaleEnd);
+      const next = buildRound(current.length, nextDate, globalSaleStart, globalSaleEnd, !roundSaleOverrideEnabled);
       setExpandedRoundIds([next.id]);
       return [...current, next];
     });
@@ -196,7 +221,7 @@ export default function EventCreatePage({ navigation }: any) {
       nextInvalid.rounds = true;
     }
     if (!globalSaleStart || !globalSaleEnd || globalSaleEnd < globalSaleStart) {
-      nextErrors.push('티켓 판매 기간을 올바르게 선택해주세요.');
+      nextErrors.push('기본 티켓 판매 기간을 올바르게 선택해주세요.');
       nextInvalid.globalSale = true;
     }
 
@@ -216,11 +241,11 @@ export default function EventCreatePage({ navigation }: any) {
       }
       if (!saleStart || !saleEnd || saleEnd < saleStart) {
         nextErrors.push(`${roundNumber}회차 판매 기간을 올바르게 선택해주세요.`);
-        nextInvalid.rounds = true;
+        nextInvalid.globalSale = true;
       }
       if (saleEnd && new Date(`${saleEnd}T23:59:00`) > startsAt) {
         nextErrors.push(`${roundNumber}회차 판매 종료일은 공연 시작 이후일 수 없습니다.`);
-        nextInvalid.rounds = true;
+        nextInvalid.globalSale = true;
       }
 
       return { index, startsAt, endsAt };
@@ -354,7 +379,7 @@ export default function EventCreatePage({ navigation }: any) {
             style={[styles.input, styles.textArea, { height: descriptionHeight }, invalidFields.description && styles.invalidInput]}
             value={description}
             onChangeText={setDescription}
-            onContentSizeChange={(event) => setDescriptionHeight(Math.max(104, Math.min(220, event.nativeEvent.contentSize.height + 18)))}
+            onContentSizeChange={(event) => setDescriptionHeight(Math.max(96, Math.min(200, event.nativeEvent.contentSize.height + 14)))}
             placeholder="공연 소개, 출연진, 운영 시간, 입장 안내, 주의사항 등을 입력해주세요."
             multiline
           />
@@ -376,17 +401,17 @@ export default function EventCreatePage({ navigation }: any) {
           <Text style={styles.helpText}>선택 사항입니다. 이미지 없이도 이벤트를 생성할 수 있습니다.</Text>
         </View>
 
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>회차 설정</Text>
-          <Text style={styles.helpText}>짧은 기간 반복 공연은 회차로 묶고, 한 달 이상 차이나거나 장소가 바뀌면 별도 이벤트로 관리하는 것을 권장합니다.</Text>
+        <View style={[styles.card, invalidFields.rounds && styles.invalidRound]}>
+          <Text style={styles.cardTitle}>공연 일정</Text>
+          <Text style={styles.helpText}>여러 날짜에 진행하는 공연은 회차를 추가하세요. 한 달 이상 차이나거나 장소가 바뀌면 별도 이벤트로 관리하는 것을 권장합니다.</Text>
           {rounds.map((round, index) => {
             const expanded = expandedRoundIds.includes(round.id);
             return (
-              <View key={round.id} style={[styles.roundBox, invalidFields.rounds && styles.invalidRound]}>
+              <View key={round.id} style={styles.roundBox}>
                 <TouchableOpacity style={styles.roundHeader} onPress={() => toggleRound(round.id)} activeOpacity={0.8}>
                   <View style={styles.roundHeaderCopy}>
                     <Text style={styles.roundTitle}>{expanded ? '▼' : '▶'} {index + 1}회차 · {formatShortDate(round.eventDate)} {round.startTime}</Text>
-                    <Text style={styles.roundSummary}>{round.startTime} ~ {round.endTime} · {round.useGlobalSalePeriod ? '기본 티켓 판매 기간' : '회차별 판매 기간'}</Text>
+                    <Text style={styles.roundSummary}>{round.startTime} ~ {round.endTime}</Text>
                   </View>
                   {rounds.length > 1 ? (
                     <TouchableOpacity style={styles.deleteButton} onPress={() => removeRound(round.id)}>
@@ -397,26 +422,21 @@ export default function EventCreatePage({ navigation }: any) {
 
                 {expanded ? (
                   <View style={styles.roundBody}>
-                    <Text style={styles.label}>공연일</Text>
-                    <SingleDatePicker value={round.eventDate} onChange={(value) => updateRound(round.id, { eventDate: value })} />
-
-                    <View style={styles.timeFieldGrid}>
-                      <TimeDropdown label="시작 시간" value={round.startTime} onChange={(value) => updateRound(round.id, { startTime: value })} />
-                      <TimeDropdown label="종료 시간" value={round.endTime} onChange={(value) => updateRound(round.id, { endTime: value })} />
+                    <View style={styles.flatField}>
+                      <Text style={styles.flatLabel}>공연일</Text>
+                      <SingleDatePicker value={round.eventDate} onChange={(value) => updateRound(round.id, { eventDate: value })} />
                     </View>
-
-                    <TouchableOpacity style={styles.checkRow} onPress={() => updateRound(round.id, { useGlobalSalePeriod: !round.useGlobalSalePeriod })}>
-                      <Text style={[styles.checkbox, round.useGlobalSalePeriod && styles.checkedBox]}>{round.useGlobalSalePeriod ? '✓' : ''}</Text>
-                      <Text style={styles.checkLabel}>기본 티켓 판매 기간 사용</Text>
+                    <View style={styles.flatField}>
+                      <Text style={styles.flatLabel}>시작 시간</Text>
+                      <TimeDropdown value={round.startTime} onChange={(value) => updateRound(round.id, { startTime: value })} />
+                    </View>
+                    <View style={styles.flatField}>
+                      <Text style={styles.flatLabel}>종료 시간</Text>
+                      <TimeDropdown value={round.endTime} onChange={(value) => updateRound(round.id, { endTime: value })} />
+                    </View>
+                    <TouchableOpacity style={styles.applyRoundButton} onPress={() => saveRound(round.id)}>
+                      <Text style={styles.applyRoundText}>회차 저장</Text>
                     </TouchableOpacity>
-                    {!round.useGlobalSalePeriod ? (
-                      <CompactRangePicker
-                        title="회차별 티켓 판매 기간"
-                        startDate={round.saleStartDate}
-                        endDate={round.saleEndDate}
-                        onChange={(start, end) => updateRound(round.id, { saleStartDate: start, saleEndDate: end })}
-                      />
-                    ) : null}
                   </View>
                 ) : null}
               </View>
@@ -432,26 +452,38 @@ export default function EventCreatePage({ navigation }: any) {
           <TouchableOpacity style={styles.saleHeader} onPress={() => setSalePeriodExpanded((value) => !value)}>
             <View>
               <Text style={styles.cardTitle}>티켓 판매 기간</Text>
-              <Text style={styles.saleSummary}>{globalSaleStart || '시작일'} ~ {globalSaleEnd || '종료일'}</Text>
+              <Text style={styles.saleSummary}>{globalSaleStart || '시작일'} ~ {globalSaleEnd || '종료일'}{roundSaleOverrideEnabled ? ' · 회차별 설정' : ''}</Text>
             </View>
             <Text style={styles.collapseText}>{salePeriodExpanded ? '접기' : '펼치기'}</Text>
           </TouchableOpacity>
           {salePeriodExpanded ? (
-            <>
-              <Text style={styles.helpText}>회차에서 별도 판매 기간을 쓰지 않으면 이 기간이 적용됩니다.</Text>
-              <CompactRangePicker title="기본 티켓 판매 기간" startDate={globalSaleStart} endDate={globalSaleEnd} onChange={(start, end) => {
-                setGlobalSaleStart(start);
-                setGlobalSaleEnd(end);
-                setRounds((current) => current.map((round) => round.useGlobalSalePeriod ? { ...round, saleStartDate: start, saleEndDate: end } : round));
-              }} />
-            </>
+            <View style={styles.saleBody}>
+              <CompactRangePicker title="기본 티켓 판매 기간" startDate={globalSaleStart} endDate={globalSaleEnd} onChange={setGlobalSalePeriod} />
+              <TouchableOpacity style={styles.checkRow} onPress={() => setRoundSaleOverride(!roundSaleOverrideEnabled)}>
+                <Text style={[styles.checkbox, roundSaleOverrideEnabled && styles.checkedBox]}>{roundSaleOverrideEnabled ? '✓' : ''}</Text>
+                <Text style={styles.checkLabel}>회차별 판매 기간 따로 설정</Text>
+              </TouchableOpacity>
+              {roundSaleOverrideEnabled ? (
+                <View style={styles.roundSaleList}>
+                  {rounds.map((round, index) => (
+                    <CompactRangePicker
+                      key={round.id}
+                      title={`${index + 1}회차 판매 기간`}
+                      startDate={round.saleStartDate}
+                      endDate={round.saleEndDate}
+                      onChange={(start, end) => updateRound(round.id, { saleStartDate: start, saleEndDate: end, useGlobalSalePeriod: false })}
+                    />
+                  ))}
+                </View>
+              ) : null}
+            </View>
           ) : null}
         </View>
 
         {errors.length > 0 ? (
           <View style={styles.errorPanel}>
             <Text style={styles.errorTitle}>오류</Text>
-            {errors.map((message) => <Text key={message} style={styles.errorItem}>• {message}</Text>)}
+            {errors.map((message) => <Text key={message} style={styles.errorItem}>· {message}</Text>)}
           </View>
         ) : null}
 
@@ -503,9 +535,9 @@ function MonthCalendar({
 function SingleDatePicker({ value, onChange }: { value: string; onChange: (date: string) => void }) {
   const [open, setOpen] = useState(false);
   return (
-    <View>
+    <View style={styles.flatPicker}>
       <TouchableOpacity style={styles.compactPickerButton} onPress={() => setOpen((current) => !current)}>
-        <Text style={styles.compactPickerText}>공연일 {value}</Text>
+        <Text style={styles.compactPickerText}>{value}</Text>
         <Text style={styles.compactPickerAction}>{open ? '닫기' : '선택'}</Text>
       </TouchableOpacity>
       {open ? (
@@ -572,14 +604,14 @@ function CompactRangePicker({
   );
 }
 
-function TimeDropdown({ label, value, onChange }: { label: string; value: string; onChange: (time: string) => void }) {
+function TimeDropdown({ value, onChange }: { value: string; onChange: (time: string) => void }) {
   const [open, setOpen] = useState(false);
-  const nearbyOptions = TIME_OPTIONS.filter((time) => Math.abs(TIME_OPTIONS.indexOf(time) - TIME_OPTIONS.indexOf(value)) <= 4);
+  const valueIndex = TIME_OPTIONS.indexOf(value);
+  const nearbyOptions = TIME_OPTIONS.filter((_, index) => valueIndex < 0 || Math.abs(index - valueIndex) <= 4);
   const options = nearbyOptions.length > 0 ? nearbyOptions : TIME_OPTIONS;
   return (
-    <View style={styles.timeField}>
-      <Text style={styles.timeLabel}>{label}</Text>
-      <TouchableOpacity style={styles.timeSelectButton} onPress={() => setOpen((current) => !current)}>
+    <View style={styles.flatPicker}>
+      <TouchableOpacity style={styles.compactPickerButton} onPress={() => setOpen((current) => !current)}>
         <Text style={styles.timeValue}>{value}</Text>
         <Text style={styles.compactPickerAction}>{open ? '닫기' : '선택'}</Text>
       </TouchableOpacity>
@@ -599,45 +631,48 @@ function TimeDropdown({ label, value, onChange }: { label: string; value: string
 const styles = StyleSheet.create({
   keyboard: { flex: 1 },
   container: { flex: 1, backgroundColor: '#F4F7FB' },
-  content: { padding: 16, paddingBottom: 88 },
+  content: { padding: 14, paddingBottom: 84 },
   eyebrow: { color: '#2563EB', fontWeight: '800', fontSize: 12 },
-  title: { marginTop: 3, fontSize: 27, fontWeight: '900', color: '#0F172A' },
+  title: { marginTop: 3, fontSize: 26, fontWeight: '900', color: '#0F172A' },
   subtitle: { marginTop: 6, color: '#64748B', fontSize: 13, lineHeight: 19 },
-  card: { marginTop: 12, backgroundColor: '#FFFFFF', borderRadius: 8, padding: 14, borderWidth: 1, borderColor: '#E2E8F0' },
+  card: { marginTop: 11, backgroundColor: '#FFFFFF', borderRadius: 8, padding: 12, borderWidth: 1, borderColor: '#E2E8F0' },
   cardTitle: { color: '#0F172A', fontSize: 16, fontWeight: '900' },
-  label: { marginTop: 10, marginBottom: 5, color: '#334155', fontSize: 13, fontWeight: '800' },
+  label: { marginTop: 9, marginBottom: 5, color: '#334155', fontSize: 13, fontWeight: '800' },
   helpText: { marginTop: 5, color: '#64748B', fontSize: 12, lineHeight: 17 },
   categoryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
   categoryChip: { borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 999, paddingHorizontal: 11, paddingVertical: 7, backgroundColor: '#FFFFFF' },
   activeCategoryChip: { borderColor: '#2563EB', backgroundColor: '#EFF6FF' },
   categoryChipText: { color: '#475569', fontWeight: '800', fontSize: 13 },
   activeCategoryChipText: { color: '#2563EB' },
-  input: { borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 8, padding: 11, backgroundColor: '#FFFFFF', color: '#0F172A' },
+  input: { borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 8, padding: 10, backgroundColor: '#FFFFFF', color: '#0F172A' },
   invalidInput: { borderColor: '#DC2626', backgroundColor: '#FEF2F2' },
-  textArea: { minHeight: 104, maxHeight: 220, textAlignVertical: 'top' },
+  textArea: { minHeight: 96, maxHeight: 200, textAlignVertical: 'top' },
   posterRow: { flexDirection: 'row', gap: 10, alignItems: 'center' },
-  posterPreview: { width: 72, height: 96, borderRadius: 8, backgroundColor: '#E2E8F0' },
-  posterPlaceholder: { width: 72, height: 96, borderRadius: 8, borderWidth: 1, borderColor: '#CBD5E1', backgroundColor: '#F8FAFC', alignItems: 'center', justifyContent: 'center' },
+  posterPreview: { width: 68, height: 90, borderRadius: 8, backgroundColor: '#E2E8F0' },
+  posterPlaceholder: { width: 68, height: 90, borderRadius: 8, borderWidth: 1, borderColor: '#CBD5E1', backgroundColor: '#F8FAFC', alignItems: 'center', justifyContent: 'center' },
   posterPlaceholderText: { color: '#94A3B8', fontSize: 11, fontWeight: '900' },
-  posterActions: { flex: 1, gap: 8 },
-  posterButton: { borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 8, padding: 12, backgroundColor: '#FFFFFF', alignItems: 'center' },
+  posterActions: { flex: 1, gap: 7 },
+  posterButton: { borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 8, padding: 11, backgroundColor: '#FFFFFF', alignItems: 'center' },
   posterButtonText: { color: '#0F172A', fontWeight: '900' },
-  removePosterButton: { borderWidth: 1, borderColor: '#FCA5A5', borderRadius: 8, padding: 10, backgroundColor: '#FEF2F2', alignItems: 'center' },
+  removePosterButton: { borderWidth: 1, borderColor: '#FCA5A5', borderRadius: 8, padding: 9, backgroundColor: '#FEF2F2', alignItems: 'center' },
   removePosterText: { color: '#DC2626', fontWeight: '900' },
-  roundBox: { marginTop: 10, borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 8, backgroundColor: '#FFFFFF' },
+  roundBox: { marginTop: 9, borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 8, backgroundColor: '#FFFFFF' },
   invalidRound: { borderColor: '#FCA5A5', backgroundColor: '#FFF7F7' },
-  roundHeader: { padding: 11, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 },
+  roundHeader: { padding: 10, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 },
   roundHeaderCopy: { flex: 1 },
   roundTitle: { color: '#0F172A', fontSize: 15, fontWeight: '900' },
-  roundSummary: { marginTop: 4, color: '#64748B', fontSize: 12, fontWeight: '700' },
+  roundSummary: { marginTop: 3, color: '#64748B', fontSize: 12, fontWeight: '700' },
   deleteButton: { borderWidth: 1, borderColor: '#FCA5A5', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 5, backgroundColor: '#FEF2F2' },
   deleteText: { color: '#DC2626', fontWeight: '900', fontSize: 12 },
-  roundBody: { borderTopWidth: 1, borderTopColor: '#F1F5F9', padding: 10, paddingTop: 3 },
-  compactPickerButton: { borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 8, padding: 11, backgroundColor: '#FFFFFF', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 10 },
+  roundBody: { borderTopWidth: 1, borderTopColor: '#F1F5F9', paddingHorizontal: 10, paddingVertical: 8 },
+  flatField: { marginTop: 7 },
+  flatLabel: { color: '#334155', fontSize: 12, fontWeight: '900', marginBottom: 5 },
+  flatPicker: { flex: 1 },
+  compactPickerButton: { borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 10, backgroundColor: '#FFFFFF', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 10 },
   compactPickerCopy: { flex: 1 },
   compactPickerText: { color: '#0F172A', fontWeight: '900' },
   compactPickerAction: { color: '#2563EB', fontWeight: '900', fontSize: 12 },
-  calendar: { marginTop: 8, borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 8, padding: 9, backgroundColor: '#F8FAFC' },
+  calendar: { marginTop: 8, borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 8, padding: 8, backgroundColor: '#F8FAFC' },
   calendarTitle: { color: '#0F172A', fontWeight: '900', marginBottom: 7 },
   weekRow: { flexDirection: 'row' },
   weekText: { width: `${100 / 7}%`, textAlign: 'center', color: '#64748B', fontSize: 11, fontWeight: '900' },
@@ -647,26 +682,25 @@ const styles = StyleSheet.create({
   rangeDay: { backgroundColor: '#DBEAFE' },
   dayText: { color: '#0F172A', fontWeight: '800', fontSize: 12 },
   selectedDayText: { color: '#FFFFFF' },
-  timeFieldGrid: { gap: 8, marginTop: 10 },
-  timeField: { borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 8, padding: 9, backgroundColor: '#F8FAFC' },
-  timeLabel: { color: '#64748B', fontSize: 12, fontWeight: '900', marginBottom: 6 },
-  timeSelectButton: { borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 8, padding: 11, backgroundColor: '#FFFFFF', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  timeValue: { color: '#0F172A', fontSize: 17, fontWeight: '900' },
-  timeDropdown: { marginTop: 8, maxHeight: 176, borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 8, backgroundColor: '#FFFFFF' },
-  timeOption: { paddingVertical: 11, alignItems: 'center', borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
+  timeValue: { color: '#0F172A', fontSize: 16, fontWeight: '900' },
+  timeDropdown: { marginTop: 7, maxHeight: 164, borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 8, backgroundColor: '#FFFFFF' },
+  timeOption: { paddingVertical: 10, alignItems: 'center', borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
   activeTimeOption: { backgroundColor: '#EFF6FF' },
   timeOptionText: { color: '#475569', fontWeight: '900' },
   activeTimeOptionText: { color: '#2563EB' },
+  applyRoundButton: { marginTop: 10, borderRadius: 8, paddingVertical: 11, backgroundColor: '#0F172A', alignItems: 'center' },
+  applyRoundText: { color: '#FFFFFF', fontWeight: '900' },
   checkRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10 },
   checkbox: { width: 22, height: 22, borderRadius: 4, borderWidth: 1, borderColor: '#CBD5E1', textAlign: 'center', color: '#FFFFFF', fontWeight: '900', lineHeight: 20 },
   checkedBox: { backgroundColor: '#2563EB', borderColor: '#2563EB' },
   checkLabel: { color: '#0F172A', fontWeight: '800' },
-  addRoundButton: { borderWidth: 1, borderColor: '#2563EB', borderRadius: 8, paddingVertical: 13, alignItems: 'center', marginTop: 12, backgroundColor: '#EFF6FF' },
+  addRoundButton: { borderWidth: 1, borderColor: '#2563EB', borderRadius: 8, paddingVertical: 12, alignItems: 'center', marginTop: 11, backgroundColor: '#EFF6FF' },
   addRoundButtonText: { color: '#2563EB', fontSize: 15, fontWeight: '900' },
   saleHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
   saleSummary: { marginTop: 5, color: '#64748B', fontSize: 12, fontWeight: '800' },
   collapseText: { color: '#2563EB', fontWeight: '900', fontSize: 12 },
-  rangePickerBox: { marginTop: 10 },
+  saleBody: { marginTop: 2 },
+  rangePickerBox: { marginTop: 9 },
   rangePickerTitle: { color: '#64748B', fontSize: 12, fontWeight: '900' },
   rangePickerValue: { marginTop: 3, color: '#0F172A', fontWeight: '900' },
   rangeModeRow: { flexDirection: 'row', gap: 8, marginTop: 8 },
@@ -674,7 +708,8 @@ const styles = StyleSheet.create({
   activeRangeMode: { borderColor: '#2563EB', backgroundColor: '#EFF6FF' },
   rangeModeText: { color: '#475569', fontWeight: '900', fontSize: 12 },
   activeRangeModeText: { color: '#2563EB' },
-  errorPanel: { marginTop: 14, borderWidth: 1, borderColor: '#FCA5A5', backgroundColor: '#FEF2F2', borderRadius: 8, padding: 12 },
+  roundSaleList: { marginTop: 2 },
+  errorPanel: { marginTop: 13, borderWidth: 1, borderColor: '#FCA5A5', backgroundColor: '#FEF2F2', borderRadius: 8, padding: 12 },
   errorTitle: { color: '#B91C1C', fontWeight: '900', marginBottom: 6 },
   errorItem: { color: '#B91C1C', fontWeight: '800', lineHeight: 20 },
   primaryButton: { backgroundColor: '#2563EB', borderRadius: 8, paddingVertical: 15, alignItems: 'center', marginTop: 12 },
