@@ -90,6 +90,10 @@ function formatShortDate(value: string) {
   return `${date.getMonth() + 1}/${date.getDate()}`;
 }
 
+function formatDateTime(valueDate: string, valueTime: string) {
+  return `${formatDotDate(valueDate)} ${valueTime}`;
+}
+
 function toStartOfDayIso(date: string) {
   return new Date(`${date}T00:00:00`).toISOString();
 }
@@ -196,6 +200,7 @@ export default function EventCreatePage({ navigation }: any) {
   const [globalSaleEnd, setGlobalSaleEnd] = useState(defaultSaleEnd);
   const [globalSaleEndTime, setGlobalSaleEndTime] = useState('21:00');
   const [roundSaleOverrideEnabled, setRoundSaleOverrideEnabled] = useState(false);
+  const [salePeriodExpanded, setSalePeriodExpanded] = useState(false);
   const [activeSaleRoundId, setActiveSaleRoundId] = useState<string | null>(null);
   const [errors, setErrors] = useState<string[]>([]);
   const [invalidFields, setInvalidFields] = useState<Record<string, boolean>>({});
@@ -233,11 +238,10 @@ export default function EventCreatePage({ navigation }: any) {
       const startsAt = toDateTimeIso(target.eventDate, target.startTime);
       const endsAt = toDateTimeIso(target.eventDate, target.endTime);
       if (endsAt <= startsAt) {
-        const confirmed = await confirmOvernightRound('종료 시간이 시작 시간보다 빠릅니다. 다음 날 종료되는 일정으로 처리됩니다.');
-        if (!confirmed) return;
         setRoundMessages((current) => ({ ...current, [id]: ['종료 시간이 시작 시간보다 빠릅니다. 다음 날 종료되는 일정으로 처리됩니다.'] }));
         setErrors([]);
         setInvalidFields((current) => ({ ...current, rounds: false }));
+        setExpandedRoundIds((current) => current.filter((item) => item !== id));
         return;
       }
     }
@@ -635,13 +639,15 @@ export default function EventCreatePage({ navigation }: any) {
         </View>
 
         <View style={[styles.card, invalidFields.globalSale && styles.invalidRound]}>
-          <View style={styles.saleHeader}>
+          <TouchableOpacity style={styles.saleHeader} onPress={() => setSalePeriodExpanded((current) => !current)} activeOpacity={0.82}>
             <View style={styles.saleHeaderCopy}>
               <Text style={styles.cardTitle}>티켓 판매 기간</Text>
+              <Text style={styles.saleSummary}>{formatDateTime(globalSaleStart, globalSaleStartTime)} ~ {formatDateTime(globalSaleEnd, globalSaleEndTime)}</Text>
             </View>
-          </View>
+            <Text style={styles.compactPickerAction}>{salePeriodExpanded ? '접기' : '열기'}</Text>
+          </TouchableOpacity>
+          {salePeriodExpanded ? (
           <View style={styles.saleBody}>
-            <Text style={styles.helpText}>티켓을 판매할 기간을 설정하세요.</Text>
             {saleMessages.length > 0 ? (
               <View style={styles.inlineWarningBox}>
                 {saleMessages.map((message) => <Text key={message} style={styles.inlineWarningText}>· {message}</Text>)}
@@ -681,38 +687,56 @@ export default function EventCreatePage({ navigation }: any) {
                     <TimeWheelPickerBase label="판매 종료 시간" value={globalSaleEndTime} onChange={(value) => setGlobalSaleTime(globalSaleStartTime, value)} onOpen={() => setActiveSaleRoundId(null)} onClose={() => setActiveSaleRoundId(null)} />
                   </View>
                 </View>
+                <TouchableOpacity style={styles.applyRoundButton} onPress={() => setSalePeriodExpanded(false)}>
+                  <Text style={styles.applyRoundText}>완료</Text>
+                </TouchableOpacity>
               </View>
             ) : (
               <View style={styles.roundSaleList}>
                 {rounds.map((round, index) => (
                   <View key={round.id} style={styles.roundSaleItem}>
-                    <CompactRangePicker
-                      title={`${index + 1}회차 판매 기간`}
-                      startDate={round.saleStartDate}
-                      endDate={round.saleEndDate}
-                      onChange={(start, end) => updateRound(round.id, { saleStartDate: start, saleEndDate: end, useGlobalSalePeriod: false })}
-                      markedRounds={rounds.map((item, itemIndex) => ({ date: item.eventDate, label: `${itemIndex + 1}회차` }))}
-                      active={activeSaleRoundId === round.id}
-                      summaryRounds={rounds}
-                      summaryActiveRoundId={round.id}
-                      onOpen={() => setActiveSaleRoundId(round.id)}
-                      onClose={() => setActiveSaleRoundId((current) => current === round.id ? null : current)}
-                    />
-                    <View style={styles.saleTimeGrid}>
-                      <View style={styles.flatField}>
-                        <Text style={styles.flatLabel}>판매 시작 시간</Text>
-                        <TimeWheelPickerBase label="판매 시작 시간" value={round.saleStartTime} onChange={(value) => updateRound(round.id, { saleStartTime: value, useGlobalSalePeriod: false })} onOpen={() => setActiveSaleRoundId(round.id)} onClose={() => setActiveSaleRoundId((current) => current === round.id ? null : current)} />
+                    <TouchableOpacity style={styles.roundHeader} onPress={() => setActiveSaleRoundId((current) => current === round.id ? null : round.id)} activeOpacity={0.82}>
+                      <View style={styles.roundHeaderCopy}>
+                        <Text style={styles.roundTitle}>{activeSaleRoundId === round.id ? '▼' : '▶'} {index + 1}회차 판매 기간</Text>
+                        <Text style={styles.roundSummary}>{formatDateTime(round.saleStartDate, round.saleStartTime)} ~ {formatDateTime(round.saleEndDate, round.saleEndTime)}</Text>
                       </View>
-                      <View style={styles.flatField}>
-                        <Text style={styles.flatLabel}>판매 종료 시간</Text>
-                        <TimeWheelPickerBase label="판매 종료 시간" value={round.saleEndTime} onChange={(value) => updateRound(round.id, { saleEndTime: value, useGlobalSalePeriod: false })} onOpen={() => setActiveSaleRoundId(round.id)} onClose={() => setActiveSaleRoundId((current) => current === round.id ? null : current)} />
+                      <Text style={styles.compactPickerAction}>{activeSaleRoundId === round.id ? '접기' : '열기'}</Text>
+                    </TouchableOpacity>
+                    {activeSaleRoundId === round.id ? (
+                      <View style={styles.saleBody}>
+                        <CompactRangePicker
+                          title={`${index + 1}회차 판매 기간`}
+                          startDate={round.saleStartDate}
+                          endDate={round.saleEndDate}
+                          onChange={(start, end) => updateRound(round.id, { saleStartDate: start, saleEndDate: end, useGlobalSalePeriod: false })}
+                          markedRounds={rounds.map((item, itemIndex) => ({ date: item.eventDate, label: `${itemIndex + 1}회차` }))}
+                          active={activeSaleRoundId === round.id}
+                          summaryRounds={rounds}
+                          summaryActiveRoundId={round.id}
+                          onOpen={() => setActiveSaleRoundId(round.id)}
+                          onClose={() => setActiveSaleRoundId((current) => current === round.id ? null : current)}
+                        />
+                        <View style={styles.saleTimeGrid}>
+                          <View style={styles.flatField}>
+                            <Text style={styles.flatLabel}>판매 시작 시간</Text>
+                            <TimeWheelPickerBase label="판매 시작 시간" value={round.saleStartTime} onChange={(value) => updateRound(round.id, { saleStartTime: value, useGlobalSalePeriod: false })} onOpen={() => setActiveSaleRoundId(round.id)} onClose={() => setActiveSaleRoundId((current) => current === round.id ? null : current)} />
+                          </View>
+                          <View style={styles.flatField}>
+                            <Text style={styles.flatLabel}>판매 종료 시간</Text>
+                            <TimeWheelPickerBase label="판매 종료 시간" value={round.saleEndTime} onChange={(value) => updateRound(round.id, { saleEndTime: value, useGlobalSalePeriod: false })} onOpen={() => setActiveSaleRoundId(round.id)} onClose={() => setActiveSaleRoundId((current) => current === round.id ? null : current)} />
+                          </View>
+                        </View>
+                        <TouchableOpacity style={styles.applyRoundButton} onPress={() => setActiveSaleRoundId(null)}>
+                          <Text style={styles.applyRoundText}>완료</Text>
+                        </TouchableOpacity>
                       </View>
-                    </View>
+                    ) : null}
                   </View>
                 ))}
               </View>
             )}
           </View>
+          ) : null}
         </View>
 
         {errors.length > 0 ? (
@@ -942,7 +966,6 @@ function CompactRangePicker({
               activeRoundId={summaryActiveRoundId}
               perRound={!!summaryActiveRoundId}
             />
-            <Text style={styles.sheetStateText}>{selectingStart ? '판매 시작일을 선택하세요.' : '판매 종료일을 선택하세요.'}</Text>
             <MonthCalendar selectedStart={draftStart} selectedEnd={draftEnd} markedRounds={markedRounds} onSelect={select} />
             <TouchableOpacity style={[styles.sheetDoneButton, (!draftStart || !draftEnd) && styles.disabledButton]} disabled={!draftStart || !draftEnd} onPress={complete}>
               <Text style={styles.sheetDoneText}>완료</Text>
