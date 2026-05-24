@@ -249,7 +249,7 @@ export default function EventCreatePage({ navigation }: any) {
       const startsAt = toDateTimeIso(target.eventDate, target.startTime);
       const endsAt = toDateTimeIso(target.eventDate, target.endTime);
       if (endsAt <= startsAt) {
-        setRoundMessages((current) => ({ ...current, [id]: ['종료 시간이 시작 시간보다 빠릅니다. 다음 날 종료 일정으로 처리됩니다.'] }));
+        setRoundMessages((current) => ({ ...current, [id]: ['[공연 일정] 공연 종료 시간이 공연 시작 시간보다 빠릅니다. 다음 날 종료 일정으로 처리됩니다.'] }));
         setErrors([]);
         setInvalidFields((current) => ({ ...current, rounds: false }));
         if (!roundAcknowledgedIds[id]) {
@@ -273,13 +273,13 @@ export default function EventCreatePage({ navigation }: any) {
     const roundStart = roundStartIso(round);
 
     if (saleStart < new Date().toISOString()) {
-      messages.push('판매 시작 시간은 현재 시간 이후여야 합니다.');
+      messages.push('[티켓 판매 기간] 판매 시작 시간은 현재 시간 이후로 설정해주세요.');
     }
     if (saleEnd < saleStart) {
-      messages.push('판매 종료 시간은 판매 시작 시간 이후여야 합니다.');
+      messages.push('[티켓 판매 기간] 판매 종료 시간은 판매 시작 시간 이후로 설정해주세요.');
     }
     if (saleEnd > roundStart) {
-      messages.push('티켓 판매는 공연 시작 전에 종료되어야 합니다.');
+      messages.push('[티켓 판매 기간] 티켓 판매는 공연 시작 전에 종료되어야 합니다.');
     }
 
     setSaleRoundErrors((current) => ({ ...current, [round.id]: messages }));
@@ -297,14 +297,14 @@ export default function EventCreatePage({ navigation }: any) {
     const globalEnd = toDateTimeIso(globalSaleEnd, globalSaleEndTime);
 
     if (globalStart < new Date().toISOString()) {
-      messages.push('전체 판매 시작 시간은 현재 시간 이후여야 합니다.');
+      messages.push('[티켓 판매 기간] 전체 판매 시작 시간은 현재 시간 이후로 설정해주세요.');
     }
     if (globalEnd < globalStart) {
-      messages.push('전체 판매 종료 시간은 판매 시작 시간 이후여야 합니다.');
+      messages.push('[티켓 판매 기간] 전체 판매 종료 시간은 판매 시작 시간 이후로 설정해주세요.');
     }
     rounds.forEach((round, index) => {
       if (globalEnd > roundStartIso(round)) {
-        messages.push(`${index + 1}회차 판매는 해당 공연 시작 전에 종료되어야 합니다.`);
+        messages.push(`[티켓 판매 기간] ${index + 1}회차 티켓 판매는 공연 시작 전에 종료되어야 합니다.`);
       }
     });
 
@@ -470,36 +470,36 @@ export default function EventCreatePage({ navigation }: any) {
       const saleEnd = toDateTimeIso(saleEndDate, saleEndTime);
 
       if (Number.isNaN(startsAt.getTime()) || Number.isNaN(endsAt.getTime())) {
-        nextErrors.push(`${roundNumber}회차 시간을 설정해야 합니다.`);
+        nextErrors.push(`[공연 일정] ${roundNumber}회차의 공연일과 시간을 입력해주세요.`);
         nextInvalid.rounds = true;
       } else if (endsAtRaw <= startsAt) {
-        nextRoundMessages[round.id] = ['종료 시간이 시작 시간보다 빠릅니다. 다음 날 종료 일정으로 처리됩니다.'];
+        nextRoundMessages[round.id] = ['[공연 일정] 공연 종료 시간이 공연 시작 시간보다 빠릅니다. 다음 날 종료 일정으로 처리됩니다.'];
       } else {
         nextRoundMessages[round.id] = [];
       }
       if (roundSaleOverrideEnabled) {
         const saleRoundMessages: string[] = [];
         if (saleStart < new Date().toISOString()) {
-          saleRoundMessages.push('판매 시작 시간은 현재 시간 이후여야 합니다.');
+          saleRoundMessages.push('[티켓 판매 기간] 판매 시작 시간은 현재 시간 이후로 설정해주세요.');
         }
         if (saleEnd < saleStart) {
-          saleRoundMessages.push('판매 종료 시간은 시작 시간 이후여야 합니다.');
+          saleRoundMessages.push('[티켓 판매 기간] 판매 종료 시간은 판매 시작 시간 이후로 설정해주세요.');
         }
         if (saleEnd > startsAt.toISOString()) {
-          saleRoundMessages.push('티켓 판매는 공연 시작 전에 종료되어야 합니다.');
+          saleRoundMessages.push('[티켓 판매 기간] 티켓 판매는 공연 시작 전에 종료되어야 합니다.');
         }
         nextSaleRoundErrors[round.id] = saleRoundMessages;
       } else {
         if (saleStart < new Date().toISOString()) {
-          nextSaleMessages.push(`${roundNumber}회차 판매 시작 시간은 현재 시간 이후여야 합니다.`);
+          nextSaleMessages.push(`[티켓 판매 기간] ${roundNumber}회차 판매 시작 시간은 현재 시간 이후로 설정해주세요.`);
           nextInvalid.globalSale = true;
         }
         if (saleEnd < saleStart) {
-          nextSaleMessages.push(`${roundNumber}회차 판매 종료 시간은 시작 시간 이후여야 합니다.`);
+          nextSaleMessages.push(`[티켓 판매 기간] ${roundNumber}회차 판매 종료 시간은 판매 시작 시간 이후로 설정해주세요.`);
           nextInvalid.globalSale = true;
         }
         if (saleEnd > startsAt.toISOString()) {
-          nextSaleMessages.push(`${roundNumber}회차 판매는 해당 공연 시작 전에 종료되어야 합니다.`);
+          nextSaleMessages.push(`[티켓 판매 기간] ${roundNumber}회차 티켓 판매는 공연 시작 전에 종료되어야 합니다.`);
           nextInvalid.globalSale = true;
         }
       }
@@ -519,16 +519,16 @@ export default function EventCreatePage({ navigation }: any) {
       const globalStart = toDateTimeIso(globalSaleStart, globalSaleStartTime);
       const globalEnd = toDateTimeIso(globalSaleEnd, globalSaleEndTime);
       if (globalStart < new Date().toISOString()) {
-        nextSaleMessages.push('전체 판매 시작 시간은 현재 시간 이후여야 합니다.');
+        nextSaleMessages.push('[티켓 판매 기간] 전체 판매 시작 시간은 현재 시간 이후로 설정해주세요.');
         nextInvalid.globalSale = true;
       }
       if (globalEnd < globalStart) {
-        nextSaleMessages.push('전체 판매 종료 시간은 시작 시간 이후여야 합니다.');
+        nextSaleMessages.push('[티켓 판매 기간] 전체 판매 종료 시간은 판매 시작 시간 이후로 설정해주세요.');
         nextInvalid.globalSale = true;
       }
       ranges.forEach((range, index) => {
         if (globalEnd > range.startsAt.toISOString()) {
-          nextSaleMessages.push(`${index + 1}회차 판매는 해당 공연 시작 전에 종료되어야 합니다.`);
+          nextSaleMessages.push(`[티켓 판매 기간] ${index + 1}회차 티켓 판매는 공연 시작 전에 종료되어야 합니다.`);
           nextInvalid.globalSale = true;
         }
       });
@@ -731,12 +731,12 @@ export default function EventCreatePage({ navigation }: any) {
                       />
                     </View>
                     <View style={styles.flatField}>
-                      <Text style={styles.flatLabel}>이벤트 시작 시간</Text>
-                      <TimeWheelPicker label="시작 시간" value={round.startTime} onChange={(value) => updateRound(round.id, { startTime: value })} />
+                      <Text style={styles.flatLabel}>공연 시작 시간</Text>
+                      <TimeWheelPicker label="공연 시작 시간" value={round.startTime} onChange={(value) => updateRound(round.id, { startTime: value })} />
                     </View>
                     <View style={styles.flatField}>
-                      <Text style={styles.flatLabel}>이벤트 종료 시간</Text>
-                      <TimeWheelPicker label="종료 시간" value={round.endTime} onChange={(value) => updateRound(round.id, { endTime: value })} />
+                      <Text style={styles.flatLabel}>공연 종료 시간</Text>
+                      <TimeWheelPicker label="공연 종료 시간" value={round.endTime} onChange={(value) => updateRound(round.id, { endTime: value })} />
                     </View>
                     {roundMessages[round.id]?.length ? (
                       <View style={styles.inlineWarningBox}>
