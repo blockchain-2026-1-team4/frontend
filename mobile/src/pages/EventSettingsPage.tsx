@@ -541,24 +541,32 @@ export default function EventSettingsPage({ navigation, route }: any) {
           {!roundSaleOverrideEnabled ? (
             <View style={styles.salePeriodBlock}>
               <Text style={styles.saleRangeText}>{formatDateTime(globalSaleStart, globalSaleStartTime)} ~ {formatDateTime(globalSaleEnd, globalSaleEndTime)}</Text>
-              <CompactRangePicker
-                title="티켓 판매 기간"
-                compactTitle="판매 기간"
-                ctaLabel="판매 기간 변경"
-                startDate={globalSaleStart}
-                endDate={globalSaleEnd}
-                markedRounds={markedRounds}
-                summaryRounds={rounds}
-                onChange={updateGlobalSale}
-              />
-              <View style={styles.timeRow}>
-                <View style={styles.timeCol}>
-                  <Text style={styles.label}>판매 시작 시간</Text>
-                  <TimeWheelPicker label="판매 시작 시간" value={globalSaleStartTime} onChange={setGlobalSaleStartTime} />
+              <View style={styles.saleBoundaryGroup}>
+                <View style={styles.saleBoundaryCard}>
+                  <Text style={styles.saleBoundaryTitle}>판매 시작</Text>
+                  <View style={styles.saleBoundaryRow}>
+                    <View style={styles.saleBoundaryField}>
+                      <Text style={styles.flatLabel}>날짜</Text>
+                      <SingleDatePicker value={globalSaleStart} onChange={(value) => updateGlobalSale(value, globalSaleEnd)} markedRounds={markedRounds} />
+                    </View>
+                    <View style={styles.saleBoundaryField}>
+                      <Text style={styles.flatLabel}>시간</Text>
+                      <TimeWheelPicker label="판매 시작 시간" value={globalSaleStartTime} onChange={setGlobalSaleStartTime} />
+                    </View>
+                  </View>
                 </View>
-                <View style={styles.timeCol}>
-                  <Text style={styles.label}>판매 종료 시간</Text>
-                  <TimeWheelPicker label="판매 종료 시간" value={globalSaleEndTime} onChange={setGlobalSaleEndTime} />
+                <View style={styles.saleBoundaryCard}>
+                  <Text style={styles.saleBoundaryTitle}>판매 종료</Text>
+                  <View style={styles.saleBoundaryRow}>
+                    <View style={styles.saleBoundaryField}>
+                      <Text style={styles.flatLabel}>날짜</Text>
+                      <SingleDatePicker value={globalSaleEnd} onChange={(value) => updateGlobalSale(globalSaleStart, value)} markedRounds={markedRounds} />
+                    </View>
+                    <View style={styles.saleBoundaryField}>
+                      <Text style={styles.flatLabel}>시간</Text>
+                      <TimeWheelPicker label="판매 종료 시간" value={globalSaleEndTime} onChange={setGlobalSaleEndTime} />
+                    </View>
+                  </View>
                 </View>
               </View>
             </View>
@@ -574,26 +582,32 @@ export default function EventSettingsPage({ navigation, route }: any) {
                   </TouchableOpacity>
                   {activeSaleRoundId === round.id ? (
                     <View style={styles.saleBody}>
-                      <CompactRangePicker
-                        title={`${index + 1}회차 판매 기간`}
-                        compactTitle={`${index + 1}회차 기간`}
-                        ctaLabel="기간 선택"
-                        startDate={round.saleStartDate}
-                        endDate={round.saleEndDate}
-                        markedRounds={markedRounds}
-                        summaryRounds={rounds}
-                        summaryActiveRoundId={round.id}
-                        active
-                        onChange={(startDate, endDate) => updateRound(round.id, { saleStartDate: startDate, saleEndDate: endDate, useGlobalSalePeriod: false })}
-                      />
-                      <View style={styles.timeRow}>
-                        <View style={styles.timeCol}>
-                          <Text style={styles.label}>판매 시작 시간</Text>
-                          <TimeWheelPicker label="판매 시작 시간" value={round.saleStartTime} onChange={(value) => updateRound(round.id, { saleStartTime: value, useGlobalSalePeriod: false })} />
+                      <View style={styles.saleBoundaryGroup}>
+                        <View style={styles.saleBoundaryCard}>
+                          <Text style={styles.saleBoundaryTitle}>판매 시작</Text>
+                          <View style={styles.saleBoundaryRow}>
+                            <View style={styles.saleBoundaryField}>
+                              <Text style={styles.flatLabel}>날짜</Text>
+                              <SingleDatePicker value={round.saleStartDate} onChange={(value) => updateRound(round.id, { saleStartDate: value, useGlobalSalePeriod: false })} markedRounds={markedRounds} />
+                            </View>
+                            <View style={styles.saleBoundaryField}>
+                              <Text style={styles.flatLabel}>시간</Text>
+                              <TimeWheelPicker label="판매 시작 시간" value={round.saleStartTime} onChange={(value) => updateRound(round.id, { saleStartTime: value, useGlobalSalePeriod: false })} />
+                            </View>
+                          </View>
                         </View>
-                        <View style={styles.timeCol}>
-                          <Text style={styles.label}>판매 종료 시간</Text>
-                          <TimeWheelPicker label="판매 종료 시간" value={round.saleEndTime} onChange={(value) => updateRound(round.id, { saleEndTime: value, useGlobalSalePeriod: false })} />
+                        <View style={styles.saleBoundaryCard}>
+                          <Text style={styles.saleBoundaryTitle}>판매 종료</Text>
+                          <View style={styles.saleBoundaryRow}>
+                            <View style={styles.saleBoundaryField}>
+                              <Text style={styles.flatLabel}>날짜</Text>
+                              <SingleDatePicker value={round.saleEndDate} onChange={(value) => updateRound(round.id, { saleEndDate: value, useGlobalSalePeriod: false })} markedRounds={markedRounds} />
+                            </View>
+                            <View style={styles.saleBoundaryField}>
+                              <Text style={styles.flatLabel}>시간</Text>
+                              <TimeWheelPicker label="판매 종료 시간" value={round.saleEndTime} onChange={(value) => updateRound(round.id, { saleEndTime: value, useGlobalSalePeriod: false })} />
+                            </View>
+                          </View>
                         </View>
                       </View>
                     </View>
@@ -915,6 +929,12 @@ const styles = StyleSheet.create({
   salePeriodBlock: { marginTop: 4 },
   saleRangeText: { marginTop: 8, color: '#0F172A', fontSize: 15, fontWeight: '900' },
   saleBody: { marginTop: 2 },
+  saleBoundaryGroup: { marginTop: 8, gap: 10 },
+  saleBoundaryCard: { borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 8, padding: 10, backgroundColor: '#FFFFFF' },
+  saleBoundaryTitle: { color: '#2563EB', fontSize: 13, fontWeight: '900', marginBottom: 8 },
+  saleBoundaryRow: { flexDirection: 'row', gap: 8 },
+  saleBoundaryField: { flex: 1 },
+  flatLabel: { color: '#334155', fontSize: 12, fontWeight: '900', marginBottom: 5 },
   rangePickerBox: { marginTop: 9 },
   rangePickerTitle: { color: '#64748B', fontSize: 12, fontWeight: '900' },
   rangePickerValue: { marginTop: 3, color: '#0F172A', fontWeight: '900' },
