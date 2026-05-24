@@ -22,24 +22,9 @@ export default function EventSettingsPage({ route }: any) {
   const [description, setDescription] = useState('');
   const [imageUrl, setImageUrl] = useState('');
   const [eventAt, setEventAt] = useState('');
-  const [resaleAllowed, setResaleAllowed] = useState(true);
-  const [maxResaleRate, setMaxResaleRate] = useState('120');
-  const [resaleStart, setResaleStart] = useState('');
-  const [resaleEnd, setResaleEnd] = useState('');
-  const [status, setStatus] = useState('ACTIVE');
-  const [statusDraft, setStatusDraft] = useState('ACTIVE');
-  const [resaleOpen, setResaleOpen] = useState(false);
-  const [statusOpen, setStatusOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const [feedback, setFeedback] = useState<string | null>(null);
-
-  const statusDescription =
-    status === 'ACTIVE'
-      ? '판매와 체크인이 가능한 상태입니다.'
-      : status === 'INACTIVE'
-        ? '운영중지 상태입니다. 판매/체크인이 일시 중단됩니다.'
-        : '이벤트 취소 상태입니다. 이벤트 자체가 취소되어 복구가 제한될 수 있습니다.';
 
   const load = useCallback(async () => {
     try {
@@ -51,12 +36,6 @@ export default function EventSettingsPage({ route }: any) {
       setDescription(detail.description || '');
       setImageUrl(detail.imageUrl || '');
       setEventAt((detail.eventAt || detail.eventDateTime || '').slice(0, 16));
-      setResaleAllowed(detail.resaleAllowed ?? true);
-      setMaxResaleRate(String((detail.maxResalePriceRate ?? 12000) / 100));
-      setResaleStart((detail.resaleStart || '').slice(0, 16));
-      setResaleEnd((detail.resaleEnd || '').slice(0, 16));
-      setStatus(detail.status || 'ACTIVE');
-      setStatusDraft(detail.status || 'ACTIVE');
     } catch (error: any) {
       Alert.alert('이벤트 정보 로드 실패', errorMessage(error, '이벤트 정보를 불러오지 못했습니다.'));
     } finally {
@@ -156,16 +135,16 @@ export default function EventSettingsPage({ route }: any) {
     <View style={styles.container}>
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
         <Text style={styles.eyebrow}>Event Settings</Text>
-        <Text style={styles.title}>이벤트 설정</Text>
+        <Text style={styles.title}>이벤트 수정</Text>
         {feedback ? <View style={styles.messageBox}><Text style={styles.messageText}>{feedback}</Text></View> : null}
 
         <View style={[styles.card, styles.sectionBase]}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionEyebrow}>기본 정보</Text>
-            <Text style={styles.sectionHint}>이벤트명, 장소, 일시를 관리합니다.</Text>
+            <Text style={styles.sectionHint}>이름, 카테고리, 장소, 소개를 수정합니다.</Text>
           </View>
           <Text style={styles.cardTitle}>기본 정보</Text>
-          <Text style={styles.label}>이벤트명</Text>
+          <Text style={styles.label}>이름</Text>
           <TextInput style={styles.input} value={name} onChangeText={setName} />
           <Text style={styles.label}>카테고리</Text>
           <View style={styles.categoryGrid}>
@@ -181,80 +160,14 @@ export default function EventSettingsPage({ route }: any) {
           <TextInput style={styles.input} value={eventAt} onChangeText={setEventAt} placeholder="YYYY-MM-DDTHH:mm" />
           <Text style={styles.label}>이미지 URL</Text>
           <TextInput style={styles.input} value={imageUrl} onChangeText={setImageUrl} placeholder="https://..." autoCapitalize="none" />
-          <Text style={styles.label}>설명</Text>
+          <Text style={styles.label}>소개</Text>
           <TextInput style={[styles.input, styles.textArea]} value={description} onChangeText={setDescription} multiline />
-        </View>
-
-        <View style={[styles.card, styles.sectionMuted]}>
-          <TouchableOpacity style={styles.collapseHeader} onPress={() => setResaleOpen((value) => !value)}>
-            <View>
-              <Text style={styles.sectionEyebrow}>리셀 정책</Text>
-              <Text style={styles.cardTitle}>리셀 정책</Text>
-            </View>
-            <Text style={styles.chevron}>{resaleOpen ? '⌃' : '⌄'}</Text>
-          </TouchableOpacity>
-          {resaleOpen ? (
-            <>
-              <View style={styles.sectionDivider} />
-              <TouchableOpacity style={styles.toggleRow} onPress={() => setResaleAllowed((value) => !value)}>
-                <Text style={styles.toggleLabel}>리셀 허용</Text>
-                <Text style={[styles.toggleBadge, resaleAllowed ? styles.toggleOn : styles.toggleOff]}>{resaleAllowed ? 'ON' : 'OFF'}</Text>
-              </TouchableOpacity>
-              <Text style={styles.label}>최대 리셀 가격 비율 (%)</Text>
-              <TextInput style={styles.input} value={maxResaleRate} onChangeText={setMaxResaleRate} keyboardType="number-pad" inputMode="numeric" />
-              <Text style={styles.label}>리셀 시작</Text>
-              <TextInput style={styles.input} value={resaleStart} onChangeText={setResaleStart} placeholder="YYYY-MM-DDTHH:mm" />
-              <Text style={styles.label}>리셀 종료</Text>
-              <TextInput style={styles.input} value={resaleEnd} onChangeText={setResaleEnd} placeholder="YYYY-MM-DDTHH:mm" />
-              <TouchableOpacity style={[styles.secondaryButton, saving && styles.disabledButton]} disabled={saving} onPress={saveResalePolicy}>
-                <Text style={styles.secondaryButtonText}>리셀 정책 저장</Text>
-              </TouchableOpacity>
-            </>
-          ) : null}
-        </View>
-
-        <View style={[styles.card, styles.sectionDanger]}>
-          <TouchableOpacity style={styles.collapseHeader} onPress={() => setStatusOpen((value) => !value)}>
-            <View>
-              <Text style={styles.sectionEyebrow}>운영 상태 관리</Text>
-              <Text style={styles.cardTitle}>이벤트 상태 변경</Text>
-            </View>
-            <Text style={styles.chevron}>{statusOpen ? '⌃' : '⌄'}</Text>
-          </TouchableOpacity>
-          {statusOpen ? (
-            <>
-              <View style={styles.sectionDivider} />
-              {event?.adminCanceled ? (
-                <Text style={styles.warningText}>관리자가 취소한 이벤트입니다. 주최자는 재활성화할 수 없습니다.</Text>
-              ) : null}
-              <Text style={styles.statusDescription}>운영중지 또는 이벤트 취소는 판매 및 체크인에 영향을 줄 수 있습니다.</Text>
-              <View style={styles.statusGrid}>
-                {[
-                  { value: 'ACTIVE', label: '운영중' },
-                  { value: 'INACTIVE', label: '운영중지' },
-                  { value: 'CANCELED', label: '이벤트 취소' },
-                ].map((item) => (
-                  <TouchableOpacity
-                    key={item.value}
-                    style={[styles.statusChip, statusDraft === item.value && styles.activeStatusChip]}
-                    disabled={saving || (event?.adminCanceled === true && item.value !== 'CANCELED')}
-                    onPress={() => setStatusDraft(item.value)}
-                  >
-                    <Text style={[styles.statusChipText, statusDraft === item.value && styles.activeStatusChipText]}>{item.label}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-              <TouchableOpacity style={[styles.secondaryButton, saving && styles.disabledButton]} disabled={saving} onPress={() => saveStatus(statusDraft)}>
-                <Text style={styles.secondaryButtonText}>상태 저장</Text>
-              </TouchableOpacity>
-            </>
-          ) : null}
         </View>
       </ScrollView>
 
       <View style={styles.bottomBar}>
         <TouchableOpacity style={[styles.primaryButton, saving && styles.disabledButton]} disabled={saving} onPress={save}>
-          <Text style={styles.primaryButtonText}>{saving ? '저장 중...' : '기본 정보 저장'}</Text>
+          <Text style={styles.primaryButtonText}>{saving ? '저장 중...' : '수정 완료'}</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -272,8 +185,6 @@ const styles = StyleSheet.create({
   messageText: { color: '#1D4ED8', fontWeight: '800' },
   card: { marginTop: 16, backgroundColor: '#FFFFFF', borderRadius: 18, padding: 16, borderWidth: 1, borderColor: '#E2E8F0' },
   sectionBase: { backgroundColor: '#F8FAFC', borderColor: '#E2E8F0' },
-  sectionMuted: { backgroundColor: '#FFFFFF', borderColor: '#E2E8F0' },
-  sectionDanger: { backgroundColor: '#FFF7ED', borderColor: '#FDBA74' },
   sectionHeader: { marginBottom: 12 },
   sectionEyebrow: { color: '#2563EB', fontSize: 11, fontWeight: '900', letterSpacing: 0.4 },
   sectionHint: { marginTop: 4, color: '#64748B', fontSize: 12, lineHeight: 18 },
@@ -295,16 +206,6 @@ const styles = StyleSheet.create({
   primaryButtonText: { color: '#FFFFFF', fontSize: 16, fontWeight: '900' },
   secondaryButton: { borderWidth: 1, borderColor: '#CBD5E1', backgroundColor: '#FFFFFF', borderRadius: 14, paddingVertical: 14, alignItems: 'center', marginTop: 14 },
   secondaryButtonText: { color: '#0F172A', fontSize: 16, fontWeight: '900' },
-  statusGrid: { flexDirection: 'row', gap: 8, marginTop: 14 },
-  statusChip: { flex: 1, borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 12, paddingVertical: 12, alignItems: 'center', backgroundColor: '#FFFFFF' },
-  activeStatusChip: { borderColor: '#2563EB', backgroundColor: '#EFF6FF' },
-  statusChipText: { color: '#475569', fontWeight: '900' },
-  activeStatusChipText: { color: '#2563EB' },
-  toggleRow: { marginTop: 14, borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 12, padding: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  toggleLabel: { color: '#0F172A', fontWeight: '800' },
-  toggleBadge: { overflow: 'hidden', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4, fontWeight: '900' },
-  toggleOn: { backgroundColor: '#DCFCE7', color: '#166534' },
-  toggleOff: { backgroundColor: '#F1F5F9', color: '#64748B' },
   bottomBar: { borderTopWidth: 1, borderTopColor: '#E2E8F0', backgroundColor: '#FFFFFF', padding: 14 },
   disabledButton: { opacity: 0.55 },
 });

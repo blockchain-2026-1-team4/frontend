@@ -659,7 +659,7 @@ export default function EventCreatePage({ navigation }: any) {
             ))}
           </View>
 
-          <Text style={styles.label}>이벤트 이름</Text>
+          <Text style={styles.label}>이름</Text>
           <TextInput style={[styles.input, invalidFields.name && styles.invalidInput]} value={name} onChangeText={setName} placeholder="예: TRUST LIVE 2026" />
           <Text style={styles.helpText}>사용자에게 표시될 이벤트 이름을 입력해주세요.</Text>
 
@@ -700,7 +700,7 @@ export default function EventCreatePage({ navigation }: any) {
         </View>
 
         <View style={[styles.card, invalidFields.rounds && styles.invalidRound]}>
-          <Text style={styles.cardTitle}>공연 일정</Text>
+          <Text style={styles.cardTitle}>일정</Text>
           <Text style={styles.helpText}>공연 회차별로 날짜와 시간을 설정하세요.</Text>
           <Text style={styles.helpText}>장소나 일정 차이가 큰 경우 별도 이벤트 등록을 권장합니다.</Text>
           {rounds.map((round, index) => {
@@ -830,8 +830,8 @@ export default function EventCreatePage({ navigation }: any) {
                         </View>
                       </View>
                     </View>
-                    <TouchableOpacity style={styles.applyRoundButton} onPress={completeGlobalSalePeriod}>
-                      <Text style={styles.applyRoundText}>완료</Text>
+                    <TouchableOpacity style={styles.saleCompleteButton} onPress={completeGlobalSalePeriod}>
+                      <Text style={styles.saleCompleteText}>완료</Text>
                     </TouchableOpacity>
                   </View>
                 ) : null}
@@ -1330,6 +1330,8 @@ const styles = StyleSheet.create({
   activeTimeOptionText: { color: '#2563EB' },
   applyRoundButton: { marginTop: 10, borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 8, paddingVertical: 11, backgroundColor: '#F8FAFC', alignItems: 'center' },
   applyRoundText: { color: '#0F172A', fontWeight: '900' },
+  saleCompleteButton: { marginTop: 10, borderWidth: 1, borderColor: '#2563EB', borderRadius: 8, paddingVertical: 11, backgroundColor: '#EFF6FF', alignItems: 'center' },
+  saleCompleteText: { color: '#2563EB', fontWeight: '900' },
   addRoundButton: { borderWidth: 1, borderColor: '#2563EB', borderRadius: 8, paddingVertical: 12, alignItems: 'center', marginTop: 11, backgroundColor: '#EFF6FF' },
   addRoundButtonText: { color: '#2563EB', fontSize: 15, fontWeight: '900' },
   checkRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10 },

@@ -25,6 +25,8 @@ export default function OrganizerEventDetailPage({ navigation, route }: any) {
   const [tickets, setTickets] = useState<TicketDetail[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [statusDraft, setStatusDraft] = useState('ACTIVE');
+  const [statusSaving, setStatusSaving] = useState(false);
 
   const soldTickets = tickets.filter((ticket) => ticket.status === 'SOLD' || ticket.status === 'LISTED' || ticket.status === 'USED').length;
   const usedTickets = tickets.filter((ticket) => ticket.status === 'USED').length;
@@ -39,6 +41,7 @@ export default function OrganizerEventDetailPage({ navigation, route }: any) {
       const detail = await backendApi.getEvent(eventId);
       const eventTickets = await backendApi.getEventTickets(eventId).catch(() => []);
       setEvent(detail);
+      setStatusDraft(detail.status || 'ACTIVE');
       setTickets(eventTickets);
     } catch (error: any) {
       Alert.alert('이벤트 로드 실패', errorMessage(error, '이벤트 정보를 불러오지 못했습니다.'));
@@ -57,6 +60,25 @@ export default function OrganizerEventDetailPage({ navigation, route }: any) {
   const refresh = () => {
     setRefreshing(true);
     void load();
+  };
+
+  const saveStatus = async () => {
+    if (!event) return;
+    if (event.adminCanceled && statusDraft !== 'CANCELED') {
+      Alert.alert('변경 불가', '관리자가 취소한 이벤트는 주최자가 복구할 수 없습니다.');
+      return;
+    }
+
+    setStatusSaving(true);
+    try {
+      await backendApi.updateEventStatus(event.id, { status: statusDraft });
+      Alert.alert('저장 완료', '이벤트 상태가 변경되었습니다.');
+      await load();
+    } catch (error: any) {
+      Alert.alert('상태 변경 실패', errorMessage(error, '이벤트 상태를 변경하지 못했습니다.'));
+    } finally {
+      setStatusSaving(false);
+    }
   };
 
   if (loading) {
@@ -96,10 +118,35 @@ export default function OrganizerEventDetailPage({ navigation, route }: any) {
       </View>
 
       <View style={styles.card}>
+        <Text style={styles.cardTitle}>이벤트 상태 변경</Text>
+        <Text style={styles.statusDescription}>운영중지 또는 이벤트 취소는 판매와 체크인에 영향을 줄 수 있습니다.</Text>
+        {event.adminCanceled ? <Text style={styles.warningText}>관리자가 취소한 이벤트는 주최자가 복구할 수 없습니다.</Text> : null}
+        <View style={styles.statusGrid}>
+          {[
+            { value: 'ACTIVE', label: '운영중' },
+            { value: 'INACTIVE', label: '운영중지' },
+            { value: 'CANCELED', label: '이벤트 취소' },
+          ].map((item) => (
+            <TouchableOpacity
+              key={item.value}
+              style={[styles.statusChip, statusDraft === item.value && styles.activeStatusChip]}
+              disabled={statusSaving || (event.adminCanceled === true && item.value !== 'CANCELED')}
+              onPress={() => setStatusDraft(item.value)}
+            >
+              <Text style={[styles.statusChipText, statusDraft === item.value && styles.activeStatusChipText]}>{item.label}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+        <TouchableOpacity style={[styles.secondaryButton, statusSaving && styles.disabledButton]} disabled={statusSaving} onPress={() => void saveStatus()}>
+          <Text style={styles.secondaryButtonText}>{statusSaving ? '저장 중...' : '상태 저장'}</Text>
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.card}>
         <Text style={styles.cardTitle}>이벤트 관리 연결</Text>
         <View style={styles.actionList}>
           <TouchableOpacity style={styles.secondaryButton} onPress={() => navigation.navigate('EventSettings', { eventId: event.id })}>
-            <Text style={styles.secondaryButtonText}>이벤트 정보 수정</Text>
+            <Text style={styles.secondaryButtonText}>이벤트 수정</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.primaryButton} onPress={() => navigation.navigate('TicketIssue', { eventId: event.id })}>
             <Text style={styles.primaryButtonText}>티켓 발행하기</Text>
@@ -169,6 +216,14 @@ const styles = StyleSheet.create({
   primaryButtonText: { color: '#FFFFFF', fontSize: 16, fontWeight: '900' },
   secondaryButton: { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 14, paddingVertical: 14, alignItems: 'center' },
   secondaryButtonText: { color: '#0F172A', fontSize: 16, fontWeight: '900' },
+  statusDescription: { marginTop: 10, color: '#475569', fontSize: 13, lineHeight: 19 },
+  warningText: { marginTop: 10, color: '#B91C1C', fontSize: 13, fontWeight: '800', lineHeight: 19 },
+  statusGrid: { flexDirection: 'row', gap: 8, marginTop: 14 },
+  statusChip: { flex: 1, borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 12, paddingVertical: 12, alignItems: 'center', backgroundColor: '#FFFFFF' },
+  activeStatusChip: { borderColor: '#2563EB', backgroundColor: '#EFF6FF' },
+  statusChipText: { color: '#475569', fontWeight: '900' },
+  activeStatusChipText: { color: '#2563EB' },
+  disabledButton: { opacity: 0.55 },
   sectionHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   ticketRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 12, borderTopWidth: 1, borderTopColor: '#F1F5F9' },
   ticketInfo: { flex: 1, paddingRight: 10 },
