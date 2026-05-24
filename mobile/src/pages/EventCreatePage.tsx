@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState, useEffect } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import * as ImagePicker from 'expo-image-picker';
 import {
   Alert,
@@ -24,7 +24,9 @@ type EventRoundDraft = {
   endTime: string;
   useGlobalSalePeriod: boolean;
   saleStartDate: string;
+  saleStartTime: string;
   saleEndDate: string;
+  saleEndTime: string;
 };
 
 type PosterAsset = {
@@ -47,7 +49,7 @@ const EVENT_CATEGORIES = [
 ];
 
 const HOUR_OPTIONS = Array.from({ length: 24 }, (_, index) => String(index).padStart(2, '0'));
-const MINUTE_OPTIONS = ['00', '05', '10', '15', '20', '30', '40', '45', '50'];
+const MINUTE_OPTIONS = ['00', '05', '10', '15', '20', '25', '30', '35', '40', '45', '50', '55'];
 
 const FIELD_OFFSET: Record<string, number> = {
   category: 100,
@@ -61,6 +63,11 @@ const FIELD_OFFSET: Record<string, number> = {
 function localDate(date: Date) {
   const pad = (value: number) => String(value).padStart(2, '0');
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
+function localTime(date: Date) {
+  const pad = (value: number) => String(value).padStart(2, '0');
+  return `${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
 function addDays(value: string, days: number) {
@@ -77,6 +84,12 @@ function formatDotDate(value: string) {
   return `${date.getFullYear()}.${month}.${day}`;
 }
 
+function formatShortDate(value: string) {
+  const date = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return value || '-';
+  return `${date.getMonth() + 1}/${date.getDate()}`;
+}
+
 function toStartOfDayIso(date: string) {
   return new Date(`${date}T00:00:00`).toISOString();
 }
@@ -85,12 +98,31 @@ function toEndOfDayIso(date: string) {
   return new Date(`${date}T23:59:00`).toISOString();
 }
 
+function toDateTimeIso(date: string, time: string) {
+  return new Date(`${date}T${time}:00`).toISOString();
+}
+
+function compareDateTime(dateA: string, timeA: string, dateB: string, timeB: string) {
+  return new Date(`${dateA}T${timeA}:00`).getTime() - new Date(`${dateB}T${timeB}:00`).getTime();
+}
+
+function addDaysToDateTime(date: string, time: string, days: number) {
+  const next = new Date(`${date}T${time}:00`);
+  next.setDate(next.getDate() + days);
+  return next;
+}
+
 function roundStartIso(round: EventRoundDraft) {
-  return new Date(`${round.eventDate}T${round.startTime}:00`).toISOString();
+  return toDateTimeIso(round.eventDate, round.startTime);
 }
 
 function roundEndIso(round: EventRoundDraft) {
-  return new Date(`${round.eventDate}T${round.endTime}:00`).toISOString();
+  const start = toDateTimeIso(round.eventDate, round.startTime);
+  const end = toDateTimeIso(round.eventDate, round.endTime);
+  if (end <= start) {
+    return addDaysToDateTime(round.eventDate, round.endTime, 1).toISOString();
+  }
+  return end;
 }
 
 function buildRound(index: number, eventDate: string, saleStart: string, saleEnd: string, useGlobalSalePeriod = true): EventRoundDraft {
@@ -102,7 +134,9 @@ function buildRound(index: number, eventDate: string, saleStart: string, saleEnd
     endTime: index === 0 ? '21:00' : '16:00',
     useGlobalSalePeriod,
     saleStartDate: saleStart,
+    saleStartTime: localTime(new Date()),
     saleEndDate: saleEnd,
+    saleEndTime: index === 0 ? '21:00' : '16:00',
   };
 }
 
@@ -111,7 +145,7 @@ function earliestRoundDate(rounds: EventRoundDraft[]) {
 }
 
 function defaultSaleEndForRounds(rounds: EventRoundDraft[]) {
-  return addDays(earliestRoundDate(rounds), -1);
+  return earliestRoundDate(rounds);
 }
 
 function posterFile(asset: PosterAsset) {
@@ -123,9 +157,10 @@ function posterFile(asset: PosterAsset) {
 export default function EventCreatePage({ navigation }: any) {
   const scrollRef = useRef<ScrollView | null>(null);
   const today = useMemo(() => localDate(new Date()), []);
+  const nowTime = useMemo(() => localTime(new Date()), []);
   const defaultEventDate = useMemo(() => addDays(today, 14), [today]);
   const defaultSaleStart = today;
-  const defaultSaleEnd = useMemo(() => addDays(defaultEventDate, -1), [defaultEventDate]);
+  const defaultSaleEnd = useMemo(() => defaultEventDate, [defaultEventDate]);
   const initialRound = useMemo(() => buildRound(0, defaultEventDate, defaultSaleStart, defaultSaleEnd), [defaultEventDate, defaultSaleEnd, defaultSaleStart]);
 
   const [category, setCategory] = useState('CONCERT');
@@ -139,10 +174,15 @@ export default function EventCreatePage({ navigation }: any) {
   const [rounds, setRounds] = useState<EventRoundDraft[]>([initialRound]);
   const [expandedRoundIds, setExpandedRoundIds] = useState<string[]>([]);
   const [globalSaleStart, setGlobalSaleStart] = useState(defaultSaleStart);
+  const [globalSaleStartTime, setGlobalSaleStartTime] = useState(nowTime);
   const [globalSaleEnd, setGlobalSaleEnd] = useState(defaultSaleEnd);
+  const [globalSaleEndTime, setGlobalSaleEndTime] = useState('21:00');
   const [roundSaleOverrideEnabled, setRoundSaleOverrideEnabled] = useState(false);
+  const [activeSaleRoundId, setActiveSaleRoundId] = useState<string | null>(null);
   const [errors, setErrors] = useState<string[]>([]);
   const [invalidFields, setInvalidFields] = useState<Record<string, boolean>>({});
+  const [roundMessages, setRoundMessages] = useState<Record<string, string[]>>({});
+  const [saleMessages, setSaleMessages] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
 
   const updateRound = (id: string, patch: Partial<EventRoundDraft>) => {
@@ -153,10 +193,10 @@ export default function EventCreatePage({ navigation }: any) {
         setGlobalSaleEnd(nextSaleEnd);
         return nextRounds.map((round) => {
           if (!roundSaleOverrideEnabled || round.useGlobalSalePeriod) {
-            return { ...round, saleEndDate: nextSaleEnd };
+            return { ...round, saleEndDate: nextSaleEnd, saleEndTime: '21:00' };
           }
           if (round.id === id) {
-            return { ...round, saleEndDate: addDays(round.eventDate, -1) };
+            return { ...round, saleEndDate: round.eventDate, saleEndTime: round.endTime };
           }
           return round;
         });
@@ -172,14 +212,26 @@ export default function EventCreatePage({ navigation }: any) {
   const saveRound = (id: string) => {
     const target = rounds.find((round) => round.id === id);
     if (target) {
-      const startsAt = new Date(`${target.eventDate}T${target.startTime}:00`);
-      const endsAt = new Date(`${target.eventDate}T${target.endTime}:00`);
+      const startsAt = toDateTimeIso(target.eventDate, target.startTime);
+      const endsAt = toDateTimeIso(target.eventDate, target.endTime);
       if (endsAt <= startsAt) {
-        setErrors(['종료 시간은 시작 시간보다 늦어야 합니다.']);
-        setInvalidFields({ rounds: true });
+        Alert.alert(
+          '다음 날 종료',
+          '종료 시간이 시작 시간보다 빠릅니다. 다음 날 종료되는 일정으로 처리됩니다.',
+          [
+            { text: '취소', style: 'cancel' },
+            { text: '확인', onPress: () => {
+              setRoundMessages((current) => ({ ...current, [id]: ['종료 시간이 시작 시간보다 빠릅니다. 다음 날 종료되는 일정으로 처리됩니다.'] }));
+              setErrors([]);
+              setInvalidFields((current) => ({ ...current, rounds: false }));
+              setExpandedRoundIds((current) => current.filter((item) => item !== id));
+            } },
+          ],
+        );
         return;
       }
     }
+    setRoundMessages((current) => ({ ...current, [id]: [] }));
     setErrors([]);
     setInvalidFields((current) => ({ ...current, rounds: false }));
     setExpandedRoundIds((current) => current.filter((item) => item !== id));
@@ -191,7 +243,17 @@ export default function EventCreatePage({ navigation }: any) {
     setRounds((current) => current.map((round) => (
       roundSaleOverrideEnabled
         ? round
-        : { ...round, saleStartDate: start, saleEndDate: end, useGlobalSalePeriod: true }
+        : { ...round, saleStartDate: start, saleStartTime: globalSaleStartTime, saleEndDate: end, saleEndTime: globalSaleEndTime, useGlobalSalePeriod: true }
+    )));
+  };
+
+  const setGlobalSaleTime = (startTime: string, endTime: string) => {
+    setGlobalSaleStartTime(startTime);
+    setGlobalSaleEndTime(endTime);
+    setRounds((current) => current.map((round) => (
+      roundSaleOverrideEnabled
+        ? round
+        : { ...round, saleStartTime: startTime, saleEndTime: endTime, useGlobalSalePeriod: true }
     )));
   };
 
@@ -200,44 +262,46 @@ export default function EventCreatePage({ navigation }: any) {
     setRounds((current) => current.map((round) => ({
       ...round,
       useGlobalSalePeriod: !enabled,
-      saleStartDate: enabled ? globalSaleStart : round.saleStartDate,
-      saleEndDate: enabled ? globalSaleEnd : round.saleEndDate,
+      saleStartDate: enabled ? today : globalSaleStart,
+      saleStartTime: enabled ? nowTime : globalSaleStartTime,
+      saleEndDate: enabled ? round.eventDate : globalSaleEnd,
+      saleEndTime: enabled ? round.endTime : globalSaleEndTime,
     })));
   };
 
   const addRound = () => {
     setRounds((current) => {
       const nextDate = addDays(current.at(-1)?.eventDate || defaultEventDate, 1);
-      const next = buildRound(current.length, nextDate, globalSaleStart, globalSaleEnd, !roundSaleOverrideEnabled);
-      setExpandedRoundIds([next.id]);
-      return [...current, next];
+      const next = buildRound(current.length, nextDate, roundSaleOverrideEnabled ? today : globalSaleStart, roundSaleOverrideEnabled ? nextDate : globalSaleEnd, !roundSaleOverrideEnabled);
+      const preparedNext = {
+        ...next,
+        saleStartTime: roundSaleOverrideEnabled ? nowTime : globalSaleStartTime,
+        saleEndTime: roundSaleOverrideEnabled ? next.endTime : globalSaleEndTime,
+      };
+      setExpandedRoundIds([preparedNext.id]);
+      return [...current, preparedNext];
     });
   };
 
   const removeRound = (id: string) => {
-    if (rounds.length <= 1) return;
-    const roundIndex = rounds.findIndex((round) => round.id === id);
-    if (roundIndex < 0) return;
-    Alert.alert('회차 삭제', `${roundIndex + 1}회차를 삭제할까요?`, [
-      { text: '취소', style: 'cancel' },
-      {
-        text: '삭제',
-        style: 'destructive',
-        onPress: () => {
-          setRounds((latest) => {
-            const nextRounds = latest.filter((round) => round.id !== id).map((round, index) => ({ ...round, title: `${index + 1}회차` }));
-            const nextSaleEnd = defaultSaleEndForRounds(nextRounds);
-            setGlobalSaleEnd(nextSaleEnd);
-            return nextRounds.map((round) => (
-              !roundSaleOverrideEnabled || round.useGlobalSalePeriod
-                ? { ...round, saleEndDate: nextSaleEnd }
-                : round
-            ));
-          });
-          setExpandedRoundIds((current) => current.filter((item) => item !== id));
-        },
-      },
-    ]);
+    setRounds((latest) => {
+      if (latest.length <= 1) return latest;
+      const nextRounds = latest.filter((round) => round.id !== id).map((round, index) => ({ ...round, title: `${index + 1}회차` }));
+      const nextSaleEnd = defaultSaleEndForRounds(nextRounds);
+      setGlobalSaleEnd(nextSaleEnd);
+      setExpandedRoundIds((current) => current.filter((item) => item !== id));
+      setRoundMessages((current) => {
+        const next = { ...current };
+        delete next[id];
+        return next;
+      });
+      if (activeSaleRoundId === id) setActiveSaleRoundId(null);
+      return nextRounds.map((round) => (
+        !roundSaleOverrideEnabled || round.useGlobalSalePeriod
+          ? { ...round, saleEndDate: nextSaleEnd, saleEndTime: '21:00' }
+          : round
+      ));
+    });
   };
 
   const pickPoster = async () => {
@@ -261,6 +325,8 @@ export default function EventCreatePage({ navigation }: any) {
   const validate = () => {
     const nextErrors: string[] = [];
     const nextInvalid: Record<string, boolean> = {};
+    const nextRoundMessages: Record<string, string[]> = {};
+    const nextSaleMessages: string[] = [];
 
     if (!category) {
       nextErrors.push('카테고리를 선택해주세요.');
@@ -282,35 +348,41 @@ export default function EventCreatePage({ navigation }: any) {
       nextErrors.push('최소 1개 회차가 필요합니다.');
       nextInvalid.rounds = true;
     }
-    if (!roundSaleOverrideEnabled && (!globalSaleStart || !globalSaleEnd || globalSaleEnd < globalSaleStart)) {
-      nextErrors.push('티켓 판매 기간을 올바르게 선택해주세요.');
-      nextInvalid.globalSale = true;
-    }
 
     const ranges = rounds.map((round, index) => {
       const roundNumber = index + 1;
-      const startsAt = new Date(`${round.eventDate}T${round.startTime}:00`);
-      const endsAt = new Date(`${round.eventDate}T${round.endTime}:00`);
-      const saleStart = round.useGlobalSalePeriod ? globalSaleStart : round.saleStartDate;
-      const saleEnd = round.useGlobalSalePeriod ? globalSaleEnd : round.saleEndDate;
+      const startsAt = new Date(toDateTimeIso(round.eventDate, round.startTime));
+      const endsAtRaw = new Date(toDateTimeIso(round.eventDate, round.endTime));
+      const endsAt = endsAtRaw <= startsAt ? new Date(endsAtRaw.getTime() + 24 * 60 * 60 * 1000) : endsAtRaw;
+      const saleStartDate = round.useGlobalSalePeriod ? globalSaleStart : round.saleStartDate;
+      const saleStartTime = round.useGlobalSalePeriod ? globalSaleStartTime : round.saleStartTime;
+      const saleEndDate = round.useGlobalSalePeriod ? globalSaleEnd : round.saleEndDate;
+      const saleEndTime = round.useGlobalSalePeriod ? globalSaleEndTime : round.saleEndTime;
+      const saleStart = toDateTimeIso(saleStartDate, saleStartTime);
+      const saleEnd = toDateTimeIso(saleEndDate, saleEndTime);
 
       if (Number.isNaN(startsAt.getTime()) || Number.isNaN(endsAt.getTime())) {
         nextErrors.push(`${roundNumber}회차 시간을 설정해주세요.`);
         nextInvalid.rounds = true;
-      } else if (endsAt <= startsAt) {
-        nextErrors.push(`${roundNumber}회차 종료 시간은 시작 시간보다 늦어야 합니다. overnight 공연은 현재 지원하지 않습니다.`);
-        nextInvalid.rounds = true;
+      } else if (endsAtRaw <= startsAt) {
+        nextRoundMessages[round.id] = ['종료 시간이 시작 시간보다 빠릅니다. 다음 날 종료되는 일정으로 처리됩니다.'];
+      } else {
+        nextRoundMessages[round.id] = [];
       }
-      if (!saleStart || !saleEnd || saleEnd < saleStart) {
-        nextErrors.push(`${roundNumber}회차 판매 기간을 올바르게 선택해주세요.`);
+      if (saleStart < new Date().toISOString()) {
+        nextSaleMessages.push(`${roundNumber}회차 판매 시작 일시는 현재 시각보다 빠를 수 없습니다.`);
         nextInvalid.globalSale = true;
       }
-      if (saleEnd && new Date(`${saleEnd}T23:59:00`) > startsAt) {
-        nextErrors.push(`${roundNumber}회차 판매 종료일은 공연 시작 이후일 수 없습니다.`);
+      if (saleEnd < saleStart) {
+        nextSaleMessages.push(`${roundNumber}회차 판매 시작 일시는 판매 종료 일시보다 빨라야 합니다.`);
+        nextInvalid.globalSale = true;
+      }
+      if (saleEnd > endsAt.toISOString()) {
+        nextSaleMessages.push(`${roundNumber}회차 판매 종료 일시는 공연 종료 일시를 넘을 수 없습니다.`);
         nextInvalid.globalSale = true;
       }
 
-      return { index, startsAt, endsAt };
+      return { index, startsAt, endsAt, saleStart, saleEnd };
     }).sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime());
 
     ranges.forEach((range, index) => {
@@ -321,9 +393,32 @@ export default function EventCreatePage({ navigation }: any) {
       }
     });
 
+    if (!roundSaleOverrideEnabled) {
+      const globalStart = toDateTimeIso(globalSaleStart, globalSaleStartTime);
+      const globalEnd = toDateTimeIso(globalSaleEnd, globalSaleEndTime);
+      if (globalStart < new Date().toISOString()) {
+        nextSaleMessages.push('전체 판매 시작 일시는 현재 시각보다 빠를 수 없습니다.');
+        nextInvalid.globalSale = true;
+      }
+      if (globalEnd < globalStart) {
+        nextSaleMessages.push('전체 판매 시작 일시는 판매 종료 일시보다 빨라야 합니다.');
+        nextInvalid.globalSale = true;
+      }
+      ranges.forEach((range, index) => {
+        if (globalEnd > range.endsAt.toISOString()) {
+          nextSaleMessages.push(`${index + 1}회차의 공연 종료 이후까지 판매될 수 없습니다.`);
+          nextInvalid.globalSale = true;
+        }
+      });
+    }
+
+    const hasBlockingIssues = nextErrors.length > 0 || nextSaleMessages.length > 0;
+
     setErrors(nextErrors);
     setInvalidFields(nextInvalid);
-    if (nextErrors.length > 0) {
+    setRoundMessages(nextRoundMessages);
+    setSaleMessages(nextSaleMessages);
+    if (hasBlockingIssues) {
       if (nextInvalid.rounds) setExpandedRoundIds(rounds.map((round) => round.id));
       const firstField = Object.keys(FIELD_OFFSET).find((field) => nextInvalid[field]);
       scrollRef.current?.scrollTo({ y: FIELD_OFFSET[firstField || 'category'], animated: true });
@@ -338,6 +433,10 @@ export default function EventCreatePage({ navigation }: any) {
     const sortedRounds = [...rounds].sort((a, b) => roundStartIso(a).localeCompare(roundStartIso(b)));
     const firstRound = sortedRounds[0];
     const lastRound = [...sortedRounds].sort((a, b) => roundEndIso(b).localeCompare(roundEndIso(a)))[0];
+    const saleStartTimes = sortedRounds.map((round) => roundSaleOverrideEnabled ? toDateTimeIso(round.saleStartDate, round.saleStartTime) : toDateTimeIso(globalSaleStart, globalSaleStartTime));
+    const saleEndTimes = sortedRounds.map((round) => roundSaleOverrideEnabled ? toDateTimeIso(round.saleEndDate, round.saleEndTime) : toDateTimeIso(globalSaleEnd, globalSaleEndTime));
+    const effectiveSaleStart = saleStartTimes.sort()[0];
+    const effectiveSaleEnd = saleEndTimes.sort()[saleEndTimes.length - 1];
 
     setSubmitting(true);
     try {
@@ -367,10 +466,10 @@ export default function EventCreatePage({ navigation }: any) {
         eventEndAt: roundEndIso(lastRound),
         startsAt: roundStartIso(firstRound),
         endsAt: roundEndIso(lastRound),
-        primarySaleStart: toStartOfDayIso(globalSaleStart),
-        primarySaleEnd: toEndOfDayIso(globalSaleEnd),
-        salesStartAt: toStartOfDayIso(globalSaleStart),
-        salesEndAt: toEndOfDayIso(globalSaleEnd),
+        primarySaleStart: effectiveSaleStart,
+        primarySaleEnd: effectiveSaleEnd,
+        salesStartAt: effectiveSaleStart,
+        salesEndAt: effectiveSaleEnd,
         ticketPriceWei: '1',
         totalTicketCount: 0,
         resaleAllowed: false,
@@ -378,16 +477,16 @@ export default function EventCreatePage({ navigation }: any) {
         resaleStart: null,
         resaleEnd: null,
         rounds: sortedRounds.map((round, index) => {
-          const saleStart = round.useGlobalSalePeriod ? globalSaleStart : round.saleStartDate;
-          const saleEnd = round.useGlobalSalePeriod ? globalSaleEnd : round.saleEndDate;
+          const saleStart = roundSaleOverrideEnabled ? toDateTimeIso(round.saleStartDate, round.saleStartTime) : toDateTimeIso(globalSaleStart, globalSaleStartTime);
+          const saleEnd = roundSaleOverrideEnabled ? toDateTimeIso(round.saleEndDate, round.saleEndTime) : toDateTimeIso(globalSaleEnd, globalSaleEndTime);
           return {
             title: round.title || `${index + 1}회차`,
             eventDate: round.eventDate,
             startTime: round.startTime,
             endTime: round.endTime,
             useGlobalSalePeriod: round.useGlobalSalePeriod,
-            saleStartAt: toStartOfDayIso(saleStart),
-            saleEndAt: toEndOfDayIso(saleEnd),
+            saleStartAt: saleStart,
+            saleEndAt: saleEnd,
           };
         }),
       });
@@ -426,12 +525,6 @@ export default function EventCreatePage({ navigation }: any) {
               </TouchableOpacity>
             ))}
           </View>
-
-          <Text style={styles.label}>이벤트명</Text>
-          <TextInput style={[styles.input, invalidFields.name && styles.invalidInput]} value={name} onChangeText={setName} placeholder="예: TRUST LIVE 2026" />
-          <Text style={styles.helpText}>사용자에게 표시될 이벤트명을 입력해주세요.</Text>
-
-          <Text style={styles.label}>장소</Text>
           <TextInput style={[styles.input, invalidFields.venue && styles.invalidInput]} value={venue} onChangeText={setVenue} placeholder="예: 올림픽공원 KSPO DOME" />
 
           <Text style={styles.label}>이벤트 소개</Text>
@@ -491,7 +584,7 @@ export default function EventCreatePage({ navigation }: any) {
                 {expanded ? (
                   <View style={styles.roundBody}>
                     <View style={styles.flatField}>
-                      <Text style={styles.flatLabel}>공연일</Text>
+                      <Text style={styles.flatLabel}>이벤트 날짜</Text>
                       <SingleDatePicker
                         value={round.eventDate}
                         onChange={(value) => updateRound(round.id, { eventDate: value })}
@@ -499,13 +592,18 @@ export default function EventCreatePage({ navigation }: any) {
                       />
                     </View>
                     <View style={styles.flatField}>
-                      <Text style={styles.flatLabel}>시작 시간</Text>
-                      <TimeDropdown value={round.startTime} onChange={(value) => updateRound(round.id, { startTime: value })} />
+                      <Text style={styles.flatLabel}>이벤트 시작 시간</Text>
+                      <TimeWheelPicker label="시작 시간" value={round.startTime} onChange={(value) => updateRound(round.id, { startTime: value })} />
                     </View>
                     <View style={styles.flatField}>
-                      <Text style={styles.flatLabel}>종료 시간</Text>
-                      <TimeDropdown value={round.endTime} onChange={(value) => updateRound(round.id, { endTime: value })} />
+                      <Text style={styles.flatLabel}>이벤트 종료 시간</Text>
+                      <TimeWheelPicker label="종료 시간" value={round.endTime} onChange={(value) => updateRound(round.id, { endTime: value })} />
                     </View>
+                    {roundMessages[round.id]?.length ? (
+                      <View style={styles.inlineWarningBox}>
+                        {roundMessages[round.id].map((message) => <Text key={message} style={styles.inlineWarningText}>· {message}</Text>)}
+                      </View>
+                    ) : null}
                     <TouchableOpacity style={styles.applyRoundButton} onPress={() => saveRound(round.id)}>
                       <Text style={styles.applyRoundText}>회차 저장</Text>
                     </TouchableOpacity>
@@ -524,11 +622,22 @@ export default function EventCreatePage({ navigation }: any) {
           <View style={styles.saleHeader}>
             <View style={styles.saleHeaderCopy}>
               <Text style={styles.cardTitle}>티켓 판매 기간</Text>
-              <Text style={styles.saleRangeText}>{formatDotDate(globalSaleStart)} ~ {formatDotDate(globalSaleEnd)}</Text>
             </View>
           </View>
           <View style={styles.saleBody}>
+            <SaleRoundStrip
+              rounds={rounds}
+              activeRoundId={roundSaleOverrideEnabled ? activeSaleRoundId : null}
+              globalSaleStart={globalSaleStart}
+              globalSaleEnd={globalSaleEnd}
+              perRound={roundSaleOverrideEnabled}
+            />
             <Text style={styles.helpText}>티켓을 판매할 기간을 설정하세요.</Text>
+            {saleMessages.length > 0 ? (
+              <View style={styles.inlineWarningBox}>
+                {saleMessages.map((message) => <Text key={message} style={styles.inlineWarningText}>· {message}</Text>)}
+              </View>
+            ) : null}
             <View style={styles.modeRow}>
               <TouchableOpacity style={[styles.modeButton, !roundSaleOverrideEnabled && styles.activeModeButton]} onPress={() => setRoundSaleOverride(false)}>
                 <Text style={styles.modeButtonText}>전체 판매 기간 설정</Text>
@@ -541,27 +650,53 @@ export default function EventCreatePage({ navigation }: any) {
             </View>
 
             {!roundSaleOverrideEnabled ? (
-              <CompactRangePicker
-                title="티켓 판매 기간"
-                compactTitle="전체 판매 기간"
-                startDate={globalSaleStart}
-                endDate={globalSaleEnd}
-                onChange={setGlobalSalePeriod}
-                ctaLabel="판매 기간 변경"
-                markedRounds={rounds.map((round, index) => ({ date: round.eventDate, label: `${index + 1}회차` }))}
-              />
+              <View style={styles.salePeriodBlock}>
+                <CompactRangePicker
+                  title="티켓 판매 기간"
+                  compactTitle="판매 기간"
+                  startDate={globalSaleStart}
+                  endDate={globalSaleEnd}
+                  onChange={setGlobalSalePeriod}
+                  ctaLabel="판매 기간 변경"
+                  markedRounds={rounds.map((round, index) => ({ date: round.eventDate, label: `${index + 1}회차` }))}
+                  onOpen={() => setActiveSaleRoundId(null)}
+                />
+                <View style={styles.saleTimeGrid}>
+                  <View style={styles.flatField}>
+                    <Text style={styles.flatLabel}>판매 시작 시간</Text>
+                    <TimeWheelPickerBase label="판매 시작 시간" value={globalSaleStartTime} onChange={(value) => setGlobalSaleTime(value, globalSaleEndTime)} onOpen={() => setActiveSaleRoundId(null)} onClose={() => setActiveSaleRoundId(null)} />
+                  </View>
+                  <View style={styles.flatField}>
+                    <Text style={styles.flatLabel}>판매 종료 시간</Text>
+                    <TimeWheelPickerBase label="판매 종료 시간" value={globalSaleEndTime} onChange={(value) => setGlobalSaleTime(globalSaleStartTime, value)} onOpen={() => setActiveSaleRoundId(null)} onClose={() => setActiveSaleRoundId(null)} />
+                  </View>
+                </View>
+              </View>
             ) : (
               <View style={styles.roundSaleList}>
                 {rounds.map((round, index) => (
-                  <CompactRangePicker
-                    key={round.id}
-                    title={`${index + 1}회차 판매 기간`}
-                    compactTitle={`${index + 1}회차`}
-                    startDate={round.saleStartDate}
-                    endDate={round.saleEndDate}
-                    onChange={(start, end) => updateRound(round.id, { saleStartDate: start, saleEndDate: end, useGlobalSalePeriod: false })}
-                    markedRounds={rounds.map((item, itemIndex) => ({ date: item.eventDate, label: `${itemIndex + 1}회차` }))}
-                  />
+                  <View key={round.id} style={styles.roundSaleItem}>
+                    <CompactRangePicker
+                      title={`${index + 1}회차 판매 기간`}
+                      startDate={round.saleStartDate}
+                      endDate={round.saleEndDate}
+                      onChange={(start, end) => updateRound(round.id, { saleStartDate: start, saleEndDate: end, useGlobalSalePeriod: false })}
+                      markedRounds={rounds.map((item, itemIndex) => ({ date: item.eventDate, label: `${itemIndex + 1}회차` }))}
+                      active={activeSaleRoundId === round.id}
+                      onOpen={() => setActiveSaleRoundId(round.id)}
+                      onClose={() => setActiveSaleRoundId((current) => current === round.id ? null : current)}
+                    />
+                    <View style={styles.saleTimeGrid}>
+                      <View style={styles.flatField}>
+                        <Text style={styles.flatLabel}>판매 시작 시간</Text>
+                        <TimeWheelPickerBase label="판매 시작 시간" value={round.saleStartTime} onChange={(value) => updateRound(round.id, { saleStartTime: value, useGlobalSalePeriod: false })} onOpen={() => setActiveSaleRoundId(round.id)} onClose={() => setActiveSaleRoundId((current) => current === round.id ? null : current)} />
+                      </View>
+                      <View style={styles.flatField}>
+                        <Text style={styles.flatLabel}>판매 종료 시간</Text>
+                        <TimeWheelPickerBase label="판매 종료 시간" value={round.saleEndTime} onChange={(value) => updateRound(round.id, { saleEndTime: value, useGlobalSalePeriod: false })} onOpen={() => setActiveSaleRoundId(round.id)} onClose={() => setActiveSaleRoundId((current) => current === round.id ? null : current)} />
+                      </View>
+                    </View>
+                  </View>
                 ))}
               </View>
             )}
@@ -690,6 +825,9 @@ function CompactRangePicker({
   startDate,
   endDate,
   onChange,
+  active = false,
+  onOpen,
+  onClose,
 }: {
   title: string;
   compactTitle?: string;
@@ -698,6 +836,9 @@ function CompactRangePicker({
   startDate: string;
   endDate: string;
   onChange: (start: string, end: string) => void;
+  active?: boolean;
+  onOpen?: () => void;
+  onClose?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const [draftStart, setDraftStart] = useState(startDate);
@@ -709,6 +850,7 @@ function CompactRangePicker({
     setDraftEnd(endDate);
     setSelectingStart(true);
     setOpen(true);
+    onOpen?.();
   };
 
   const select = (date: string) => {
@@ -731,31 +873,24 @@ function CompactRangePicker({
       onChange(draftStart, draftEnd);
     }
     setOpen(false);
+    onClose?.();
   };
 
   return (
     <View style={styles.rangePickerBox}>
-      <TouchableOpacity style={styles.compactPickerButton} onPress={openSheet}>
+      <TouchableOpacity style={[styles.compactPickerButton, active && styles.activePickerButton]} onPress={openSheet}>
         <View style={styles.compactPickerCopy}>
           <Text style={styles.rangePickerTitle}>{compactTitle || title}</Text>
-          {compactTitle ? (
-            <Text style={styles.rangePickerValue}>{formatDotDate(startDate)} ~ {formatDotDate(endDate)}</Text>
-          ) : (
-            <>
-              <Text style={styles.rangePickerValue}><Text style={styles.saleStartText}>판매 시작:</Text> {formatDotDate(startDate)}</Text>
-              <Text style={styles.rangePickerValue}><Text style={styles.saleEndText}>판매 종료:</Text> {formatDotDate(endDate)}</Text>
-            </>
-          )}
+          <Text style={styles.rangePickerValue}>{formatDotDate(startDate)} ~ {formatDotDate(endDate)}</Text>
         </View>
         <Text style={styles.compactPickerAction}>{ctaLabel}</Text>
       </TouchableOpacity>
-      <Modal visible={open} transparent animationType="slide" onRequestClose={() => setOpen(false)}>
+      <Modal visible={open} transparent animationType="slide" onRequestClose={() => { setOpen(false); onClose?.(); }}>
         <View style={styles.sheetOverlay}>
-          <TouchableOpacity style={styles.sheetBackdrop} activeOpacity={1} onPress={() => setOpen(false)} />
+          <TouchableOpacity style={styles.sheetBackdrop} activeOpacity={1} onPress={() => { setOpen(false); onClose?.(); }} />
           <View style={styles.sheet}>
             <View style={styles.sheetHandle} />
             <Text style={styles.sheetTitle}>{title}</Text>
-            <Text style={styles.sheetHelp}>판매 시작일과 종료일을 선택하세요.</Text>
             <Text style={styles.sheetStateText}>{selectingStart ? '판매 시작일을 선택하세요.' : '판매 종료일을 선택하세요.'}</Text>
             <MonthCalendar selectedStart={draftStart} selectedEnd={draftEnd} markedRounds={markedRounds} onSelect={select} />
             <TouchableOpacity style={[styles.sheetDoneButton, (!draftStart || !draftEnd) && styles.disabledButton]} disabled={!draftStart || !draftEnd} onPress={complete}>
@@ -768,47 +903,122 @@ function CompactRangePicker({
   );
 }
 
-function TimeDropdown({ value, onChange }: { value: string; onChange: (time: string) => void }) {
-  const [openPart, setOpenPart] = useState<'hour' | 'minute' | null>(null);
-  const [hour = '00', minute = '00'] = value.split(':');
+function SaleRoundStrip({
+  rounds,
+  activeRoundId,
+  globalSaleStart,
+  globalSaleEnd,
+  perRound,
+}: {
+  rounds: EventRoundDraft[];
+  activeRoundId: string | null;
+  globalSaleStart: string;
+  globalSaleEnd: string;
+  perRound: boolean;
+}) {
+  return (
+    <View style={styles.saleRoundStrip}>
+      {perRound ? (
+        rounds.map((round, index) => {
+          const active = round.id === activeRoundId;
+          return (
+            <View key={round.id} style={[styles.saleRoundChip, active && styles.saleRoundChipActive]}>
+              <Text style={[styles.saleRoundChipText, active && styles.saleRoundChipTextActive]}>{`[${index + 1}회차 · ${formatShortDate(round.eventDate)}]`}</Text>
+            </View>
+          );
+        })
+      ) : (
+        rounds.map((round, index) => (
+          <View key={round.id} style={styles.saleRoundChip}>
+            <Text style={styles.saleRoundChipText}>{`[${index + 1}회차 · ${formatShortDate(round.eventDate)}]`}</Text>
+          </View>
+        ))
+      )}
+      <View style={[styles.saleRoundChip, styles.saleRoundChipMuted]}>
+        <Text style={styles.saleRoundChipText}>{`[전체 · ${formatShortDate(globalSaleStart)} ~ ${formatShortDate(globalSaleEnd)}]`}</Text>
+      </View>
+    </View>
+  );
+}
 
-  const setTimePart = (part: 'hour' | 'minute', nextValue: string) => {
-    onChange(part === 'hour' ? `${nextValue}:${minute}` : `${hour}:${nextValue}`);
-    setOpenPart(null);
+function TimeWheelPicker({ label, value, onChange }: { label: string; value: string; onChange: (time: string) => void }) {
+  return <TimeWheelPickerBase label={label} value={value} onChange={onChange} />;
+}
+
+function TimeWheelPickerBase({
+  label,
+  value,
+  onChange,
+  onOpen,
+  onClose,
+}: {
+  label: string;
+  value: string;
+  onChange: (time: string) => void;
+  onOpen?: () => void;
+  onClose?: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [hour, minute] = value.split(':');
+  const [draftHour, setDraftHour] = useState(hour || '00');
+  const [draftMinute, setDraftMinute] = useState(minute || '00');
+
+  const openWheel = () => {
+    const [nextHour, nextMinute] = value.split(':');
+    setDraftHour(nextHour || '00');
+    setDraftMinute(nextMinute || '00');
+    setOpen(true);
+    onOpen?.();
+  };
+
+  const complete = () => {
+    onChange(`${draftHour}:${draftMinute}`);
+    setOpen(false);
+    onClose?.();
   };
 
   return (
-    <View style={styles.timePickerRow}>
-      <View style={styles.timePickerCol}>
-        <TouchableOpacity style={styles.compactPickerButton} onPress={() => setOpenPart(openPart === 'hour' ? null : 'hour')}>
-          <Text style={styles.timeValue}>{hour}시</Text>
-          <Text style={styles.compactPickerAction}>▼</Text>
-        </TouchableOpacity>
-        {openPart === 'hour' ? (
-          <ScrollView style={styles.timeDropdown} nestedScrollEnabled>
-            {HOUR_OPTIONS.map((option) => (
-              <TouchableOpacity key={option} style={[styles.timeOption, option === hour && styles.activeTimeOption]} onPress={() => setTimePart('hour', option)}>
-                <Text style={[styles.timeOptionText, option === hour && styles.activeTimeOptionText]}>{option}시</Text>
+    <View style={styles.timeSinglePicker}>
+      <TouchableOpacity style={styles.compactPickerButton} onPress={openWheel}>
+        <Text style={styles.timeSingleValue}>{`[${value}]`}</Text>
+        <Text style={styles.compactPickerAction}>선택</Text>
+      </TouchableOpacity>
+      {open ? (
+        <Modal transparent animationType="slide" onRequestClose={() => { setOpen(false); onClose?.(); }}>
+          <View style={styles.sheetOverlay}>
+            <TouchableOpacity style={styles.sheetBackdrop} activeOpacity={1} onPress={() => { setOpen(false); onClose?.(); }} />
+            <View style={styles.sheet}>
+              <View style={styles.sheetHandle} />
+              <Text style={styles.sheetTitle}>{label}</Text>
+              <View style={styles.timeWheelRow}>
+                <View style={styles.timeWheelCol}>
+                  <Text style={styles.timeWheelLabel}>hour</Text>
+                  <ScrollView style={styles.timeWheelList} nestedScrollEnabled>
+                    {HOUR_OPTIONS.map((option) => (
+                      <TouchableOpacity key={option} style={[styles.timeWheelItem, option === draftHour && styles.timeWheelItemActive]} onPress={() => setDraftHour(option)}>
+                        <Text style={[styles.timeWheelItemText, option === draftHour && styles.timeWheelItemTextActive]}>{option}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </View>
+                <View style={styles.timeWheelCol}>
+                  <Text style={styles.timeWheelLabel}>minute</Text>
+                  <ScrollView style={styles.timeWheelList} nestedScrollEnabled>
+                    {MINUTE_OPTIONS.map((option) => (
+                      <TouchableOpacity key={option} style={[styles.timeWheelItem, option === draftMinute && styles.timeWheelItemActive]} onPress={() => setDraftMinute(option)}>
+                        <Text style={[styles.timeWheelItemText, option === draftMinute && styles.timeWheelItemTextActive]}>{option}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </View>
+              </View>
+              <TouchableOpacity style={styles.sheetDoneButton} onPress={complete}>
+                <Text style={styles.sheetDoneText}>완료</Text>
               </TouchableOpacity>
-            ))}
-          </ScrollView>
-        ) : null}
-      </View>
-      <View style={styles.timePickerCol}>
-        <TouchableOpacity style={styles.compactPickerButton} onPress={() => setOpenPart(openPart === 'minute' ? null : 'minute')}>
-          <Text style={styles.timeValue}>{minute}분</Text>
-          <Text style={styles.compactPickerAction}>▼</Text>
-        </TouchableOpacity>
-        {openPart === 'minute' ? (
-          <ScrollView style={styles.timeDropdown} nestedScrollEnabled>
-            {MINUTE_OPTIONS.map((option) => (
-              <TouchableOpacity key={option} style={[styles.timeOption, option === minute && styles.activeTimeOption]} onPress={() => setTimePart('minute', option)}>
-                <Text style={[styles.timeOptionText, option === minute && styles.activeTimeOptionText]}>{option}분</Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        ) : null}
-      </View>
+            </View>
+          </View>
+        </Modal>
+      ) : null}
     </View>
   );
 }
@@ -861,8 +1071,11 @@ const styles = StyleSheet.create({
   roundBody: { borderTopWidth: 1, borderTopColor: '#F1F5F9', paddingHorizontal: 10, paddingVertical: 8 },
   flatField: { marginTop: 7 },
   flatLabel: { color: '#334155', fontSize: 12, fontWeight: '900', marginBottom: 5 },
+  inlineWarningBox: { marginTop: 8, borderWidth: 1, borderColor: '#FDE68A', backgroundColor: '#FFFBEB', borderRadius: 8, padding: 10 },
+  inlineWarningText: { color: '#B45309', fontSize: 12, fontWeight: '800', lineHeight: 18 },
   flatPicker: { flex: 1 },
   compactPickerButton: { borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 10, backgroundColor: '#FFFFFF', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 10 },
+  activePickerButton: { borderColor: '#2563EB', backgroundColor: '#EFF6FF' },
   compactPickerCopy: { flex: 1 },
   compactPickerText: { color: '#0F172A', fontWeight: '900' },
   compactPickerAction: { color: '#2563EB', fontWeight: '900', fontSize: 12 },
@@ -874,22 +1087,22 @@ const styles = StyleSheet.create({
   weekRow: { flexDirection: 'row' },
   weekText: { width: `${100 / 7}%`, textAlign: 'center', color: '#64748B', fontSize: 11, fontWeight: '900' },
   dayGrid: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 5 },
-  dayCell: { width: `${100 / 7}%`, aspectRatio: 1.1, alignItems: 'center', justifyContent: 'center', borderRadius: 6 },
+  dayCell: { width: `${100 / 7}%`, aspectRatio: 1.1, alignItems: 'center', justifyContent: 'center', borderRadius: 6, paddingVertical: 4 },
   emptyDayCell: { backgroundColor: '#F8FAFC', opacity: 0.45 },
   selectedDay: { backgroundColor: '#2563EB' },
   rangeDay: { backgroundColor: '#DBEAFE' },
   dayText: { color: '#0F172A', fontWeight: '800', fontSize: 12 },
   roundMarkerText: { marginTop: 1, color: '#64748B', fontSize: 8, fontWeight: '900' },
-  dayCellInner: { alignItems: 'center' },
+  dayCellInner: { alignItems: 'center', gap: 3 },
+  markerPillRow: { marginTop: 2, flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 3 },
   markerBadge: { marginTop: 4, backgroundColor: '#EFF6FF', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 999 },
   markerBadgeSelected: { backgroundColor: '#1E40AF' },
   markerBadgeText: { color: '#2563EB', fontSize: 10, fontWeight: '900' },
   markerBadgeTextSelected: { color: '#FFFFFF' },
   emptyDayText: { color: 'transparent' },
   selectedDayText: { color: '#FFFFFF' },
-  timePickerRow: { flexDirection: 'row', gap: 8 },
-  timePickerCol: { flex: 1 },
-  timeValue: { color: '#0F172A', fontSize: 16, fontWeight: '900' },
+  timeSinglePicker: { flex: 1 },
+  timeSingleValue: { color: '#0F172A', fontSize: 16, fontWeight: '900' },
   timeDropdown: { marginTop: 7, maxHeight: 164, borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 8, backgroundColor: '#FFFFFF' },
   timeOption: { paddingVertical: 10, alignItems: 'center', borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
   activeTimeOption: { backgroundColor: '#EFF6FF' },
@@ -905,6 +1118,15 @@ const styles = StyleSheet.create({
   checkLabel: { color: '#0F172A', fontWeight: '800' },
   saleHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
   saleHeaderCopy: { flex: 1 },
+  salePeriodBlock: { marginTop: 4 },
+  saleTimeGrid: { gap: 8, marginTop: 8 },
+  roundSaleItem: { marginTop: 8 },
+  saleRoundStrip: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 10 },
+  saleRoundChip: { borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6, backgroundColor: '#FFFFFF' },
+  saleRoundChipMuted: { backgroundColor: '#F8FAFC' },
+  saleRoundChipActive: { borderColor: '#2563EB', backgroundColor: '#EFF6FF' },
+  saleRoundChipText: { color: '#334155', fontSize: 12, fontWeight: '900' },
+  saleRoundChipTextActive: { color: '#2563EB' },
   modeRow: { flexDirection: 'row', gap: 8, marginTop: 8 },
   modeButton: { flex: 1, borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 8, padding: 10, backgroundColor: '#FFFFFF' },
   activeModeButton: { borderColor: '#2563EB', backgroundColor: '#EFF6FF' },
@@ -916,9 +1138,15 @@ const styles = StyleSheet.create({
   rangePickerBox: { marginTop: 9 },
   rangePickerTitle: { color: '#64748B', fontSize: 12, fontWeight: '900' },
   rangePickerValue: { marginTop: 3, color: '#0F172A', fontWeight: '900' },
-  saleStartText: { color: '#3B82C4', fontWeight: '900' },
-  saleEndText: { color: '#C2414B', fontWeight: '900' },
   roundSaleList: { marginTop: 2 },
+  timeWheelRow: { flexDirection: 'row', gap: 10, marginTop: 12 },
+  timeWheelCol: { flex: 1 },
+  timeWheelLabel: { marginBottom: 6, color: '#64748B', fontSize: 12, fontWeight: '900' },
+  timeWheelList: { maxHeight: 240, borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 8, backgroundColor: '#FFFFFF' },
+  timeWheelItem: { paddingVertical: 11, alignItems: 'center', borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
+  timeWheelItemActive: { backgroundColor: '#EFF6FF' },
+  timeWheelItemText: { color: '#475569', fontWeight: '900' },
+  timeWheelItemTextActive: { color: '#2563EB' },
   sheetOverlay: { flex: 1, justifyContent: 'flex-end' },
   sheetBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(15, 23, 42, 0.36)' },
   sheet: { backgroundColor: '#FFFFFF', borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: 14, paddingBottom: 22 },
