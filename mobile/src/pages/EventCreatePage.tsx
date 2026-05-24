@@ -200,8 +200,8 @@ export default function EventCreatePage({ navigation }: any) {
   const [globalSaleEnd, setGlobalSaleEnd] = useState(defaultSaleEnd);
   const [globalSaleEndTime, setGlobalSaleEndTime] = useState('21:00');
   const [roundSaleOverrideEnabled, setRoundSaleOverrideEnabled] = useState(false);
-  const [salePeriodExpanded, setSalePeriodExpanded] = useState(false);
   const [activeSaleRoundId, setActiveSaleRoundId] = useState<string | null>(null);
+  const [roundAcknowledgedIds, setRoundAcknowledgedIds] = useState<Record<string, boolean>>({});
   const [errors, setErrors] = useState<string[]>([]);
   const [invalidFields, setInvalidFields] = useState<Record<string, boolean>>({});
   const [roundMessages, setRoundMessages] = useState<Record<string, string[]>>({});
@@ -211,6 +211,9 @@ export default function EventCreatePage({ navigation }: any) {
   const updateRound = (id: string, patch: Partial<EventRoundDraft>) => {
     setRounds((current) => {
       const nextRounds = current.map((round) => (round.id === id ? { ...round, ...patch } : round));
+      if (patch.eventDate || patch.startTime || patch.endTime) {
+        setRoundAcknowledgedIds((current) => ({ ...current, [id]: false }));
+      }
       if (patch.eventDate) {
         const nextSaleEnd = defaultSaleEndForRounds(nextRounds);
         setGlobalSaleEnd(nextSaleEnd);
@@ -241,11 +244,15 @@ export default function EventCreatePage({ navigation }: any) {
         setRoundMessages((current) => ({ ...current, [id]: ['종료 시간이 시작 시간보다 빠릅니다. 다음 날 종료되는 일정으로 처리됩니다.'] }));
         setErrors([]);
         setInvalidFields((current) => ({ ...current, rounds: false }));
+        if (!roundAcknowledgedIds[id]) {
+          return;
+        }
         setExpandedRoundIds((current) => current.filter((item) => item !== id));
         return;
       }
     }
     setRoundMessages((current) => ({ ...current, [id]: [] }));
+    setRoundAcknowledgedIds((current) => ({ ...current, [id]: false }));
     setErrors([]);
     setInvalidFields((current) => ({ ...current, rounds: false }));
     setExpandedRoundIds((current) => current.filter((item) => item !== id));
@@ -622,6 +629,9 @@ export default function EventCreatePage({ navigation }: any) {
                     {roundMessages[round.id]?.length ? (
                       <View style={styles.inlineWarningBox}>
                         {roundMessages[round.id].map((message) => <Text key={message} style={styles.inlineWarningText}>· {message}</Text>)}
+                        <TouchableOpacity style={styles.warningAgreeButton} onPress={() => setRoundAcknowledgedIds((current) => ({ ...current, [round.id]: true }))}>
+                          <Text style={styles.warningAgreeText}>{roundAcknowledgedIds[round.id] ? '동의됨' : '동의'}</Text>
+                        </TouchableOpacity>
                       </View>
                     ) : null}
                     <TouchableOpacity style={styles.applyRoundButton} onPress={() => void saveRound(round.id)}>
@@ -639,14 +649,12 @@ export default function EventCreatePage({ navigation }: any) {
         </View>
 
         <View style={[styles.card, invalidFields.globalSale && styles.invalidRound]}>
-          <TouchableOpacity style={styles.saleHeader} onPress={() => setSalePeriodExpanded((current) => !current)} activeOpacity={0.82}>
+          <View style={styles.saleHeader}>
             <View style={styles.saleHeaderCopy}>
               <Text style={styles.cardTitle}>티켓 판매 기간</Text>
               <Text style={styles.saleSummary}>{formatDateTime(globalSaleStart, globalSaleStartTime)} ~ {formatDateTime(globalSaleEnd, globalSaleEndTime)}</Text>
             </View>
-            <Text style={styles.compactPickerAction}>{salePeriodExpanded ? '접기' : '열기'}</Text>
-          </TouchableOpacity>
-          {salePeriodExpanded ? (
+          </View>
           <View style={styles.saleBody}>
             {saleMessages.length > 0 ? (
               <View style={styles.inlineWarningBox}>
@@ -676,6 +684,7 @@ export default function EventCreatePage({ navigation }: any) {
                   markedRounds={rounds.map((round, index) => ({ date: round.eventDate, label: `${index + 1}회차` }))}
                   summaryRounds={rounds}
                   onOpen={() => setActiveSaleRoundId(null)}
+                  active={!roundSaleOverrideEnabled}
                 />
                 <View style={styles.saleTimeGrid}>
                   <View style={styles.flatField}>
@@ -687,7 +696,7 @@ export default function EventCreatePage({ navigation }: any) {
                     <TimeWheelPickerBase label="판매 종료 시간" value={globalSaleEndTime} onChange={(value) => setGlobalSaleTime(globalSaleStartTime, value)} onOpen={() => setActiveSaleRoundId(null)} onClose={() => setActiveSaleRoundId(null)} />
                   </View>
                 </View>
-                <TouchableOpacity style={styles.applyRoundButton} onPress={() => setSalePeriodExpanded(false)}>
+                <TouchableOpacity style={styles.applyRoundButton} onPress={() => setActiveSaleRoundId(null)}>
                   <Text style={styles.applyRoundText}>완료</Text>
                 </TouchableOpacity>
               </View>
@@ -736,7 +745,6 @@ export default function EventCreatePage({ navigation }: any) {
               </View>
             )}
           </View>
-          ) : null}
         </View>
 
         {errors.length > 0 ? (
@@ -1140,6 +1148,8 @@ const styles = StyleSheet.create({
   flatLabel: { color: '#334155', fontSize: 12, fontWeight: '900', marginBottom: 5 },
   inlineWarningBox: { marginTop: 8, borderWidth: 1, borderColor: '#FDE68A', backgroundColor: '#FFFBEB', borderRadius: 8, padding: 10 },
   inlineWarningText: { color: '#B45309', fontSize: 12, fontWeight: '800', lineHeight: 18 },
+  warningAgreeButton: { marginTop: 8, alignSelf: 'flex-start', borderWidth: 1, borderColor: '#F59E0B', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 7, backgroundColor: '#FEF3C7' },
+  warningAgreeText: { color: '#B45309', fontSize: 12, fontWeight: '900' },
   flatPicker: { flex: 1 },
   compactPickerButton: { borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 10, backgroundColor: '#FFFFFF', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 10 },
   activePickerButton: { borderColor: '#2563EB', backgroundColor: '#EFF6FF' },
