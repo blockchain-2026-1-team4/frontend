@@ -94,9 +94,9 @@ export const backendApi = {
     return unwrap<Record<string, unknown>>(http.post(`/events/${eventId}/validators`, payload));
   },
 
-  async uploadEventImage(eventId: string, file: File) {
+  async uploadEventImage(eventId: string, file: File | { uri: string; name?: string; type?: string }) {
     const formData = new FormData();
-    formData.append("file", file);
+    formData.append("file", file as any);
     return unwrap<EventDetail>(http.post(`/events/${eventId}/image`, formData));
   },
 

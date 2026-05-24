@@ -80,10 +80,30 @@ export type EventSummary = {
   updatedAt?: string;
   status: string;
   category?: string;
+  venuePlaceId?: string;
+  location?: {
+    name?: string;
+    address?: string;
+    placeId?: string;
+    latitude?: number;
+    longitude?: number;
+  };
+  rounds?: EventRound[];
   soldOut?: boolean;
   totalTicketCount?: number;
   soldTicketCount?: number;
   remainingTicketCount?: number;
+};
+
+export type EventRound = {
+  id?: string;
+  title: string;
+  eventDate: string;
+  startTime: string;
+  endTime: string;
+  saleStartAt?: string;
+  saleEndAt?: string;
+  useGlobalSalePeriod: boolean;
 };
 
 export type EventDetail = EventSummary & {
