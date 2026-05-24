@@ -10,7 +10,6 @@ const EVENT_CATEGORIES = [
   { value: 'SPORTS', label: '스포츠' },
   { value: 'EXHIBITION', label: '전시' },
   { value: 'FESTIVAL', label: '페스티벌' },
-  { value: 'CONFERENCE', label: '컨퍼런스' },
   { value: 'ETC', label: '기타' },
 ];
 

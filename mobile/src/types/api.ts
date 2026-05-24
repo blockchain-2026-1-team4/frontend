@@ -61,6 +61,12 @@ export type EventSummary = {
   venue: string;
   eventDateTime?: string;
   eventAt?: string;
+  eventStartAt?: string;
+  eventEndAt?: string;
+  startsAt?: string;
+  endsAt?: string;
+  salesStartAt?: string;
+  salesEndAt?: string;
   ticketPriceWei?: string;
   primarySaleStart?: string;
   primarySaleEnd?: string;
@@ -103,9 +109,12 @@ export type TicketDetail = {
   venue?: string;
   eventDateTime?: string;
   seatInfo: string;
+  sectionName?: string;
   status: string;
   priceWei?: string;
   originalPriceWei?: string;
+  resaleEnabled?: boolean;
+  resaleCapRate?: number;
   ownerAddress?: string;
   ownerWalletAddress?: string;
   contractTokenId?: string;

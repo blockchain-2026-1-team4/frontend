@@ -4,7 +4,7 @@ import { backendApi } from '../lib/backend';
 import { formatEventDate } from '../lib/ticketDisplay';
 import type { EventDetail, ResaleListing, UserProfile } from '../types/api';
 
-type SortMode = 'latest' | 'priceAsc' | 'priceDesc';
+type SortMode = 'latest' | 'priceAsc' | 'priceDesc' | 'closingSoon';
 type ScopeMode = 'all' | 'mine';
 
 type ResaleEventGroup = {
@@ -17,6 +17,7 @@ const SORT_OPTIONS: { id: SortMode; label: string }[] = [
   { id: 'latest', label: '최신순' },
   { id: 'priceAsc', label: '낮은 가격순' },
   { id: 'priceDesc', label: '높은 가격순' },
+  { id: 'closingSoon', label: '마감 임박순' },
 ];
 
 function listingKey(item: ResaleListing) {
@@ -35,6 +36,11 @@ function groupTitleOf(group: ResaleEventGroup) {
 function eventDateOf(item: ResaleListing, eventMap: Record<string, EventDetail>) {
   const event = eventMap[String(item.eventId)];
   return event?.eventAt || event?.eventDateTime || item.createdAt || '';
+}
+
+function saleEndOf(item: ResaleListing, eventMap: Record<string, EventDetail>) {
+  const event = eventMap[String(item.eventId)];
+  return event?.salesEndAt || event?.primarySaleEnd || event?.eventEndAt || event?.endsAt || item.updatedAt || item.createdAt || '';
 }
 
 function groupDateOf(group: ResaleEventGroup) {
@@ -77,6 +83,10 @@ function sortListings(listings: ResaleListing[], sortMode: SortMode) {
     }
     if (sortMode === 'priceDesc') {
       return priceValueOf(a) > priceValueOf(b) ? -1 : priceValueOf(a) < priceValueOf(b) ? 1 : 0;
+    }
+    if (sortMode === 'closingSoon') {
+      return new Date((a as ResaleListing & { saleEndAt?: string }).saleEndAt ?? 0).getTime() -
+        new Date((b as ResaleListing & { saleEndAt?: string }).saleEndAt ?? 0).getTime();
     }
 
     return new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime();
@@ -133,7 +143,7 @@ export default function ResaleListPage({ navigation, route }: any) {
 
             try {
               const ticket = await backendApi.getTicket(String(item.ticketId));
-              return { ...item, seatInfo: ticket.seatInfo };
+              return { ...item, seatInfo: ticket.seatInfo, sectionName: ticket.sectionName };
             } catch {
               return item;
             }
@@ -177,8 +187,11 @@ export default function ResaleListPage({ navigation, route }: any) {
       return seatLabelOf(item).toLowerCase().includes(normalizedQuery);
     });
 
-    return sortListings(filtered, sortMode);
-  }, [scopedListings, seatQuery, sortMode]);
+    return sortListings(
+      filtered.map((item) => ({ ...item, saleEndAt: saleEndOf(item, eventMap) })),
+      sortMode,
+    );
+  }, [eventMap, scopedListings, seatQuery, sortMode]);
 
   if (loading) {
     return <View style={styles.center}><ActivityIndicator size="large" color="#2563EB" /></View>;

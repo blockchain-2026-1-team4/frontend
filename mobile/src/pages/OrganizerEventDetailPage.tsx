@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { errorMessage } from '../lib/account';
 import { backendApi } from '../lib/backend';
-import { formatEventDate, formatEventStatus, formatTicketStatus } from '../lib/ticketDisplay';
+import { formatEventRange, formatEventStatus, formatTicketStatus, weiToEth } from '../lib/ticketDisplay';
 import type { EventDetail, TicketDetail } from '../types/api';
 
 function ticketId(ticket: TicketDetail) {
@@ -84,7 +84,9 @@ export default function OrganizerEventDetailPage({ navigation, route }: any) {
     >
       <Text style={styles.eyebrow}>Event Detail</Text>
       <Text style={styles.title}>{event.name || event.title || '이벤트 상세'}</Text>
-      <Text style={styles.subtitle}>{event.venue} · {formatEventDate(event.eventAt || event.eventDateTime)}</Text>
+      <Text style={styles.subtitle}>
+        {event.venue} · {formatEventRange(event.eventStartAt || event.startsAt || event.eventAt || event.eventDateTime, event.eventEndAt || event.endsAt || event.eventAt || event.eventDateTime)}
+      </Text>
       <Text style={styles.statusText}>이벤트 상태 {formatEventStatus(event.status)}</Text>
 
       <View style={styles.metricGrid}>
@@ -125,7 +127,8 @@ export default function OrganizerEventDetailPage({ navigation, route }: any) {
             <View key={ticketId(ticket)} style={styles.ticketRow}>
               <View style={styles.ticketInfo}>
                 <Text style={styles.ticketTitle}>{ticket.seatInfo || '-'}</Text>
-                <Text style={styles.ticketMeta}>{ticket.ownerWalletAddress || ticket.ownerAddress || '미판매'}</Text>
+                <Text style={styles.ticketMeta}>구역 {ticket.sectionName || String(ticket.seatInfo || '').split('-')[0]} · 가격 {weiToEth(ticket.originalPriceWei || ticket.priceWei)}</Text>
+                <Text style={styles.ticketMeta}>리셀 {ticket.resaleEnabled ? '허용' : '비허용'} · {ticket.ownerWalletAddress || ticket.ownerAddress || '미판매'}</Text>
               </View>
               <Text style={styles.badge}>{formatTicketStatus(ticket.status)}</Text>
             </View>

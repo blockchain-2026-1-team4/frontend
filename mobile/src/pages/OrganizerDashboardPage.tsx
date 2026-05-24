@@ -13,11 +13,24 @@ import {
 } from 'react-native';
 import { accountStatusMessage, errorMessage } from '../lib/account';
 import { backendApi } from '../lib/backend';
-import { formatEventDate, formatEventStatus } from '../lib/ticketDisplay';
+import { formatEventRange, formatSalesStatus } from '../lib/ticketDisplay';
 import type { EventSummary, OrganizerApplication, UserProfile } from '../types/api';
 
 function eventTitle(event: EventSummary) {
   return event.name || event.title || '제목 없는 이벤트';
+}
+
+function eventStart(event: EventSummary) {
+  return event.eventStartAt || event.startsAt || event.eventAt || event.eventDateTime || '';
+}
+
+function eventEnd(event: EventSummary) {
+  return event.eventEndAt || event.endsAt || event.eventAt || event.eventDateTime || '';
+}
+
+function categoryLabel(category?: string) {
+  const labels: Record<string, string> = { CONCERT: '공연', SPORTS: '스포츠', EXHIBITION: '전시', FESTIVAL: '페스티벌', ETC: '기타' };
+  return labels[String(category ?? '').toUpperCase()] ?? category ?? '-';
 }
 
 function sortCanceledLast(events: EventSummary[]) {
@@ -258,11 +271,13 @@ export default function OrganizerDashboardPage({ navigation }: any) {
               events.map((event) => (
                 <View key={event.id} style={styles.eventRow}>
                   <View style={styles.eventInfo}>
+                    <Text style={styles.eventCategory}>{categoryLabel(event.category)}</Text>
                     <Text style={styles.eventTitle}>{eventTitle(event)}</Text>
                     <Text style={styles.eventMeta}>장소 {event.venue || '-'}</Text>
-                    <Text style={styles.eventMeta}>일시 {formatEventDate(event.eventAt || event.eventDateTime)}</Text>
+                    <Text style={styles.eventMeta}>이벤트 기간 {formatEventRange(eventStart(event), eventEnd(event))}</Text>
+                    <Text style={styles.eventMeta}>판매 기간 {formatEventRange(event.salesStartAt || event.primarySaleStart, event.salesEndAt || event.primarySaleEnd)}</Text>
                   </View>
-                  <Text style={styles.badge}>{formatEventStatus(event.status)}</Text>
+                  <Text style={styles.badge}>{formatSalesStatus(event.salesStartAt || event.primarySaleStart, event.salesEndAt || event.primarySaleEnd)}</Text>
                 </View>
               ))
             )}
@@ -319,6 +334,7 @@ const styles = StyleSheet.create({
   emptyText: { color: '#94A3B8', paddingVertical: 18, textAlign: 'center' },
   eventRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 12, borderTopWidth: 1, borderTopColor: '#F1F5F9' },
   eventInfo: { flex: 1, paddingRight: 10 },
+  eventCategory: { color: '#2563EB', fontSize: 11, fontWeight: '900', marginBottom: 4 },
   eventTitle: { color: '#0F172A', fontSize: 15, fontWeight: '900' },
   eventMeta: { marginTop: 4, color: '#64748B', fontSize: 12 },
   badge: { overflow: 'hidden', borderRadius: 999, backgroundColor: '#E0F2FE', color: '#0369A1', paddingHorizontal: 9, paddingVertical: 5, fontSize: 11, fontWeight: '900' },
