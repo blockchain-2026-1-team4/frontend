@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useMemo, useRef, useState, useEffect } from 'react';
 import * as ImagePicker from 'expo-image-picker';
 import {
   Alert,
@@ -282,7 +282,7 @@ export default function EventCreatePage({ navigation }: any) {
       nextErrors.push('최소 1개 회차가 필요합니다.');
       nextInvalid.rounds = true;
     }
-    if (!globalSaleStart || !globalSaleEnd || globalSaleEnd < globalSaleStart) {
+    if (!roundSaleOverrideEnabled && (!globalSaleStart || !globalSaleEnd || globalSaleEnd < globalSaleStart)) {
       nextErrors.push('티켓 판매 기간을 올바르게 선택해주세요.');
       nextInvalid.globalSale = true;
     }
@@ -528,6 +528,18 @@ export default function EventCreatePage({ navigation }: any) {
             </View>
           </View>
           <View style={styles.saleBody}>
+            <Text style={styles.helpText}>티켓을 판매할 기간을 설정하세요.</Text>
+            <View style={styles.modeRow}>
+              <TouchableOpacity style={[styles.modeButton, !roundSaleOverrideEnabled && styles.activeModeButton]} onPress={() => setRoundSaleOverride(false)}>
+                <Text style={styles.modeButtonText}>전체 판매 기간 설정</Text>
+                <Text style={styles.modeHint}>모든 회차에 같은 판매 기간을 적용합니다.</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.modeButton, roundSaleOverrideEnabled && styles.activeModeButton]} onPress={() => setRoundSaleOverride(true)}>
+                <Text style={styles.modeButtonText}>회차별 판매 기간 설정</Text>
+                <Text style={styles.modeHint}>회차마다 다른 판매 기간을 설정합니다.</Text>
+              </TouchableOpacity>
+            </View>
+
             {!roundSaleOverrideEnabled ? (
               <CompactRangePicker
                 title="티켓 판매 기간"
@@ -538,15 +550,7 @@ export default function EventCreatePage({ navigation }: any) {
                 ctaLabel="판매 기간 변경"
                 markedRounds={rounds.map((round, index) => ({ date: round.eventDate, label: `${index + 1}회차` }))}
               />
-            ) : null}
-            {!roundSaleOverrideEnabled ? (
-              <Text style={styles.helpText}>회차별로 판매 기간을 따로 설정할 수 있습니다. 활성화하면 현재 티켓 판매 기간이 각 회차에 복사됩니다.</Text>
-            ) : null}
-            <TouchableOpacity style={styles.checkRow} onPress={() => setRoundSaleOverride(!roundSaleOverrideEnabled)}>
-              <Text style={[styles.checkbox, roundSaleOverrideEnabled && styles.checkedBox]}>{roundSaleOverrideEnabled ? '✓' : ''}</Text>
-              <Text style={styles.checkLabel}>회차별 판매 기간 설정</Text>
-            </TouchableOpacity>
-            {roundSaleOverrideEnabled ? (
+            ) : (
               <View style={styles.roundSaleList}>
                 {rounds.map((round, index) => (
                   <CompactRangePicker
@@ -560,7 +564,7 @@ export default function EventCreatePage({ navigation }: any) {
                   />
                 ))}
               </View>
-            ) : null}
+            )}
           </View>
         </View>
 
@@ -635,7 +639,11 @@ function MonthCalendar({
           return (
             <TouchableOpacity key={`${date}-${index}`} style={[styles.dayCell, !date && styles.emptyDayCell, selected && styles.selectedDay, inRange && styles.rangeDay]} disabled={!date} onPress={() => onSelect(date)}>
               <Text style={[styles.dayText, !date && styles.emptyDayText, selected && styles.selectedDayText]}>{date ? Number(date.slice(-2)) : ''}</Text>
-              {roundMarker ? <Text style={[styles.roundMarkerText, selected && styles.selectedDayText]} numberOfLines={1}>{roundMarker}</Text> : null}
+              {roundMarker ? (
+                <View style={[styles.markerBadge, selected && styles.markerBadgeSelected]}>
+                  <Text style={[styles.markerBadgeText, selected && styles.markerBadgeTextSelected]} numberOfLines={1}>{roundMarker}</Text>
+                </View>
+              ) : null}
             </TouchableOpacity>
           );
         })}
@@ -872,6 +880,11 @@ const styles = StyleSheet.create({
   rangeDay: { backgroundColor: '#DBEAFE' },
   dayText: { color: '#0F172A', fontWeight: '800', fontSize: 12 },
   roundMarkerText: { marginTop: 1, color: '#64748B', fontSize: 8, fontWeight: '900' },
+  dayCellInner: { alignItems: 'center' },
+  markerBadge: { marginTop: 4, backgroundColor: '#EFF6FF', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 999 },
+  markerBadgeSelected: { backgroundColor: '#1E40AF' },
+  markerBadgeText: { color: '#2563EB', fontSize: 10, fontWeight: '900' },
+  markerBadgeTextSelected: { color: '#FFFFFF' },
   emptyDayText: { color: 'transparent' },
   selectedDayText: { color: '#FFFFFF' },
   timePickerRow: { flexDirection: 'row', gap: 8 },
@@ -892,6 +905,11 @@ const styles = StyleSheet.create({
   checkLabel: { color: '#0F172A', fontWeight: '800' },
   saleHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
   saleHeaderCopy: { flex: 1 },
+  modeRow: { flexDirection: 'row', gap: 8, marginTop: 8 },
+  modeButton: { flex: 1, borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 8, padding: 10, backgroundColor: '#FFFFFF' },
+  activeModeButton: { borderColor: '#2563EB', backgroundColor: '#EFF6FF' },
+  modeButtonText: { color: '#0F172A', fontWeight: '900' },
+  modeHint: { marginTop: 6, color: '#64748B', fontSize: 12 },
   saleRangeText: { marginTop: 6, color: '#0F172A', fontSize: 15, fontWeight: '900' },
   saleSummary: { marginTop: 4, color: '#64748B', fontSize: 12, fontWeight: '800', lineHeight: 17 },
   saleBody: { marginTop: 2 },
