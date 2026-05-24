@@ -33,6 +33,11 @@ type PosterAsset = {
   mimeType?: string | null;
 };
 
+type MarkedRoundDate = {
+  date: string;
+  label: string;
+};
+
 const EVENT_CATEGORIES = [
   { value: 'CONCERT', label: '공연' },
   { value: 'SPORTS', label: '스포츠' },
@@ -111,7 +116,7 @@ export default function EventCreatePage({ navigation }: any) {
   const scrollRef = useRef<ScrollView | null>(null);
   const today = useMemo(() => localDate(new Date()), []);
   const defaultEventDate = useMemo(() => addDays(today, 14), [today]);
-  const defaultSaleStart = useMemo(() => addDays(today, 1), [today]);
+  const defaultSaleStart = today;
   const defaultSaleEnd = useMemo(() => addDays(defaultEventDate, -1), [defaultEventDate]);
   const initialRound = useMemo(() => buildRound(0, defaultEventDate, defaultSaleStart, defaultSaleEnd), [defaultEventDate, defaultSaleEnd, defaultSaleStart]);
 
@@ -249,7 +254,7 @@ export default function EventCreatePage({ navigation }: any) {
         nextErrors.push(`${roundNumber}회차 시간을 설정해주세요.`);
         nextInvalid.rounds = true;
       } else if (endsAt <= startsAt) {
-        nextErrors.push(`${roundNumber}회차 종료 시간이 시작 시간보다 빠를 수 없습니다. 다음 날 종료 공연은 별도 설정이 필요합니다.`);
+        nextErrors.push(`${roundNumber}회차 종료 시간이 시작 시간보다 빠릅니다. 다음 날 종료되는 일정은 현재 지원하지 않습니다.`);
         nextInvalid.rounds = true;
       }
       if (!saleStart || !saleEnd || saleEnd < saleStart) {
@@ -408,7 +413,7 @@ export default function EventCreatePage({ navigation }: any) {
           )}
           <View style={styles.posterActionRow}>
             <TouchableOpacity style={styles.posterButton} onPress={pickPoster}>
-              <Text style={styles.posterButtonText}>포스터 등록</Text>
+              <Text style={styles.posterButtonText}>{poster ? '다른 포스터 등록' : '포스터 등록'}</Text>
             </TouchableOpacity>
             {poster ? (
               <TouchableOpacity style={[styles.posterButton, styles.posterDeleteButton]} onPress={() => setPoster(null)}>
@@ -428,26 +433,27 @@ export default function EventCreatePage({ navigation }: any) {
             const canDelete = rounds.length > 1;
             return (
               <View key={round.id} style={styles.roundBox}>
-                <TouchableOpacity style={styles.roundHeader} onPress={() => toggleRound(round.id)} activeOpacity={0.82}>
-                  <View style={styles.roundHeaderCopy}>
+                <View style={styles.roundHeader}>
+                  <TouchableOpacity style={styles.roundHeaderCopy} onPress={() => toggleRound(round.id)} activeOpacity={0.82}>
                     <Text style={styles.roundTitle}>{expanded ? '▼' : '▶'} {index + 1}회차 · {formatDotDate(round.eventDate)}</Text>
                     <Text style={styles.roundSummary}>{round.startTime} ~ {round.endTime}</Text>
-                  </View>
+                  </TouchableOpacity>
                   {canDelete ? (
-                    <TouchableOpacity style={styles.compactDeleteButton} onPress={(event) => {
-                      event.stopPropagation();
-                      removeRound(round.id);
-                    }}>
+                    <TouchableOpacity style={styles.compactDeleteButton} onPress={() => removeRound(round.id)}>
                       <Text style={styles.compactDeleteText}>삭제</Text>
                     </TouchableOpacity>
                   ) : null}
-                </TouchableOpacity>
+                </View>
 
                 {expanded ? (
                   <View style={styles.roundBody}>
                     <View style={styles.flatField}>
                       <Text style={styles.flatLabel}>공연일</Text>
-                      <SingleDatePicker value={round.eventDate} onChange={(value) => updateRound(round.id, { eventDate: value })} />
+                      <SingleDatePicker
+                        value={round.eventDate}
+                        onChange={(value) => updateRound(round.id, { eventDate: value })}
+                        markedRounds={rounds.map((item, itemIndex) => ({ date: item.eventDate, label: `${itemIndex + 1}회차` }))}
+                      />
                     </View>
                     <View style={styles.flatField}>
                       <Text style={styles.flatLabel}>시작 시간</Text>
@@ -482,12 +488,24 @@ export default function EventCreatePage({ navigation }: any) {
           </TouchableOpacity>
           {salePeriodExpanded ? (
             <View style={styles.saleBody}>
-              <CompactRangePicker title="티켓 판매 기간" startDate={globalSaleStart} endDate={globalSaleEnd} onChange={setGlobalSalePeriod} ctaLabel="판매 기간 선택" />
+              {!roundSaleOverrideEnabled ? (
+                <CompactRangePicker
+                  title="티켓 판매 기간"
+                  compactTitle="전체 판매 기간"
+                  startDate={globalSaleStart}
+                  endDate={globalSaleEnd}
+                  onChange={setGlobalSalePeriod}
+                  ctaLabel="판매 기간 선택"
+                  markedRounds={rounds.map((round, index) => ({ date: round.eventDate, label: `${index + 1}회차` }))}
+                />
+              ) : null}
+              {!roundSaleOverrideEnabled ? (
+                <Text style={styles.helpText}>회차별로 판매 기간을 따로 설정할 수 있습니다. 활성화하면 현재 티켓 판매 기간이 각 회차에 복사됩니다.</Text>
+              ) : null}
               <TouchableOpacity style={styles.checkRow} onPress={() => setRoundSaleOverride(!roundSaleOverrideEnabled)}>
                 <Text style={[styles.checkbox, roundSaleOverrideEnabled && styles.checkedBox]}>{roundSaleOverrideEnabled ? '✓' : ''}</Text>
                 <Text style={styles.checkLabel}>회차별 판매 기간 설정</Text>
               </TouchableOpacity>
-              {roundSaleOverrideEnabled ? <Text style={styles.helpText}>기본 판매 기간이 각 회차에 복사됩니다.</Text> : null}
               {roundSaleOverrideEnabled ? (
                 <View style={styles.roundSaleList}>
                   {rounds.map((round, index) => (
@@ -498,6 +516,7 @@ export default function EventCreatePage({ navigation }: any) {
                       startDate={round.saleStartDate}
                       endDate={round.saleEndDate}
                       onChange={(start, end) => updateRound(round.id, { saleStartDate: start, saleEndDate: end, useGlobalSalePeriod: false })}
+                      markedRounds={rounds.map((item, itemIndex) => ({ date: item.eventDate, label: `${itemIndex + 1}회차` }))}
                     />
                   ))}
                 </View>
@@ -531,10 +550,12 @@ export default function EventCreatePage({ navigation }: any) {
 function MonthCalendar({
   selectedStart,
   selectedEnd,
+  markedRounds = [],
   onSelect,
 }: {
   selectedStart: string;
   selectedEnd?: string;
+  markedRounds?: MarkedRoundDate[];
   onSelect: (date: string) => void;
 }) {
   const selectedDate = new Date(`${selectedStart || localDate(new Date())}T00:00:00`);
@@ -571,9 +592,11 @@ function MonthCalendar({
         {cells.map((date, index) => {
           const selected = date && (date === selectedStart || date === selectedEnd);
           const inRange = date && selectedStart && selectedEnd && date > selectedStart && date < selectedEnd;
+          const roundMarker = date ? markedRounds.filter((round) => round.date === date).map((round) => round.label).join(', ') : '';
           return (
             <TouchableOpacity key={`${date}-${index}`} style={[styles.dayCell, !date && styles.emptyDayCell, selected && styles.selectedDay, inRange && styles.rangeDay]} disabled={!date} onPress={() => onSelect(date)}>
               <Text style={[styles.dayText, !date && styles.emptyDayText, selected && styles.selectedDayText]}>{date ? Number(date.slice(-2)) : ''}</Text>
+              {roundMarker ? <Text style={[styles.roundMarkerText, selected && styles.selectedDayText]} numberOfLines={1}>{roundMarker}</Text> : null}
             </TouchableOpacity>
           );
         })}
@@ -582,7 +605,15 @@ function MonthCalendar({
   );
 }
 
-function SingleDatePicker({ value, onChange }: { value: string; onChange: (date: string) => void }) {
+function SingleDatePicker({
+  value,
+  markedRounds = [],
+  onChange,
+}: {
+  value: string;
+  markedRounds?: MarkedRoundDate[];
+  onChange: (date: string) => void;
+}) {
   const [open, setOpen] = useState(false);
   return (
     <View style={styles.flatPicker}>
@@ -593,6 +624,7 @@ function SingleDatePicker({ value, onChange }: { value: string; onChange: (date:
       {open ? (
         <MonthCalendar
           selectedStart={value}
+          markedRounds={markedRounds}
           onSelect={(date) => {
             onChange(date);
             setOpen(false);
@@ -607,6 +639,7 @@ function CompactRangePicker({
   title,
   compactTitle,
   ctaLabel = '기간 선택',
+  markedRounds = [],
   startDate,
   endDate,
   onChange,
@@ -614,6 +647,7 @@ function CompactRangePicker({
   title: string;
   compactTitle?: string;
   ctaLabel?: string;
+  markedRounds?: MarkedRoundDate[];
   startDate: string;
   endDate: string;
   onChange: (start: string, end: string) => void;
@@ -676,7 +710,7 @@ function CompactRangePicker({
             <Text style={styles.sheetTitle}>{title}</Text>
             <Text style={styles.sheetHelp}>판매 시작일과 종료일을 선택하세요.</Text>
             <Text style={styles.sheetStateText}>{selectingStart ? '판매 시작일을 선택하세요.' : '판매 종료일을 선택하세요.'}</Text>
-            <MonthCalendar selectedStart={draftStart} selectedEnd={draftEnd} onSelect={select} />
+            <MonthCalendar selectedStart={draftStart} selectedEnd={draftEnd} markedRounds={markedRounds} onSelect={select} />
             <TouchableOpacity style={[styles.sheetDoneButton, (!draftStart || !draftEnd) && styles.disabledButton]} disabled={!draftStart || !draftEnd} onPress={complete}>
               <Text style={styles.sheetDoneText}>완료</Text>
             </TouchableOpacity>
@@ -798,6 +832,7 @@ const styles = StyleSheet.create({
   selectedDay: { backgroundColor: '#2563EB' },
   rangeDay: { backgroundColor: '#DBEAFE' },
   dayText: { color: '#0F172A', fontWeight: '800', fontSize: 12 },
+  roundMarkerText: { marginTop: 1, color: '#64748B', fontSize: 8, fontWeight: '900' },
   emptyDayText: { color: 'transparent' },
   selectedDayText: { color: '#FFFFFF' },
   timePickerRow: { flexDirection: 'row', gap: 8 },
