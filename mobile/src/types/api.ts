@@ -130,9 +130,12 @@ export type TicketDetail = {
   eventDateTime?: string;
   seatInfo: string;
   sectionName?: string;
+  eventRoundId?: string;
   status: string;
   priceWei?: string;
   originalPriceWei?: string;
+  saleStartAt?: string;
+  saleEndAt?: string;
   resaleEnabled?: boolean;
   resaleCapRate?: number;
   ownerAddress?: string;
