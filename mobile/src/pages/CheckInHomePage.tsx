@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import {
   ActivityIndicator,
@@ -30,8 +30,14 @@ type RecentCheckInItem = {
 type CheckInState = {
   label: string;
   rank: number;
-  section: '입장 진행중' | '곧 시작' | '오늘 예정' | '이후 일정' | '종료된 이벤트';
+  section: '오늘 예정' | '이후 일정' | '종료된 이벤트';
   actionable: boolean;
+  ticketCount: number;
+  usedCount: number;
+  startTime: number;
+  startSummary: string;
+  buttonLabel: string;
+  buttonDanger: boolean;
 };
 
 function eventTitle(event: EventSummary) {
@@ -52,34 +58,145 @@ function formatStartSummary(startTime: number, now = new Date()) {
 }
 
 function checkInStatus(item: CheckInEvent, now = new Date()): CheckInState {
-  const totalTickets = item.event.totalTicketCount && item.event.totalTicketCount > 0 ? item.event.totalTicketCount : item.tickets.length;
-  if (totalTickets === 0) return { label: '티켓 미발행', rank: 4, section: '이후 일정', actionable: false };
+  const ticketCount = item.event.totalTicketCount && item.event.totalTicketCount > 0 ? item.event.totalTicketCount : item.tickets.length;
+  const usedCount = item.tickets.filter((ticket) => ticket.status === 'USED').length;
+  const startTime = getNextRoundTime(item.event, now);
+  const startSummary = formatStartSummary(startTime, now);
 
-  const start = getNextRoundTime(item.event, now);
+  if (ticketCount === 0) {
+    const isToday = !Number.isNaN(startTime) && new Date(startTime).toDateString() === now.toDateString();
+    return {
+      label: '티켓 미발행',
+      rank: 4,
+      section: isToday ? '오늘 예정' : '이후 일정',
+      actionable: false,
+      ticketCount,
+      usedCount,
+      startTime,
+      startSummary,
+      buttonLabel: '티켓 미발행',
+      buttonDanger: true,
+    };
+  }
+
   const end = new Date(item.event.eventEndAt || item.event.endsAt || item.event.eventAt || item.event.eventDateTime || '').getTime();
   const current = now.getTime();
-  if (!Number.isNaN(end) && current > end) return { label: '종료', rank: 4, section: '종료된 이벤트', actionable: false };
-  if (!Number.isNaN(start)) {
-    const diff = start - current;
-    if (current >= start && (Number.isNaN(end) || current <= end)) {
-      const elapsed = current - start;
-      if (elapsed <= 30 * 60 * 1000) return { label: '입장 진행중', rank: 0, section: '입장 진행중', actionable: true };
-      if (elapsed <= 90 * 60 * 1000) return { label: '입장 마감', rank: 0, section: '입장 진행중', actionable: true };
-      return { label: '공연 중', rank: 0, section: '입장 진행중', actionable: true };
-    }
-    if (diff <= 60 * 60 * 1000 && diff >= -30 * 60 * 1000) return { label: '입장 진행중', rank: 0, section: '입장 진행중', actionable: true };
-    if (diff > 0 && diff <= 3 * 60 * 60 * 1000) return { label: '곧 시작', rank: 1, section: '곧 시작', actionable: false };
-    const startDate = new Date(start);
-    if (startDate.toDateString() === now.toDateString()) return { label: '오늘 예정', rank: 2, section: '오늘 예정', actionable: false };
+  if (!Number.isNaN(end) && current > end) {
+    return {
+      label: '종료',
+      rank: 4,
+      section: '종료된 이벤트',
+      actionable: false,
+      ticketCount,
+      usedCount,
+      startTime,
+      startSummary,
+      buttonLabel: '체크인 불가',
+      buttonDanger: true,
+    };
   }
-  return { label: '체크인 예정', rank: 3, section: '이후 일정', actionable: false };
+
+  if (!Number.isNaN(startTime)) {
+    const diff = startTime - current;
+    const startDate = new Date(startTime);
+    const isToday = startDate.toDateString() === now.toDateString();
+    const isSoon = diff > 0 && diff <= 3 * 60 * 60 * 1000;
+    const isActive = current >= startTime && (Number.isNaN(end) || current <= end);
+
+    if (isActive) {
+      const elapsed = current - startTime;
+      if (elapsed <= 30 * 60 * 1000) {
+        return {
+          label: '입장 진행중',
+          rank: 0,
+          section: '오늘 예정',
+          actionable: true,
+          ticketCount,
+          usedCount,
+          startTime,
+          startSummary,
+          buttonLabel: '입장 처리',
+          buttonDanger: false,
+        };
+      }
+      if (elapsed <= 90 * 60 * 1000) {
+        return {
+          label: '입장 마감',
+          rank: 0,
+          section: '오늘 예정',
+          actionable: true,
+          ticketCount,
+          usedCount,
+          startTime,
+          startSummary,
+          buttonLabel: '입장 처리',
+          buttonDanger: false,
+        };
+      }
+      return {
+        label: '공연 중',
+        rank: 0,
+        section: '오늘 예정',
+        actionable: true,
+        ticketCount,
+        usedCount,
+        startTime,
+        startSummary,
+        buttonLabel: '입장 처리',
+        buttonDanger: false,
+      };
+    }
+
+    if (isSoon || isToday) {
+      return {
+        label: '체크인 예정',
+        rank: 1,
+        section: '오늘 예정',
+        actionable: false,
+        ticketCount,
+        usedCount,
+        startTime,
+        startSummary,
+        buttonLabel: '체크인 불가',
+        buttonDanger: true,
+      };
+    }
+
+    return {
+      label: '체크인 예정',
+      rank: 2,
+      section: '이후 일정',
+      actionable: false,
+      ticketCount,
+      usedCount,
+      startTime,
+      startSummary,
+      buttonLabel: '체크인 불가',
+      buttonDanger: true,
+    };
+  }
+
+  return {
+    label: '체크인 예정',
+    rank: 2,
+    section: '이후 일정',
+    actionable: false,
+    ticketCount,
+    usedCount,
+    startTime,
+    startSummary,
+    buttonLabel: '체크인 불가',
+    buttonDanger: true,
+  };
 }
 
 export default function CheckInHomePage({ navigation }: any) {
+  const scrollRef = useRef<ScrollView | null>(null);
   const [items, setItems] = useState<CheckInEvent[]>([]);
   const [recentCheckIns, setRecentCheckIns] = useState<RecentCheckInItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [activeSection, setActiveSection] = useState<CheckInState['section'] | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -131,8 +248,6 @@ export default function CheckInHomePage({ navigation }: any) {
 
   const groupedEvents = useMemo(() => {
     const groups: Record<CheckInState['section'], CheckInEvent[]> = {
-      '입장 진행중': [],
-      '곧 시작': [],
       '오늘 예정': [],
       '이후 일정': [],
       '종료된 이벤트': [],
@@ -146,7 +261,33 @@ export default function CheckInHomePage({ navigation }: any) {
     return groups;
   }, [sortedEvents]);
 
-  const sections: Array<CheckInState['section']> = ['입장 진행중', '곧 시작', '오늘 예정', '이후 일정', '종료된 이벤트'];
+  const sectionSummaries = useMemo(() => {
+    const sections: Array<CheckInState['section']> = ['오늘 예정', '이후 일정', '종료된 이벤트'];
+
+    return sections.map((section) => {
+      const events = groupedEvents[section];
+      const summary = events.reduce(
+        (acc, item) => {
+          const meta = checkInStatus(item);
+          acc.used += meta.usedCount;
+          acc.total += meta.ticketCount;
+          acc.actionable += meta.actionable ? 1 : 0;
+          acc.ticketMissing += meta.ticketCount === 0 ? 1 : 0;
+          return acc;
+        },
+        { used: 0, total: 0, actionable: 0, ticketMissing: 0 },
+      );
+
+      return { section, events, summary };
+    });
+  }, [groupedEvents]);
+
+  const openSection = (section: CheckInState['section']) => {
+    setActiveSection(section);
+    scrollRef.current?.scrollTo({ y: 0, animated: true });
+  };
+
+  const activeEvents = activeSection ? groupedEvents[activeSection] : [];
 
   if (loading) {
     return (
@@ -159,65 +300,70 @@ export default function CheckInHomePage({ navigation }: any) {
 
   return (
     <ScrollView
+      ref={scrollRef}
       style={styles.container}
       contentContainerStyle={styles.content}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} />}
     >
       <Text style={styles.eyebrow}>Check-in Operations</Text>
       <Text style={styles.title}>체크인</Text>
-      <Text style={styles.subtitle}>입장 처리가 필요한 이벤트를 빠르게 확인하고 체크인을 진행합니다.</Text>
+      <Text style={styles.subtitle}>체크인 운영 현황을 한눈에 확인하고 바로 처리합니다.</Text>
 
-      <View style={styles.card}>
-        <View style={styles.sectionHead}>
-          <Text style={styles.cardTitle}>체크인 운영 이벤트</Text>
-          <Text style={styles.sectionHint}>{sortedEvents.length}건</Text>
-        </View>
-        {sortedEvents.length === 0 ? (
-          <Text style={styles.emptyText}>체크인할 이벤트가 없습니다.</Text>
-        ) : (
-          sections.map((section) => {
-            const events = groupedEvents[section];
-            if (events.length === 0) return null;
-
-            return (
-              <View key={section} style={styles.sectionBlock}>
-                <View style={styles.sectionHead}>
-                  <Text style={styles.sectionTitle}>{section}</Text>
-                  <Text style={styles.sectionHint}>{events.length}건</Text>
-                </View>
-                {events.map((item) => {
-                  const status = checkInStatus(item);
-                  const startTime = getNextRoundTime(item.event);
-                  const used = item.tickets.filter((ticket) => ticket.status === 'USED').length;
-                  const totalTickets = item.event.totalTicketCount && item.event.totalTicketCount > 0 ? item.event.totalTicketCount : item.tickets.length;
-                  return (
-                    <View key={item.event.id} style={styles.eventCard}>
-                      <View style={styles.cardHeader}>
-                        <Text style={styles.eventTitle}>{eventTitle(item.event)}</Text>
-                        <Text style={styles.badge}>{status.label}</Text>
-                      </View>
-                      <Text style={styles.eventMeta}>{formatStartSummary(startTime)}</Text>
-                      <Text style={styles.eventMeta}>체크인 {used} / {totalTickets}</Text>
-                      <View style={styles.eventActions}>
-                        <TouchableOpacity
-                          style={[styles.primaryActionButton, !status.actionable && styles.disabledButton]}
-                          disabled={!status.actionable}
-                          onPress={() => navigation.navigate('CheckInManage', { eventId: item.event.id })}
-                        >
-                          <Text style={styles.primaryActionText}>입장 처리</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity style={styles.secondaryActionButton} onPress={() => navigation.navigate('CheckInStatus', { eventId: item.event.id })}>
-                          <Text style={styles.secondaryActionText}>체크인 현황</Text>
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-                  );
-                })}
-              </View>
-            );
-          })
-        )}
+      <View style={styles.dashboardGrid}>
+        {sectionSummaries.map(({ section, events, summary }) => (
+          <View key={section} style={styles.dashboardCard}>
+            <View style={styles.sectionHead}>
+              <Text style={styles.sectionTitle}>{section}</Text>
+              <Text style={styles.sectionHint}>{events.length}건</Text>
+            </View>
+            <Text style={styles.summaryText}>체크인 {summary.used} / {summary.total}</Text>
+            <Text style={styles.summaryMeta}>운영 가능 {summary.actionable}건 · 티켓 미발행 {summary.ticketMissing}건</Text>
+            <TouchableOpacity style={styles.overviewButton} onPress={() => openSection(section)}>
+              <Text style={styles.overviewButtonText}>전체 보기</Text>
+            </TouchableOpacity>
+          </View>
+        ))}
       </View>
+
+      {activeSection ? (
+        <View style={styles.card}>
+          <View style={styles.sectionHead}>
+            <Text style={styles.cardTitle}>{activeSection}</Text>
+            <TouchableOpacity onPress={() => setActiveSection(null)}>
+              <Text style={styles.linkText}>대시보드로</Text>
+            </TouchableOpacity>
+          </View>
+          {activeEvents.length === 0 ? (
+            <Text style={styles.emptyText}>조건에 맞는 이벤트가 없습니다.</Text>
+          ) : (
+            activeEvents.map((item) => {
+              const status = checkInStatus(item);
+              return (
+                <View key={item.event.id} style={styles.eventCard}>
+                  <View style={styles.cardHeader}>
+                    <Text style={styles.eventTitle}>{eventTitle(item.event)}</Text>
+                    <Text style={styles.badge}>{status.label}</Text>
+                  </View>
+                  <Text style={styles.eventMeta}>{status.startSummary}</Text>
+                  <Text style={styles.eventMeta}>체크인 {status.usedCount} / {status.ticketCount}</Text>
+                  <View style={styles.eventActions}>
+                    <TouchableOpacity
+                      style={[styles.primaryActionButton, status.buttonDanger && styles.dangerButton, !status.actionable && styles.disabledButton]}
+                      disabled={!status.actionable}
+                      onPress={() => navigation.navigate('CheckInManage', { eventId: item.event.id })}
+                    >
+                      <Text style={[styles.primaryActionText, status.buttonDanger && styles.dangerButtonText]}>{status.buttonLabel}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.secondaryActionButton} onPress={() => navigation.navigate('CheckInStatus', { eventId: item.event.id })}>
+                      <Text style={styles.secondaryActionText}>체크인 현황</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              );
+            })
+          )}
+        </View>
+      ) : null}
 
       <View style={styles.card}>
         <View style={styles.sectionHead}>
@@ -254,10 +400,15 @@ const styles = StyleSheet.create({
   card: { marginTop: 14, backgroundColor: '#FFFFFF', borderRadius: 14, padding: 16, borderWidth: 1, borderColor: '#E2E8F0' },
   cardTitle: { color: '#0F172A', fontSize: 17, fontWeight: '900' },
   sectionHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  sectionBlock: { marginTop: 10 },
   sectionTitle: { color: '#0F172A', fontSize: 14, fontWeight: '900' },
   sectionHint: { color: '#64748B', fontSize: 12, fontWeight: '800' },
   emptyText: { color: '#94A3B8', paddingVertical: 16, textAlign: 'center' },
+  dashboardGrid: { marginTop: 14, gap: 10 },
+  dashboardCard: { borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 12, padding: 14, backgroundColor: '#FFFFFF' },
+  summaryText: { marginTop: 10, color: '#0F172A', fontSize: 16, fontWeight: '900' },
+  summaryMeta: { marginTop: 6, color: '#64748B', fontSize: 12, lineHeight: 18 },
+  overviewButton: { marginTop: 10, borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 10, paddingVertical: 10, alignItems: 'center', backgroundColor: '#FFFFFF' },
+  overviewButtonText: { color: '#0F172A', fontWeight: '900', fontSize: 13 },
   eventCard: { marginTop: 10, borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 12, padding: 12, backgroundColor: '#FFFFFF', gap: 8 },
   checkInRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, paddingVertical: 12, borderTopWidth: 1, borderTopColor: '#F1F5F9' },
   eventInfo: { flex: 1 },
@@ -268,6 +419,8 @@ const styles = StyleSheet.create({
   badge: { overflow: 'hidden', borderRadius: 999, backgroundColor: '#E0F2FE', color: '#0369A1', paddingHorizontal: 9, paddingVertical: 5, minWidth: 74, textAlign: 'center', fontSize: 11, fontWeight: '900' },
   primaryActionButton: { borderRadius: 10, paddingVertical: 11, alignItems: 'center', backgroundColor: '#2563EB' },
   primaryActionText: { color: '#FFFFFF', fontWeight: '900', fontSize: 13 },
+  dangerButton: { backgroundColor: '#FEE2E2', borderWidth: 1, borderColor: '#FCA5A5' },
+  dangerButtonText: { color: '#B91C1C' },
   secondaryActionButton: { borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 10, paddingVertical: 9, alignItems: 'center', backgroundColor: '#FFFFFF' },
   secondaryActionText: { color: '#0F172A', fontWeight: '900', fontSize: 12 },
   disabledButton: { opacity: 0.55 },
