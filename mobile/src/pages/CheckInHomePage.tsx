@@ -163,7 +163,6 @@ export default function CheckInHomePage({ navigation }: any) {
   const [items, setItems] = useState<CheckInEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [activeSection, setActiveSection] = useState<CheckInSection | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -227,11 +226,8 @@ export default function CheckInHomePage({ navigation }: any) {
     });
   }, [groupedEvents]);
 
-  const activeEvents = activeSection ? groupedEvents[activeSection] : ([] as CheckInEvent[]);
-
   const openSection = (section: CheckInSection) => {
-    setActiveSection(section);
-    scrollRef.current?.scrollTo({ y: 0, animated: true });
+    navigation.navigate('CheckInEventList', { section });
   };
 
   const renderEventCard = (item: CheckInEvent) => {
@@ -311,21 +307,6 @@ export default function CheckInHomePage({ navigation }: any) {
         ))}
       </View>
 
-      {activeSection ? (
-        <View style={styles.card}>
-          <View style={styles.sectionHead}>
-            <Text style={styles.cardTitle}>{activeSection}</Text>
-            <TouchableOpacity onPress={() => setActiveSection(null)}>
-              <Text style={styles.linkText}>대시보드로</Text>
-            </TouchableOpacity>
-          </View>
-          {activeEvents.length === 0 ? (
-            <Text style={styles.emptyText}>조건에 맞는 이벤트가 없습니다.</Text>
-          ) : (
-            activeEvents.map((item) => renderEventCard(item))
-          )}
-        </View>
-      ) : null}
     </ScrollView>
   );
 }
@@ -339,27 +320,27 @@ const styles = StyleSheet.create({
   title: { marginTop: 4, fontSize: 28, fontWeight: '900', color: '#0F172A' },
   subtitle: { marginTop: 8, color: '#64748B', fontSize: 14, lineHeight: 21 },
   dashboardGrid: { marginTop: 14, gap: 10 },
-  dashboardCard: { borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 12, padding: 14, backgroundColor: '#FFFFFF' },
-  card: { marginTop: 14, backgroundColor: '#FFFFFF', borderRadius: 14, padding: 16, borderWidth: 1, borderColor: '#E2E8F0' },
+  dashboardCard: { borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 8, padding: 16, backgroundColor: '#FFFFFF' },
+  card: { marginTop: 14, backgroundColor: '#FFFFFF', borderRadius: 8, padding: 16, borderWidth: 1, borderColor: '#E2E8F0' },
   cardTitle: { color: '#0F172A', fontSize: 17, fontWeight: '900' },
   sectionHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   sectionTitle: { color: '#0F172A', fontSize: 14, fontWeight: '900' },
   sectionHint: { color: '#64748B', fontSize: 12, fontWeight: '800' },
   summaryMeta: { marginTop: 6, color: '#64748B', fontSize: 12, lineHeight: 18 },
   previewList: { marginTop: 10, gap: 8 },
-  eventCard: { borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 12, padding: 12, backgroundColor: '#FFFFFF', gap: 8 },
+  eventCard: { borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 8, padding: 16, backgroundColor: '#FFFFFF', gap: 8 },
   cardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
   eventTitle: { color: '#0F172A', fontWeight: '900', fontSize: 14, flex: 1 },
   eventMeta: { marginTop: 4, color: '#64748B', fontSize: 12 },
   eventActions: { marginTop: 4, gap: 8 },
   badge: { overflow: 'hidden', borderRadius: 999, backgroundColor: '#E0F2FE', color: '#0369A1', paddingHorizontal: 9, paddingVertical: 5, minWidth: 74, textAlign: 'center', fontSize: 11, fontWeight: '900' },
-  primaryActionButton: { borderRadius: 10, paddingVertical: 11, alignItems: 'center', backgroundColor: '#2563EB' },
+  primaryActionButton: { borderRadius: 8, paddingVertical: 13, alignItems: 'center', backgroundColor: '#2563EB' },
   primaryActionText: { color: '#FFFFFF', fontWeight: '900', fontSize: 13 },
   dangerButton: { backgroundColor: '#FEE2E2', borderWidth: 1, borderColor: '#FCA5A5' },
   dangerButtonText: { color: '#B91C1C' },
-  secondaryActionButton: { borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 10, paddingVertical: 9, alignItems: 'center', backgroundColor: '#FFFFFF' },
+  secondaryActionButton: { borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 8, paddingVertical: 13, alignItems: 'center', backgroundColor: '#FFFFFF' },
   secondaryActionText: { color: '#0F172A', fontWeight: '900', fontSize: 12 },
-  overviewButton: { marginTop: 10, borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 10, paddingVertical: 10, alignItems: 'center', backgroundColor: '#FFFFFF' },
+  overviewButton: { marginTop: 10, borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 8, paddingVertical: 12, alignItems: 'center', backgroundColor: '#FFFFFF' },
   overviewButtonText: { color: '#0F172A', fontWeight: '900', fontSize: 13 },
   emptyText: { color: '#94A3B8', paddingVertical: 12, textAlign: 'center' },
   disabledButton: { opacity: 0.55 },
