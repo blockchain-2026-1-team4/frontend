@@ -406,6 +406,14 @@ export default function TicketIssuePage({ navigation, route }: any) {
     setFeedback({ type: 'success', message: `${sectionNameOf(policy)} 정책을 수정할 수 있도록 펼쳤습니다.` });
   };
 
+  const openSavedPolicyActions = (policy: SectionPolicy) => {
+    Alert.alert(`${sectionNameOf(policy)} 좌석 정책`, '작업을 선택해주세요.', [
+      { text: '수정', onPress: () => editSavedPolicy(policy) },
+      { text: '삭제', style: 'destructive', onPress: () => removeSavedPolicy(policy.id) },
+      { text: '취소', style: 'cancel' },
+    ]);
+  };
+
   const sectionToPayload = (policy: SectionPolicy, round: EventRound, roundIndex: number): IssueSectionPayload => {
     const rawSection = sectionNameOf(policy);
     return {
@@ -467,8 +475,13 @@ export default function TicketIssuePage({ navigation, route }: any) {
   };
 
   const savedPolicyTitle = (policy: SectionPolicy) => `${sectionNameOf(policy)} · ${policy.quantity}장 · ${policy.priceEth} ETH`;
-  const savedPolicySaleSummary = (policy: SectionPolicy) => `판매 ${formatDateDot(policy.saleStartDate)} ${policy.saleStartTime} ~ ${formatDateDot(policy.saleEndDate)} ${policy.saleEndTime}`;
+  const savedPolicySaleSummary = (policy: SectionPolicy) => policy.saleStartDate === policy.saleEndDate
+    ? `판매 ${formatDateShort(policy.saleStartDate)} ${policy.saleStartTime} ~ ${policy.saleEndTime}`
+    : `판매 ${formatDateShort(policy.saleStartDate)} ${policy.saleStartTime} ~ ${formatDateShort(policy.saleEndDate)} ${policy.saleEndTime}`;
   const savedPolicyResaleSummary = (policy: SectionPolicy) => policy.resaleEnabled ? `리셀 허용 · 최대 ${resaleRateOf(policy)}%` : '리셀 불가';
+  const saleDeadlineGuide = policyMode === 'global'
+    ? `판매 종료 기준: 가장 빠른 회차 ${rounds.length ? roundLabel(rounds[0], 0) : '-'} 시작 전`
+    : `판매 종료 기준: ${activeRound ? roundLabel(activeRound, activeRoundIndex) : '-'} 시작 전`;
 
   const pageTitle = flowPage === 1
     ? '적용 방식 선택'
@@ -602,34 +615,37 @@ export default function TicketIssuePage({ navigation, route }: any) {
               />
 
               {currentSections.length > 0 ? (
-                <View style={styles.savedPolicyList}>
-                  {currentSections.map((policy) => (
-                    <View key={policy.id} style={styles.savedPolicyCard}>
-                      <TouchableOpacity style={styles.savedPolicyHeader} onPress={() => toggleSavedPolicy(policy.id)}>
-                        <View style={styles.savedPolicyHeaderTop}>
-                          <Text style={styles.savedBadge}>✓ 저장됨</Text>
-                          <Text style={styles.savedPolicyArrow}>{policy.expanded ? '▼' : '▶'}</Text>
-                        </View>
-                        <Text style={styles.savedPolicyText}>{savedPolicyTitle(policy)}</Text>
-                        <Text style={styles.savedPolicyMeta}>{savedPolicySaleSummary(policy)}</Text>
-                        <Text style={styles.savedPolicyMeta}>{savedPolicyResaleSummary(policy)}</Text>
-                      </TouchableOpacity>
-                      {policy.expanded ? (
-                        <View style={styles.savedPolicyDetail}>
-                          <Text style={styles.previewText}>발행 예정 {previewRange(policy, activeRoundIndex)}</Text>
-                          <TouchableOpacity style={styles.editButton} onPress={() => editSavedPolicy(policy)}>
-                            <Text style={styles.editButtonText}>수정</Text>
-                          </TouchableOpacity>
-                          <TouchableOpacity style={styles.removeButton} onPress={() => removeSavedPolicy(policy.id)}>
-                            <Text style={styles.removeButtonText}>삭제</Text>
+                <View style={styles.savedPolicySection}>
+                  <Text style={styles.sectionTitle}>저장된 좌석 정책</Text>
+                  <View style={styles.savedPolicyList}>
+                    {currentSections.map((policy) => (
+                      <View key={policy.id} style={styles.savedPolicyCard}>
+                        <View style={styles.savedPolicyHeader}>
+                          <View style={styles.savedPolicyHeaderTop}>
+                            <Text style={styles.savedPolicyArrow}>{policy.expanded ? '▼' : '▶'}</Text>
+                            <TouchableOpacity style={styles.kebabButton} onPress={() => openSavedPolicyActions(policy)}>
+                              <Text style={styles.kebabText}>⋮</Text>
+                            </TouchableOpacity>
+                          </View>
+                          <TouchableOpacity onPress={() => toggleSavedPolicy(policy.id)}>
+                            <Text style={styles.savedPolicyText}>{savedPolicyTitle(policy)}</Text>
+                            <Text style={styles.savedPolicyMeta}>{savedPolicySaleSummary(policy)}</Text>
+                            <Text style={styles.savedPolicyMeta}>{savedPolicyResaleSummary(policy)}</Text>
                           </TouchableOpacity>
                         </View>
-                      ) : null}
-                    </View>
-                  ))}
+                        {policy.expanded ? (
+                          <View style={styles.savedPolicyDetail}>
+                            <Text style={styles.previewLabel}>발행 예정</Text>
+                            <Text style={styles.previewTextStrong}>{previewRange(policy, activeRoundIndex)}</Text>
+                          </View>
+                        ) : null}
+                      </View>
+                    ))}
+                  </View>
                 </View>
               ) : null}
 
+              <Text style={[styles.sectionTitle, currentSections.length > 0 && styles.newPolicyTitle]}>새 좌석 정책 추가</Text>
               <View style={styles.builderBox}>
                 <View style={styles.stepCard}>
                 <Text style={styles.builderTitle}>STEP 1 · 좌석 구역 선택</Text>
@@ -663,7 +679,7 @@ export default function TicketIssuePage({ navigation, route }: any) {
                   <View style={[styles.stepCard, styles.activeStepCard]}>
                     <Text style={styles.builderTitle}>STEP 2 · {sectionNameOf(currentDraft)} 좌석 발행 수량 설정</Text>
                     <View style={styles.unitInputWrap}>
-                      <TextInput style={styles.unitInput} value={currentDraft.quantity} onChangeText={(value) => updateDraft({ quantity: value })} keyboardType="number-pad" inputMode="numeric" placeholder="10" />
+                      <TextInput style={styles.unitInput} value={currentDraft.quantity} onChangeText={(value) => updateDraft({ quantity: value })} keyboardType="number-pad" inputMode="numeric" placeholder="예: 10" />
                       <Text style={styles.unitText}>장</Text>
                     </View>
                     <View style={styles.issuePreviewBox}>
@@ -676,9 +692,10 @@ export default function TicketIssuePage({ navigation, route }: any) {
                 {canRevealPrice ? (
                   <View style={[styles.stepCard, styles.formStepCard]}>
                     <Text style={styles.builderTitle}>STEP 3 · 가격 및 판매 기간 설정</Text>
+                    <Text style={styles.deadlineGuide}>{saleDeadlineGuide}</Text>
                     <Text style={styles.label}>가격</Text>
                     <View style={styles.unitInputWrap}>
-                      <TextInput style={styles.unitInput} value={currentDraft.priceEth} onChangeText={(value) => updateDraft({ priceEth: value })} keyboardType="decimal-pad" inputMode="decimal" placeholder="0.2" />
+                      <TextInput style={styles.unitInput} value={currentDraft.priceEth} onChangeText={(value) => updateDraft({ priceEth: value })} keyboardType="decimal-pad" inputMode="decimal" placeholder="예: 0.2" />
                       <Text style={styles.unitText}>ETH</Text>
                     </View>
                     <View style={styles.dateTimeGrid}>
@@ -1061,12 +1078,17 @@ const styles = StyleSheet.create({
   disabledRoundChip: { opacity: 0.45 },
   roundChipText: { color: '#334155', fontWeight: '900', fontSize: 13 },
   roundChipTextActive: { color: '#2563EB' },
-  savedPolicyList: { gap: 8, marginBottom: 12 },
+  sectionTitle: { color: '#0F172A', fontSize: 15, fontWeight: '900', marginBottom: 10 },
+  savedPolicySection: { marginBottom: 18, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: '#E2E8F0' },
+  newPolicyTitle: { marginTop: 2 },
+  savedPolicyList: { gap: 8 },
   savedPolicyCard: { borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 8, backgroundColor: '#FFFFFF' },
   savedPolicyHeader: { padding: 12 },
   savedPolicyHeaderTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 },
   savedBadge: { color: '#2563EB', fontSize: 12, fontWeight: '900' },
   savedPolicyArrow: { color: '#64748B', fontSize: 12, fontWeight: '900' },
+  kebabButton: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F8FAFC' },
+  kebabText: { color: '#334155', fontSize: 20, fontWeight: '900', lineHeight: 22 },
   savedPolicyText: { color: '#0F172A', fontSize: 13, fontWeight: '900', lineHeight: 19 },
   savedPolicyMeta: { marginTop: 3, color: '#475569', fontSize: 12, fontWeight: '800', lineHeight: 17 },
   savedPolicyDetail: { borderTopWidth: 1, borderTopColor: '#F1F5F9', padding: 12 },
@@ -1076,6 +1098,7 @@ const styles = StyleSheet.create({
   activeStepCard: { borderWidth: 2, borderColor: '#93C5FD', backgroundColor: '#F8FBFF' },
   formStepCard: { borderColor: '#BFDBFE', backgroundColor: '#F8FBFF' },
   stepBox: { marginTop: 14, borderTopWidth: 1, borderTopColor: '#DBEAFE', paddingTop: 14 },
+  deadlineGuide: { marginTop: 8, color: '#2563EB', fontSize: 12, fontWeight: '900', lineHeight: 17 },
   chipGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 },
   choiceChip: { borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: '#FFFFFF' },
   activeChip: { borderColor: '#2563EB', backgroundColor: '#EFF6FF' },
