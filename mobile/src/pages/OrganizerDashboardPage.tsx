@@ -13,40 +13,11 @@ import {
 } from 'react-native';
 import { accountStatusMessage, errorMessage } from '../lib/account';
 import { backendApi } from '../lib/backend';
-import { formatEventCategory, formatNextRoundLabel, getEventDisplayStatus, getNextRoundTime, operationSortRank } from '../lib/ticketDisplay';
+import { getNextRoundTime } from '../lib/ticketDisplay';
 import type { EventSummary, OrganizerApplication, UserProfile } from '../types/api';
 
 function eventTitle(event: EventSummary) {
   return event.name || event.title || '제목 없는 이벤트';
-}
-
-function eventStart(event: EventSummary) {
-  return event.eventStartAt || event.startsAt || event.eventAt || event.eventDateTime || '';
-}
-
-function eventEnd(event: EventSummary) {
-  return event.eventEndAt || event.endsAt || event.eventAt || event.eventDateTime || '';
-}
-
-function isCurrentOperationEvent(event: EventSummary) {
-  if (String(event.status ?? '').toUpperCase() === 'CANCELLED') return false;
-  const endTime = new Date(eventEnd(event)).getTime();
-  return Number.isNaN(endTime) || endTime >= Date.now();
-}
-
-function categoryLabel(category?: string) {
-  const label = formatEventCategory(category);
-  return label === '페스티벌' ? '기타' : label;
-}
-
-function sortEventsForOperation(events: EventSummary[]) {
-  return [...events].sort((a, b) => {
-    const rankDiff = operationSortRank(a) - operationSortRank(b);
-    if (rankDiff !== 0) return rankDiff;
-    const aTime = getNextRoundTime(a);
-    const bTime = getNextRoundTime(b);
-    return (Number.isNaN(aTime) ? Number.MAX_SAFE_INTEGER : aTime) - (Number.isNaN(bTime) ? Number.MAX_SAFE_INTEGER : bTime);
-  });
 }
 
 const APPLICATION_LABEL: Record<string, string> = {
@@ -59,6 +30,13 @@ function applicationTime(application: OrganizerApplication) {
   const value = String(application.updatedAt || application.createdAt || '');
   const time = new Date(value).getTime();
   return Number.isNaN(time) ? 0 : time;
+}
+
+function isToday(value?: string | null) {
+  if (!value) return false;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return false;
+  return date.toDateString() === new Date().toDateString();
 }
 
 export default function OrganizerDashboardPage({ navigation }: any) {
@@ -78,11 +56,15 @@ export default function OrganizerDashboardPage({ navigation }: any) {
   const latestApplication = applications[0];
   const latestStatus = latestApplication?.status ?? null;
   const canApply = !latestApplication || latestStatus === 'REJECTED';
-  const activeEvents = events.filter((event) => event.status === 'PUBLISHED').length;
+  const totalEvents = events.length;
+  const publishedEvents = events.filter((event) => event.status === 'PUBLISHED').length;
+  const todayScheduledEvents = events.filter((event) => {
+    const status = String(event.status ?? '').toUpperCase();
+    if (status === 'CANCELLED') return false;
+    const nextRoundTime = getNextRoundTime(event);
+    return !Number.isNaN(nextRoundTime) && isToday(new Date(nextRoundTime).toISOString());
+  }).length;
   const [ticketMetrics, setTicketMetrics] = useState({
-    sellingTickets: 0,
-    soldTickets: 0,
-    listedTickets: 0,
     checkedInTickets: 0,
   });
 
@@ -96,24 +78,22 @@ export default function OrganizerDashboardPage({ navigation }: any) {
       setApplications([...(myApplications ?? [])].sort((a, b) => applicationTime(b) - applicationTime(a)));
 
       if (me.roles?.includes('ORGANIZER') || me.roles?.includes('ADMIN')) {
-        const eventPage = await backendApi.getMyEvents({ page: 0, size: 5 });
-        const myEvents = sortEventsForOperation((eventPage.items ?? []).filter(isCurrentOperationEvent));
+        const eventPage = await backendApi.getMyEvents({ page: 0, size: 100 });
+        const myEvents = eventPage.items ?? [];
         setEvents(myEvents);
 
         const ticketLists = await Promise.all(
           myEvents.map((event) => backendApi.getEventTickets(event.id).catch(() => [])),
         );
         const allTickets = ticketLists.flat();
+        const todayCheckedInTickets = allTickets.filter((ticket) => ticket.status === 'USED' && isToday(ticket.usedAt || ticket.updatedAt || ticket.createdAt)).length;
 
         setTicketMetrics({
-          sellingTickets: allTickets.filter((ticket) => ticket.status === 'AVAILABLE').length,
-          soldTickets: allTickets.filter((ticket) => ticket.status === 'SOLD' || ticket.status === 'USED').length,
-          listedTickets: allTickets.filter((ticket) => ticket.status === 'LISTED').length,
-          checkedInTickets: allTickets.filter((ticket) => ticket.status === 'USED').length,
+          checkedInTickets: todayCheckedInTickets,
         });
       } else {
         setEvents([]);
-        setTicketMetrics({ sellingTickets: 0, soldTickets: 0, listedTickets: 0, checkedInTickets: 0 });
+        setTicketMetrics({ checkedInTickets: 0 });
       }
     } catch (error: any) {
       Alert.alert('주최자 정보 로드 실패', errorMessage(error, '로그인이 필요합니다.'));
@@ -247,14 +227,12 @@ export default function OrganizerDashboardPage({ navigation }: any) {
       ) : (
         <>
           <View style={styles.metricGrid}>
-            <Metric label="총 이벤트" value={events.length} />
-            <Metric label="운영 이벤트" value={activeEvents} />
-            <Metric label="판매 중 티켓" value={ticketMetrics.sellingTickets} />
+            <Metric label="전체 이벤트" value={totalEvents} />
+            <Metric label="게시중 이벤트" value={publishedEvents} />
           </View>
           <View style={[styles.metricGrid, { marginTop: 8 }]}> 
-            <Metric label="판매 완료 티켓" value={ticketMetrics.soldTickets} />
-            <Metric label="리셀 중 티켓" value={ticketMetrics.listedTickets} />
-            <Metric label="체크인 완료 티켓" value={ticketMetrics.checkedInTickets} />
+            <Metric label="오늘 예정 이벤트" value={todayScheduledEvents} />
+            <Metric label="오늘 체크인" value={ticketMetrics.checkedInTickets} />
           </View>
 
           <View style={styles.actions}>
@@ -266,27 +244,6 @@ export default function OrganizerDashboardPage({ navigation }: any) {
             </TouchableOpacity>
           </View>
 
-          <View style={styles.card}>
-            <View style={styles.sectionHead}>
-              <Text style={styles.cardTitle}>현재 운영 이벤트</Text>
-            </View>
-
-            {events.length === 0 ? (
-              <Text style={styles.emptyText}>아직 등록한 이벤트가 없습니다.</Text>
-            ) : (
-              events.map((event) => (
-                <TouchableOpacity key={event.id} style={styles.eventRow} activeOpacity={0.85} onPress={() => navigation.navigate('OrganizerEventDetail', { eventId: event.id })}>
-                  <View style={styles.eventInfo}>
-                    <Text style={styles.eventCategory}>{categoryLabel(event.category)}</Text>
-                    <Text style={styles.eventTitle}>{eventTitle(event)}</Text>
-                    <Text style={styles.eventMeta}>장소 {event.venue || '-'}</Text>
-                    <Text style={styles.eventMeta}>{formatNextRoundLabel(event)}</Text>
-                  </View>
-                  <Text style={styles.badge}>{getEventDisplayStatus(event).label}</Text>
-                </TouchableOpacity>
-              ))
-            )}
-          </View>
         </>
       )}
     </ScrollView>
@@ -333,14 +290,5 @@ const styles = StyleSheet.create({
   metricCard: { flex: 1, backgroundColor: '#FFFFFF', borderRadius: 16, padding: 13, borderWidth: 1, borderColor: '#E2E8F0' },
   metricLabel: { color: '#64748B', fontSize: 12, fontWeight: '800' },
   metricValue: { marginTop: 8, color: '#0F172A', fontSize: 24, fontWeight: '900' },
-  actions: { marginTop: 4 },
-  sectionHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
-  linkText: { color: '#2563EB', fontWeight: '800' },
-  emptyText: { color: '#94A3B8', paddingVertical: 18, textAlign: 'center' },
-  eventRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 12, borderTopWidth: 1, borderTopColor: '#F1F5F9' },
-  eventInfo: { flex: 1, paddingRight: 10 },
-  eventCategory: { color: '#2563EB', fontSize: 11, fontWeight: '900', marginBottom: 4 },
-  eventTitle: { color: '#0F172A', fontSize: 15, fontWeight: '900' },
-  eventMeta: { marginTop: 4, color: '#64748B', fontSize: 12 },
-  badge: { overflow: 'hidden', borderRadius: 999, backgroundColor: '#E0F2FE', color: '#0369A1', paddingHorizontal: 9, paddingVertical: 5, minWidth: 62, textAlign: 'center', fontSize: 11, fontWeight: '900' },
+  actions: { marginTop: 16 },
 });
