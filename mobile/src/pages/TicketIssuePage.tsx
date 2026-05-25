@@ -223,6 +223,7 @@ export default function TicketIssuePage({ navigation, route }: any) {
   const [loadError, setLoadError] = useState('');
   const [lastIssuedSummary, setLastIssuedSummary] = useState('');
   const [ticketConfigConfirmed, setTicketConfigConfirmed] = useState(false);
+  const [issueCompleted, setIssueCompleted] = useState(false);
   const [issueSeatModalVisible, setIssueSeatModalVisible] = useState(false);
   const [actionPolicy, setActionPolicy] = useState<SectionPolicy | null>(null);
 
@@ -347,6 +348,7 @@ export default function TicketIssuePage({ navigation, route }: any) {
 
   const updateDraft = (patch: Partial<SectionPolicy>) => {
     setTicketConfigConfirmed(false);
+    setIssueCompleted(false);
     setDrafts((current) => ({
       ...current,
       [draftKey]: { ...currentDraft, ...patch },
@@ -354,10 +356,24 @@ export default function TicketIssuePage({ navigation, route }: any) {
   };
 
   const updateRoundPolicy = (key: string, patch: Partial<RoundPolicy>) => {
+    setTicketConfigConfirmed(false);
+    setIssueCompleted(false);
     setRoundPolicies((current) => ({
       ...current,
       [key]: { ...current[key], ...patch },
     }));
+  };
+
+  const selectPolicyMode = (mode: PolicyMode) => {
+    setPolicyMode(mode);
+    setTicketConfigConfirmed(false);
+    setIssueCompleted(false);
+  };
+
+  const updateGlobalTotalTicketCount = (value: string) => {
+    setGlobalTotalTicketCount(value);
+    setTicketConfigConfirmed(false);
+    setIssueCompleted(false);
   };
 
   const validateCapacityPage = () => {
@@ -440,11 +456,13 @@ export default function TicketIssuePage({ navigation, route }: any) {
       return next;
     });
     setTicketConfigConfirmed(false);
+    setIssueCompleted(false);
     setFeedback({ type: 'success', message: `${sectionNameOf(saved)} 정책을 저장했습니다.` });
   };
 
   const removeSavedPolicy = (sectionId: string) => {
     setTicketConfigConfirmed(false);
+    setIssueCompleted(false);
     if (policyMode === 'global') {
       setGlobalSections((current) => current.filter((section) => section.id !== sectionId));
       return;
@@ -465,6 +483,7 @@ export default function TicketIssuePage({ navigation, route }: any) {
     }));
     removeSavedPolicy(policy.id);
     setTicketConfigConfirmed(false);
+    setIssueCompleted(false);
     setFeedback({ type: 'success', message: `${sectionNameOf(policy)} 정책을 수정할 수 있도록 펼쳤습니다.` });
   };
 
@@ -539,8 +558,8 @@ export default function TicketIssuePage({ navigation, route }: any) {
       const summary = issued.slice(0, 3).map((ticket) => ticket.seatInfo).join(', ');
       setLastIssuedSummary(summary ? `${summary}${issued.length > 3 ? ` 외 ${issued.length - 3}장` : ''}` : `${issued.length}장`);
       setFeedback({ type: 'success', message: `티켓 ${issued.length}장을 발행했습니다.` });
-      setTicketConfigConfirmed(false);
-      await load();
+      setTicketConfigConfirmed(true);
+      setIssueCompleted(true);
     } catch (error: any) {
       showError(errorMessage(error, '티켓을 발행하지 못했습니다.'));
     } finally {
@@ -595,6 +614,16 @@ export default function TicketIssuePage({ navigation, route }: any) {
       return sections.map((section) => previewRange(section, index, sections));
     });
   })();
+  const finalRoundSummaries = rounds.map((round, index) => {
+    const key = roundKey(round, index);
+    const sections = policyMode === 'global' ? globalSections : roundPolicies[key]?.sections || [];
+    const total = policyMode === 'global' ? Number(globalTotalTicketCount || 0) : Number(roundPolicies[key]?.totalTicketCount || 0);
+    const alreadyIssued = issuedCountForRound(round, index);
+    const issueCount = sections.reduce((sum, section) => sum + Number(section.quantity || 0), 0);
+    const remaining = total - alreadyIssued - issueCount;
+    const summary = sections.map((section) => `${sectionNameOf(section)} ${section.quantity}장`).join(' · ');
+    return { key, label: roundLabel(round, index), total, alreadyIssued, issueCount, remaining, summary };
+  });
   const currentDraftStartNumber = issuedMaxSeatNumber(currentDraft, activeRoundIndex)
     + currentSections
       .filter((section) => sectionNameOf(section) === sectionNameOf(currentDraft))
@@ -632,7 +661,14 @@ export default function TicketIssuePage({ navigation, route }: any) {
       return;
     }
     setTicketConfigConfirmed(true);
+    setIssueCompleted(false);
     setFeedback({ type: 'success', message: '티켓 설정을 완료했습니다. 최종 발행 내용을 확인해주세요.' });
+  };
+
+  const reopenTicketConfig = () => {
+    setTicketConfigConfirmed(false);
+    setIssueCompleted(false);
+    setFeedback(null);
   };
 
   const pageTitle = flowPage === 1
@@ -701,11 +737,11 @@ export default function TicketIssuePage({ navigation, route }: any) {
 
           {flowPage === 1 ? (
             <View style={styles.modeStack}>
-              <TouchableOpacity style={[styles.modeCard, policyMode === 'global' && styles.activeModeCard]} onPress={() => setPolicyMode('global')}>
+              <TouchableOpacity style={[styles.modeCard, policyMode === 'global' && styles.activeModeCard]} onPress={() => selectPolicyMode('global')}>
                 <Text style={[styles.modeTitle, policyMode === 'global' && styles.activeModeText]}>{policyMode === 'global' ? '✓ ' : ''}전체 설정 적용</Text>
                 <Text style={styles.modeHint}>모든 회차에 같은 규칙을 일괄 적용합니다.</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.modeCard, policyMode === 'round' && styles.activeModeCard]} onPress={() => setPolicyMode('round')}>
+              <TouchableOpacity style={[styles.modeCard, policyMode === 'round' && styles.activeModeCard]} onPress={() => selectPolicyMode('round')}>
                 <Text style={[styles.modeTitle, policyMode === 'round' && styles.activeModeText]}>{policyMode === 'round' ? '✓ ' : ''}회차별 설정</Text>
                 <Text style={styles.modeHint}>회차마다 다른 규칙을 적용합니다.</Text>
               </TouchableOpacity>
@@ -718,7 +754,7 @@ export default function TicketIssuePage({ navigation, route }: any) {
                 <TextInput
                   style={styles.unitInput}
                   value={globalTotalTicketCount}
-                  onChangeText={setGlobalTotalTicketCount}
+                  onChangeText={updateGlobalTotalTicketCount}
                   keyboardType="number-pad"
                   inputMode="numeric"
                   placeholder="예: 500"
@@ -801,6 +837,8 @@ export default function TicketIssuePage({ navigation, route }: any) {
                 </View>
               ) : null}
 
+              {!ticketConfigConfirmed ? (
+                <>
               <Text style={[styles.sectionTitle, currentSections.length > 0 && styles.newPolicyTitle]}>새 좌석 정책 추가</Text>
               <View style={styles.builderBox}>
                 <View style={styles.stepCard}>
@@ -920,6 +958,8 @@ export default function TicketIssuePage({ navigation, route }: any) {
                   <Text style={styles.completeConfigButtonText}>티켓 설정 완료</Text>
                 </TouchableOpacity>
               ) : null}
+                </>
+              ) : null}
             </View>
           ) : null}
         </View>
@@ -927,28 +967,49 @@ export default function TicketIssuePage({ navigation, route }: any) {
         {flowPage === 3 && ticketConfigConfirmed ? (
           <View style={styles.statusBand}>
             <Text style={styles.statusLabel}>최종 발행 확인</Text>
-            <View style={styles.finalCountList}>
-              <Text style={styles.finalCountText}>총 티켓 수: {finalTotalCount}장</Text>
-              <Text style={styles.finalCountText}>이미 발행됨: {finalIssuedCount}장</Text>
-              <Text style={styles.finalCountText}>이번에 발행됨: {finalIssueCount}장</Text>
-              <Text style={styles.finalCountText}>발행 후 남음: {Math.max(finalRemainingCount, 0)}장</Text>
-            </View>
-            <Text style={styles.previewLabel}>이번 발행 좌석</Text>
-            <Text style={styles.previewText}>{issueSeatSummary || '저장된 좌석 정책이 없습니다.'}</Text>
+            {policyMode === 'round' ? (
+              <View style={styles.finalRoundList}>
+                {finalRoundSummaries.map((summary) => (
+                  <View key={summary.key} style={styles.finalRoundCard}>
+                    <Text style={styles.finalRoundTitle}>{summary.label}</Text>
+                    <Text style={styles.finalCountText}>총 티켓 수: {summary.total}장</Text>
+                    <Text style={styles.finalCountText}>이미 발행됨: {summary.alreadyIssued}장</Text>
+                    <Text style={styles.finalCountText}>이번에 발행됨: {summary.issueCount}장</Text>
+                    <Text style={styles.finalCountText}>발행 후 남음: {Math.max(summary.remaining, 0)}장</Text>
+                    <Text style={styles.previewLabel}>이번 발행 좌석</Text>
+                    <Text style={styles.previewText}>{summary.summary || '저장된 좌석 정책이 없습니다.'}</Text>
+                  </View>
+                ))}
+              </View>
+            ) : (
+              <View style={styles.finalCountList}>
+                <Text style={styles.finalCountText}>총 티켓 수: {finalTotalCount}장</Text>
+                <Text style={styles.finalCountText}>이미 발행됨: {finalIssuedCount}장</Text>
+                <Text style={styles.finalCountText}>이번에 발행됨: {finalIssueCount}장</Text>
+                <Text style={styles.finalCountText}>발행 후 남음: {Math.max(finalRemainingCount, 0)}장</Text>
+              </View>
+            )}
+            {policyMode === 'global' ? (
+              <>
+                <Text style={styles.previewLabel}>이번 발행 좌석</Text>
+                <Text style={styles.previewText}>{issueSeatSummary || '저장된 좌석 정책이 없습니다.'}</Text>
+              </>
+            ) : null}
             {lastIssuedSummary ? (
               <>
                 <Text style={styles.previewLabel}>방금 발행됨</Text>
                 <Text style={styles.previewText}>{lastIssuedSummary}</Text>
               </>
             ) : null}
-            <TouchableOpacity style={[styles.primaryButton, styles.finalActionButton, issuing && styles.disabledButton]} disabled={issuing} onPress={issueTickets}>
-              <Text style={styles.primaryButtonText}>{issuing ? '발행 중...' : '티켓 발행'}</Text>
+            <TouchableOpacity
+              style={[styles.primaryButton, styles.finalActionButton, (issuing || issueCompleted) && styles.disabledButton]}
+              disabled={issuing || issueCompleted}
+              onPress={issueTickets}
+            >
+              <Text style={styles.primaryButtonText}>{issueCompleted ? '발행 완료' : issuing ? '발행 중...' : '티켓 발행'}</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.secondaryButton} onPress={() => navigation.navigate('TicketExplore', { eventId })}>
-              <Text style={styles.secondaryButtonText}>티켓 발행 현황 보기</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.secondaryButton} onPress={() => setIssueSeatModalVisible(true)}>
-              <Text style={styles.secondaryButtonText}>이번 발행 좌석 보기</Text>
+            <TouchableOpacity style={styles.secondaryButton} onPress={reopenTicketConfig}>
+              <Text style={styles.secondaryButtonText}>다시 티켓 설정하기</Text>
             </TouchableOpacity>
           </View>
         ) : null}
@@ -1023,8 +1084,12 @@ export default function TicketIssuePage({ navigation, route }: any) {
             <TouchableOpacity style={styles.bottomSecondaryButton} onPress={() => setFlowPage(2)}>
               <Text style={styles.bottomSecondaryText}>이전</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.bottomPrimaryButton, !ticketConfigConfirmed && styles.disabledButton]} disabled={!ticketConfigConfirmed} onPress={issueTickets}>
-              <Text style={styles.primaryButtonText}>다음: 티켓 발행하기</Text>
+            <TouchableOpacity
+              style={[styles.bottomPrimaryButton, !issueCompleted && styles.disabledButton]}
+              disabled={!issueCompleted}
+              onPress={() => navigation.navigate('TicketExplore', { eventId })}
+            >
+              <Text style={styles.primaryButtonText}>다음: 티켓 발행 현황보기</Text>
             </TouchableOpacity>
           </View>
         ) : null}
@@ -1339,6 +1404,9 @@ const styles = StyleSheet.create({
   statusLine: { marginTop: 6, color: '#0F172A', fontSize: 17, fontWeight: '900' },
   finalCountList: { marginTop: 10, gap: 7, borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 8, padding: 12, backgroundColor: '#F8FAFC' },
   finalCountText: { color: '#0F172A', fontSize: 14, fontWeight: '900' },
+  finalRoundList: { marginTop: 10, gap: 10 },
+  finalRoundCard: { borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 8, padding: 12, backgroundColor: '#F8FAFC' },
+  finalRoundTitle: { color: '#0F172A', fontSize: 14, fontWeight: '900', marginBottom: 8 },
   finalActionButton: { marginTop: 14 },
   removeButton: { marginTop: 10, alignSelf: 'flex-start', borderWidth: 1, borderColor: '#FECACA', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6, backgroundColor: '#FEF2F2' },
   removeButtonText: { color: '#B91C1C', fontSize: 12, fontWeight: '900' },
