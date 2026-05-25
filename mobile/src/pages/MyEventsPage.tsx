@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { errorMessage } from '../lib/account';
 import { backendApi } from '../lib/backend';
-import { formatEventRange, formatSalesStatus } from '../lib/ticketDisplay';
+import { formatEventRange, getEventDisplayStatus } from '../lib/ticketDisplay';
 import type { EventSummary } from '../types/api';
 
 const PAGE_SIZE = 8;
@@ -40,14 +40,6 @@ function eventStart(event: EventSummary) {
 
 function eventEnd(event: EventSummary) {
   return event.eventEndAt || event.endsAt || event.eventAt || event.eventDateTime || '';
-}
-
-function saleStart(event: EventSummary) {
-  return event.salesStartAt || event.primarySaleStart || '';
-}
-
-function saleEnd(event: EventSummary) {
-  return event.salesEndAt || event.primarySaleEnd || '';
 }
 
 function isExpired(event: EventSummary) {
@@ -112,7 +104,7 @@ export default function MyEventsPage({ navigation }: any) {
       <View style={styles.header}>
         <View style={styles.headerCopy}>
           <Text style={styles.eyebrow}>My Events</Text>
-          <Text style={styles.title}>이벤트 관리</Text>
+          <Text style={styles.title}>내 이벤트</Text>
         </View>
         <TouchableOpacity style={styles.addButton} onPress={() => navigation.navigate('EventCreate')}>
           <Text style={styles.addButtonText}>등록</Text>
@@ -149,12 +141,11 @@ export default function MyEventsPage({ navigation }: any) {
           <TouchableOpacity style={styles.card} onPress={() => navigation.navigate('OrganizerEventDetail', { eventId: item.id })}>
             <View style={styles.cardHead}>
               <Text style={styles.category}>{categoryLabel(item.category)}</Text>
-              <Text style={styles.salesBadge}>{formatSalesStatus(saleStart(item), saleEnd(item))}</Text>
+              <Text style={styles.salesBadge}>{getEventDisplayStatus(item).label}</Text>
             </View>
             <Text style={styles.eventTitle}>{eventTitle(item)}</Text>
             <Text style={styles.eventMeta}>장소 {item.venue || '-'}</Text>
             <Text style={styles.eventMeta}>이벤트 기간 {formatEventRange(eventStart(item), eventEnd(item))}</Text>
-            <Text style={styles.eventMeta}>판매 기간 {formatEventRange(saleStart(item), saleEnd(item))}</Text>
           </TouchableOpacity>
         )}
         ListEmptyComponent={(

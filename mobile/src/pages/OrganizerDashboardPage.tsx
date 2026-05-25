@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { accountStatusMessage, errorMessage } from '../lib/account';
 import { backendApi } from '../lib/backend';
-import { formatEventRange, formatSalesStatus } from '../lib/ticketDisplay';
+import { formatEventRange, getEventDisplayStatus } from '../lib/ticketDisplay';
 import type { EventSummary, OrganizerApplication, UserProfile } from '../types/api';
 
 function eventTitle(event: EventSummary) {
@@ -242,7 +242,7 @@ export default function OrganizerDashboardPage({ navigation }: any) {
         <>
           <View style={styles.metricGrid}>
             <Metric label="총 이벤트" value={events.length} />
-            <Metric label="운영중 이벤트" value={activeEvents} />
+            <Metric label="게시중 이벤트" value={activeEvents} />
             <Metric label="판매 중 티켓" value={ticketMetrics.sellingTickets} />
           </View>
           <View style={[styles.metricGrid, { marginTop: 8 }]}> 
@@ -256,7 +256,7 @@ export default function OrganizerDashboardPage({ navigation }: any) {
               <Text style={styles.primaryButtonText}>이벤트 등록</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.secondaryButton} onPress={() => navigation.navigate('MyEvents')}>
-              <Text style={styles.secondaryButtonText}>내 이벤트 관리</Text>
+              <Text style={styles.secondaryButtonText}>내 이벤트</Text>
             </TouchableOpacity>
           </View>
 
@@ -277,7 +277,7 @@ export default function OrganizerDashboardPage({ navigation }: any) {
                     <Text style={styles.eventMeta}>이벤트 기간 {formatEventRange(eventStart(event), eventEnd(event))}</Text>
                     <Text style={styles.eventMeta}>판매 기간 {formatEventRange(event.salesStartAt || event.primarySaleStart, event.salesEndAt || event.primarySaleEnd)}</Text>
                   </View>
-                  <Text style={styles.badge}>{formatSalesStatus(event.salesStartAt || event.primarySaleStart, event.salesEndAt || event.primarySaleEnd)}</Text>
+                  <Text style={styles.badge}>{getEventDisplayStatus(event).label}</Text>
                 </TouchableOpacity>
               ))
             )}

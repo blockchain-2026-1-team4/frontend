@@ -400,7 +400,7 @@ export default function EventCreatePage({ navigation }: any) {
         }
       }
 
-      Alert.alert('등록 완료', '이벤트가 등록되었습니다. 티켓 설정으로 이동합니다.');
+      Alert.alert('등록 완료', '이벤트가 등록되었습니다. 다음 단계에서 티켓을 설정합니다.');
       navigation.replace('TicketIssue', { eventId: createdEventIdParam, returnTo: 'create' });
     } catch (error: any) {
       setErrors([errorMessage(error, '이벤트를 등록하지 못했습니다.')]);
@@ -536,7 +536,7 @@ export default function EventCreatePage({ navigation }: any) {
         ) : null}
 
         <TouchableOpacity style={[styles.primaryButton, submitting && styles.disabledButton]} disabled={submitting} onPress={createEvent}>
-          <Text style={styles.primaryButtonText}>{submitting ? '등록 중...' : '티켓 설정으로 이동'}</Text>
+          <Text style={styles.primaryButtonText}>{submitting ? '등록 중...' : '다음: 티켓 설정'}</Text>
         </TouchableOpacity>
       </ScrollView>
 
