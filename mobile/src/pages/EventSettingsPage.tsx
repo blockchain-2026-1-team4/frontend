@@ -13,11 +13,6 @@ type RoundDraft = {
   eventDate: string;
   startTime: string;
   endTime: string;
-  useGlobalSalePeriod: boolean;
-  saleStartDate: string;
-  saleStartTime: string;
-  saleEndDate: string;
-  saleEndTime: string;
 };
 
 type PosterAsset = {
@@ -47,30 +42,10 @@ function localDate(date: Date) {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 }
 
-function localTime(date: Date) {
-  const pad = (value: number) => String(value).padStart(2, '0');
-  return `${pad(date.getHours())}:${pad(date.getMinutes())}`;
-}
-
 function addDays(value: string, days: number) {
   const date = new Date(`${value}T00:00:00`);
   date.setDate(date.getDate() + days);
   return localDate(date);
-}
-
-function dateFromIso(value?: string | null) {
-  if (!value) return '';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value.slice(0, 10);
-  return localDate(date);
-}
-
-function timeFromIso(value?: string | null) {
-  if (!value) return '';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '';
-  const pad = (target: number) => String(target).padStart(2, '0');
-  return `${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
 function formatDotDate(value: string) {
@@ -101,8 +76,15 @@ function roundEndIso(round: RoundDraft) {
   return toDateTimeIso(round.eventDate, round.endTime);
 }
 
-function defaultSaleEnd(rounds: RoundDraft[]) {
-  return [...rounds].sort((a, b) => a.eventDate.localeCompare(b.eventDate))[0]?.eventDate || localDate(new Date());
+function defaultBackendSaleWindow(eventStartIso: string) {
+  const eventStart = new Date(eventStartIso);
+  const saleEnd = Number.isNaN(eventStart.getTime()) ? new Date() : eventStart;
+  const now = new Date();
+  const saleStart = now < saleEnd ? now : new Date(saleEnd.getTime() - 24 * 60 * 60 * 1000);
+  return {
+    saleStartAt: saleStart.toISOString(),
+    saleEndAt: saleEnd.toISOString(),
+  };
 }
 
 function posterFile(asset: PosterAsset) {
@@ -121,22 +103,17 @@ function imageSourceUri(value: string) {
   return `${apiRoot}${value.startsWith('/') ? '' : '/'}${value}`;
 }
 
-function toRoundDraft(round: EventRound, index: number, saleStart: string, saleStartTime: string, saleEnd: string, saleEndTime: string): RoundDraft {
+function toRoundDraft(round: EventRound, index: number): RoundDraft {
   return {
     id: round.id || `${Date.now()}-${index}`,
     title: round.title || `${index + 1}회차`,
     eventDate: round.eventDate,
     startTime: round.startTime,
     endTime: round.endTime,
-    useGlobalSalePeriod: round.useGlobalSalePeriod,
-    saleStartDate: dateFromIso(round.saleStartAt) || saleStart,
-    saleStartTime: timeFromIso(round.saleStartAt) || saleStartTime,
-    saleEndDate: dateFromIso(round.saleEndAt) || saleEnd,
-    saleEndTime: timeFromIso(round.saleEndAt) || saleEndTime,
   };
 }
 
-function fallbackRound(event: EventDetail, saleStart: string, saleStartTime: string, saleEnd: string, saleEndTime: string): RoundDraft {
+function fallbackRound(event: EventDetail): RoundDraft {
   const startsAt = event.eventStartAt || event.startsAt || event.eventAt || event.eventDateTime || new Date().toISOString();
   const endsAt = event.eventEndAt || event.endsAt || startsAt;
   const start = new Date(startsAt);
@@ -148,18 +125,12 @@ function fallbackRound(event: EventDetail, saleStart: string, saleStartTime: str
     eventDate: localDate(start),
     startTime: `${pad(start.getHours())}:${pad(start.getMinutes())}`,
     endTime: `${pad(end.getHours())}:${pad(end.getMinutes())}`,
-    useGlobalSalePeriod: true,
-    saleStartDate: saleStart,
-    saleStartTime,
-    saleEndDate: saleEnd,
-    saleEndTime,
   };
 }
 
 export default function EventSettingsPage({ navigation, route }: any) {
   const eventId = route?.params?.eventId as string;
   const today = useMemo(() => localDate(new Date()), []);
-  const nowTime = useMemo(() => localTime(new Date()), []);
   const [event, setEvent] = useState<EventDetail | null>(null);
   const [name, setName] = useState('');
   const [category, setCategory] = useState('CONCERT');
@@ -172,13 +143,6 @@ export default function EventSettingsPage({ navigation, route }: any) {
   const [posterPreviewOpen, setPosterPreviewOpen] = useState(false);
   const [rounds, setRounds] = useState<RoundDraft[]>([]);
   const [expandedRoundIds, setExpandedRoundIds] = useState<string[]>([]);
-  const [globalSaleStart, setGlobalSaleStart] = useState(today);
-  const [globalSaleStartTime, setGlobalSaleStartTime] = useState(nowTime);
-  const [globalSaleEnd, setGlobalSaleEnd] = useState(today);
-  const [globalSaleEndTime, setGlobalSaleEndTime] = useState('21:00');
-  const [roundSaleOverrideEnabled, setRoundSaleOverrideEnabled] = useState(false);
-  const [globalSaleExpanded, setGlobalSaleExpanded] = useState(true);
-  const [activeSaleRoundId, setActiveSaleRoundId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const [errors, setErrors] = useState<string[]>([]);
@@ -189,13 +153,9 @@ export default function EventSettingsPage({ navigation, route }: any) {
     setLoading(true);
     try {
       const detail = await backendApi.getEvent(eventId);
-      const saleStart = dateFromIso(detail.primarySaleStart || detail.salesStartAt) || today;
-      const saleStartTime = timeFromIso(detail.primarySaleStart || detail.salesStartAt) || nowTime;
-      const saleEnd = dateFromIso(detail.primarySaleEnd || detail.salesEndAt) || saleStart;
-      const saleEndTime = timeFromIso(detail.primarySaleEnd || detail.salesEndAt) || '21:00';
       const nextRounds = detail.rounds?.length
-        ? detail.rounds.map((round, index) => toRoundDraft(round, index, saleStart, saleStartTime, saleEnd, saleEndTime))
-        : [fallbackRound(detail, saleStart, saleStartTime, saleEnd, saleEndTime)];
+        ? detail.rounds.map((round, index) => toRoundDraft(round, index))
+        : [fallbackRound(detail)];
       setEvent(detail);
       setName(detail.name || detail.title || '');
       setCategory(detail.category || 'CONCERT');
@@ -206,13 +166,6 @@ export default function EventSettingsPage({ navigation, route }: any) {
       setPosterRemoved(false);
       setPosterPreviewOpen(false);
       setRounds(nextRounds);
-      setGlobalSaleStart(saleStart);
-      setGlobalSaleStartTime(saleStartTime);
-      setGlobalSaleEnd(saleEnd);
-      setGlobalSaleEndTime(saleEndTime);
-      setRoundSaleOverrideEnabled(nextRounds.some((round) => !round.useGlobalSalePeriod));
-      setGlobalSaleExpanded(true);
-      setActiveSaleRoundId(null);
       setExpandedRoundIds([]);
       setErrors([]);
     } catch (error: any) {
@@ -220,7 +173,7 @@ export default function EventSettingsPage({ navigation, route }: any) {
     } finally {
       setLoading(false);
     }
-  }, [eventId, nowTime, today]);
+  }, [eventId]);
 
   useFocusEffect(useCallback(() => { void load(); }, [load]));
 
@@ -245,23 +198,7 @@ export default function EventSettingsPage({ navigation, route }: any) {
   };
 
   const updateRound = (id: string, patch: Partial<RoundDraft>) => {
-    setRounds((current) => {
-      const next = current.map((round) => (round.id === id ? { ...round, ...patch } : round));
-      if (patch.eventDate) {
-        const nextSaleEnd = defaultSaleEnd(next);
-        setGlobalSaleEnd(nextSaleEnd);
-        return next.map((round) => {
-          if (!roundSaleOverrideEnabled || round.useGlobalSalePeriod) {
-            return { ...round, saleEndDate: nextSaleEnd, saleEndTime: globalSaleEndTime };
-          }
-          if (round.id === id) {
-            return { ...round, saleEndDate: round.eventDate, saleEndTime: round.endTime };
-          }
-          return round;
-        });
-      }
-      return next;
-    });
+    setRounds((current) => current.map((round) => (round.id === id ? { ...round, ...patch } : round)));
   };
 
   const addRound = () => {
@@ -273,11 +210,6 @@ export default function EventSettingsPage({ navigation, route }: any) {
         eventDate: nextDate,
         startTime: '19:00',
         endTime: '21:00',
-        useGlobalSalePeriod: !roundSaleOverrideEnabled,
-        saleStartDate: roundSaleOverrideEnabled ? today : globalSaleStart,
-        saleStartTime: roundSaleOverrideEnabled ? nowTime : globalSaleStartTime,
-        saleEndDate: roundSaleOverrideEnabled ? nextDate : globalSaleEnd,
-        saleEndTime: roundSaleOverrideEnabled ? '21:00' : globalSaleEndTime,
       };
       setExpandedRoundIds([next.id]);
       return [...current, next];
@@ -288,11 +220,8 @@ export default function EventSettingsPage({ navigation, route }: any) {
     setRounds((current) => {
       if (current.length <= 1) return current;
       const next = current.filter((round) => round.id !== id).map((round, index) => ({ ...round, title: `${index + 1}회차` }));
-      const nextSaleEnd = defaultSaleEnd(next);
-      setGlobalSaleEnd(nextSaleEnd);
       setExpandedRoundIds((expanded) => expanded.filter((item) => item !== id));
-      if (activeSaleRoundId === id) setActiveSaleRoundId(null);
-      return next.map((round) => (!roundSaleOverrideEnabled || round.useGlobalSalePeriod ? { ...round, saleEndDate: nextSaleEnd, saleEndTime: globalSaleEndTime } : round));
+      return next;
     });
   };
 
@@ -301,36 +230,6 @@ export default function EventSettingsPage({ navigation, route }: any) {
       { text: '취소', style: 'cancel' },
       { text: '삭제', style: 'destructive', onPress: () => removeRound(id) },
     ]);
-  };
-
-  const setRoundSaleOverride = (enabled: boolean) => {
-    setRoundSaleOverrideEnabled(enabled);
-    setGlobalSaleExpanded(true);
-    setActiveSaleRoundId(null);
-    setRounds((current) => current.map((round) => ({
-      ...round,
-      useGlobalSalePeriod: !enabled,
-      saleStartDate: enabled ? globalSaleStart : round.saleStartDate,
-      saleStartTime: enabled ? globalSaleStartTime : round.saleStartTime,
-      saleEndDate: enabled ? globalSaleEnd : round.saleEndDate,
-      saleEndTime: enabled ? globalSaleEndTime : round.saleEndTime,
-    })));
-  };
-
-  const completeGlobalSalePeriod = () => {
-    setGlobalSaleExpanded(false);
-  };
-
-  const completeSaleRound = () => {
-    setActiveSaleRoundId(null);
-  };
-
-  const updateGlobalSale = (startDate: string, endDate: string) => {
-    setGlobalSaleStart(startDate);
-    setGlobalSaleEnd(endDate);
-    if (!roundSaleOverrideEnabled) {
-      setRounds((current) => current.map((round) => ({ ...round, saleStartDate: startDate, saleEndDate: endDate, useGlobalSalePeriod: true })));
-    }
   };
 
   const validate = () => {
@@ -357,10 +256,7 @@ export default function EventSettingsPage({ navigation, route }: any) {
     const sortedRounds = [...rounds].sort((a, b) => roundStartIso(a).localeCompare(roundStartIso(b)));
     const firstRound = sortedRounds[0];
     const lastRound = [...sortedRounds].sort((a, b) => roundEndIso(b).localeCompare(roundEndIso(a)))[0];
-    const saleStartTimes = sortedRounds.map((round) => roundSaleOverrideEnabled ? toDateTimeIso(round.saleStartDate, round.saleStartTime) : toDateTimeIso(globalSaleStart, globalSaleStartTime));
-    const saleEndTimes = sortedRounds.map((round) => roundSaleOverrideEnabled ? toDateTimeIso(round.saleEndDate, round.saleEndTime) : toDateTimeIso(globalSaleEnd, globalSaleEndTime));
-    const effectiveSaleStart = saleStartTimes.sort()[0];
-    const effectiveSaleEnd = saleEndTimes.sort()[saleEndTimes.length - 1];
+    const backendSaleWindow = defaultBackendSaleWindow(roundStartIso(firstRound));
     setSaving(true);
     try {
       await backendApi.updateEvent(event.id, {
@@ -383,23 +279,19 @@ export default function EventSettingsPage({ navigation, route }: any) {
         eventEndAt: roundEndIso(lastRound),
         startsAt: roundStartIso(firstRound),
         endsAt: roundEndIso(lastRound),
-        primarySaleStart: effectiveSaleStart,
-        primarySaleEnd: effectiveSaleEnd,
-        salesStartAt: effectiveSaleStart,
-        salesEndAt: effectiveSaleEnd,
-        rounds: sortedRounds.map((round, index) => {
-          const saleStart = roundSaleOverrideEnabled ? toDateTimeIso(round.saleStartDate, round.saleStartTime) : toDateTimeIso(globalSaleStart, globalSaleStartTime);
-          const saleEnd = roundSaleOverrideEnabled ? toDateTimeIso(round.saleEndDate, round.saleEndTime) : toDateTimeIso(globalSaleEnd, globalSaleEndTime);
-          return {
+        primarySaleStart: backendSaleWindow.saleStartAt,
+        primarySaleEnd: backendSaleWindow.saleEndAt,
+        salesStartAt: backendSaleWindow.saleStartAt,
+        salesEndAt: backendSaleWindow.saleEndAt,
+        rounds: sortedRounds.map((round, index) => ({
             title: round.title || `${index + 1}회차`,
             eventDate: round.eventDate,
             startTime: round.startTime,
             endTime: round.endTime,
-            useGlobalSalePeriod: round.useGlobalSalePeriod,
-            saleStartAt: saleStart,
-            saleEndAt: saleEnd,
-          };
-        }),
+            useGlobalSalePeriod: true,
+            saleStartAt: backendSaleWindow.saleStartAt,
+            saleEndAt: backendSaleWindow.saleEndAt,
+        })),
       });
       if (poster) {
         await backendApi.uploadEventImage(event.id, posterFile(poster));
@@ -756,8 +648,6 @@ const styles = StyleSheet.create({
   compactPickerCopy: { flex: 1 },
   compactPickerText: { color: '#0F172A', fontWeight: '900' },
   compactPickerAction: { color: '#2563EB', fontWeight: '900', fontSize: 12 },
-  roundSaleList: { marginTop: 2 },
-  roundSaleItem: { marginTop: 8 },
   saleRoundStrip: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8, marginBottom: 8 },
   saleRoundChip: { borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6, backgroundColor: '#FFFFFF' },
   saleRoundChipActive: { borderColor: '#2563EB', backgroundColor: '#EFF6FF' },

@@ -22,11 +22,6 @@ type EventRoundDraft = {
   eventDate: string;
   startTime: string;
   endTime: string;
-  useGlobalSalePeriod: boolean;
-  saleStartDate: string;
-  saleStartTime: string;
-  saleEndDate: string;
-  saleEndTime: string;
 };
 
 type PosterAsset = {
@@ -57,17 +52,11 @@ const FIELD_OFFSET: Record<string, number> = {
   venue: 260,
   description: 330,
   rounds: 560,
-  globalSale: 860,
 };
 
 function localDate(date: Date) {
   const pad = (value: number) => String(value).padStart(2, '0');
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
-}
-
-function localTime(date: Date) {
-  const pad = (value: number) => String(value).padStart(2, '0');
-  return `${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
 function addDays(value: string, days: number) {
@@ -147,27 +136,25 @@ function roundEndIso(round: EventRoundDraft) {
   return end;
 }
 
-function buildRound(index: number, eventDate: string, saleStart: string, saleEnd: string, useGlobalSalePeriod = true): EventRoundDraft {
+function defaultBackendSaleWindow(eventStartIso: string) {
+  const eventStart = new Date(eventStartIso);
+  const saleEnd = Number.isNaN(eventStart.getTime()) ? new Date() : eventStart;
+  const now = new Date();
+  const saleStart = now < saleEnd ? now : new Date(saleEnd.getTime() - 24 * 60 * 60 * 1000);
+  return {
+    saleStartAt: saleStart.toISOString(),
+    saleEndAt: saleEnd.toISOString(),
+  };
+}
+
+function buildRound(index: number, eventDate: string): EventRoundDraft {
   return {
     id: `${Date.now()}-${index}-${Math.random().toString(16).slice(2)}`,
     title: `${index + 1}회차`,
     eventDate,
     startTime: index === 0 ? '19:00' : '14:00',
     endTime: index === 0 ? '21:00' : '16:00',
-    useGlobalSalePeriod,
-    saleStartDate: saleStart,
-    saleStartTime: localTime(new Date()),
-    saleEndDate: saleEnd,
-    saleEndTime: index === 0 ? '21:00' : '16:00',
   };
-}
-
-function earliestRoundDate(rounds: EventRoundDraft[]) {
-  return [...rounds].sort((a, b) => a.eventDate.localeCompare(b.eventDate))[0]?.eventDate || localDate(new Date());
-}
-
-function defaultSaleEndForRounds(rounds: EventRoundDraft[]) {
-  return earliestRoundDate(rounds);
 }
 
 function posterFile(asset: PosterAsset) {
@@ -179,11 +166,8 @@ function posterFile(asset: PosterAsset) {
 export default function EventCreatePage({ navigation }: any) {
   const scrollRef = useRef<ScrollView | null>(null);
   const today = useMemo(() => localDate(new Date()), []);
-  const nowTime = useMemo(() => localTime(new Date()), []);
   const defaultEventDate = useMemo(() => addDays(today, 14), [today]);
-  const defaultSaleStart = today;
-  const defaultSaleEnd = useMemo(() => defaultEventDate, [defaultEventDate]);
-  const initialRound = useMemo(() => buildRound(0, defaultEventDate, defaultSaleStart, defaultSaleEnd, false), [defaultEventDate, defaultSaleEnd, defaultSaleStart]);
+  const initialRound = useMemo(() => buildRound(0, defaultEventDate), [defaultEventDate]);
 
   const [category, setCategory] = useState('CONCERT');
   const [name, setName] = useState('');
@@ -195,45 +179,17 @@ export default function EventCreatePage({ navigation }: any) {
   const [posterPreviewOpen, setPosterPreviewOpen] = useState(false);
   const [rounds, setRounds] = useState<EventRoundDraft[]>([initialRound]);
   const [expandedRoundIds, setExpandedRoundIds] = useState<string[]>([]);
-  const [globalSaleStart, setGlobalSaleStart] = useState(defaultSaleStart);
-  const [globalSaleStartTime, setGlobalSaleStartTime] = useState(nowTime);
-  const [globalSaleEnd, setGlobalSaleEnd] = useState(defaultSaleEnd);
-  const [globalSaleEndTime, setGlobalSaleEndTime] = useState('21:00');
-  const [roundSaleOverrideEnabled, setRoundSaleOverrideEnabled] = useState(true);
-  const [globalSaleExpanded, setGlobalSaleExpanded] = useState(true);
-  const [globalSaleCompleted, setGlobalSaleCompleted] = useState(false);
-  const [saleRoundCompletedIds, setSaleRoundCompletedIds] = useState<Record<string, boolean>>({});
-  const [activeSaleRoundId, setActiveSaleRoundId] = useState<string | null>(null);
-  const [saleRoundErrors, setSaleRoundErrors] = useState<Record<string, string[]>>({});
   const [roundAcknowledgedIds, setRoundAcknowledgedIds] = useState<Record<string, boolean>>({});
   const [errors, setErrors] = useState<string[]>([]);
   const [invalidFields, setInvalidFields] = useState<Record<string, boolean>>({});
   const [roundMessages, setRoundMessages] = useState<Record<string, string[]>>({});
-  const [saleMessages, setSaleMessages] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
 
   const updateRound = (id: string, patch: Partial<EventRoundDraft>) => {
     setRounds((current) => {
       const nextRounds = current.map((round) => (round.id === id ? { ...round, ...patch } : round));
-      if (patch.saleStartDate || patch.saleStartTime || patch.saleEndDate || patch.saleEndTime) {
-        setSaleRoundErrors((current) => ({ ...current, [id]: [] }));
-        setSaleRoundCompletedIds((current) => ({ ...current, [id]: false }));
-      }
       if (patch.eventDate || patch.startTime || patch.endTime) {
         setRoundAcknowledgedIds((current) => ({ ...current, [id]: false }));
-      }
-      if (patch.eventDate) {
-        const nextSaleEnd = defaultSaleEndForRounds(nextRounds);
-        setGlobalSaleEnd(nextSaleEnd);
-        return nextRounds.map((round) => {
-          if (!roundSaleOverrideEnabled || round.useGlobalSalePeriod) {
-            return { ...round, saleEndDate: nextSaleEnd, saleEndTime: '21:00' };
-          }
-          if (round.id === id) {
-            return { ...round, saleEndDate: round.eventDate, saleEndTime: round.endTime };
-          }
-          return round;
-        });
       }
       return nextRounds;
     });
@@ -266,74 +222,10 @@ export default function EventCreatePage({ navigation }: any) {
     setExpandedRoundIds((current) => current.filter((item) => item !== id));
   };
 
-  const syncGlobalSaleToRounds = (
-    nextStartDate = globalSaleStart,
-    nextStartTime = globalSaleStartTime,
-    nextEndDate = globalSaleEnd,
-    nextEndTime = globalSaleEndTime,
-  ) => {
-    if (roundSaleOverrideEnabled) return;
-    setRounds((current) => current.map((round) => ({
-      ...round,
-      saleStartDate: nextStartDate,
-      saleStartTime: nextStartTime,
-      saleEndDate: nextEndDate,
-      saleEndTime: nextEndTime,
-      useGlobalSalePeriod: true,
-    })));
-  };
-
-  const updateGlobalSaleStartDate = (date: string) => {
-    setGlobalSaleStart(date);
-    setGlobalSaleCompleted(false);
-    syncGlobalSaleToRounds(date, globalSaleStartTime, globalSaleEnd, globalSaleEndTime);
-  };
-
-  const updateGlobalSaleStartTime = (time: string) => {
-    setGlobalSaleStartTime(time);
-    setGlobalSaleCompleted(false);
-    syncGlobalSaleToRounds(globalSaleStart, time, globalSaleEnd, globalSaleEndTime);
-  };
-
-  const updateGlobalSaleEndDate = (date: string) => {
-    setGlobalSaleEnd(date);
-    setGlobalSaleCompleted(false);
-    syncGlobalSaleToRounds(globalSaleStart, globalSaleStartTime, date, globalSaleEndTime);
-  };
-
-  const updateGlobalSaleEndTime = (time: string) => {
-    setGlobalSaleEndTime(time);
-    setGlobalSaleCompleted(false);
-    syncGlobalSaleToRounds(globalSaleStart, globalSaleStartTime, globalSaleEnd, time);
-  };
-
-  const setRoundSaleOverride = (enabled: boolean) => {
-    setRoundSaleOverrideEnabled(enabled);
-    setGlobalSaleExpanded(true);
-    setActiveSaleRoundId(null);
-    setSaleMessages([]);
-    setSaleRoundErrors({});
-    setGlobalSaleCompleted(false);
-    setSaleRoundCompletedIds({});
-    setRounds((current) => current.map((round) => ({
-      ...round,
-      useGlobalSalePeriod: !enabled,
-      saleStartDate: enabled ? today : globalSaleStart,
-      saleStartTime: enabled ? nowTime : globalSaleStartTime,
-      saleEndDate: enabled ? round.eventDate : globalSaleEnd,
-      saleEndTime: enabled ? round.endTime : globalSaleEndTime,
-    })));
-  };
-
   const addRound = () => {
     setRounds((current) => {
       const nextDate = addDays(current.at(-1)?.eventDate || defaultEventDate, 1);
-      const next = buildRound(current.length, nextDate, roundSaleOverrideEnabled ? today : globalSaleStart, roundSaleOverrideEnabled ? nextDate : globalSaleEnd, !roundSaleOverrideEnabled);
-      const preparedNext = {
-        ...next,
-        saleStartTime: roundSaleOverrideEnabled ? nowTime : globalSaleStartTime,
-        saleEndTime: roundSaleOverrideEnabled ? next.endTime : globalSaleEndTime,
-      };
+      const preparedNext = buildRound(current.length, nextDate);
       setExpandedRoundIds([preparedNext.id]);
       return [...current, preparedNext];
     });
@@ -343,20 +235,13 @@ export default function EventCreatePage({ navigation }: any) {
     setRounds((latest) => {
       if (latest.length <= 1) return latest;
       const nextRounds = latest.filter((round) => round.id !== id).map((round, index) => ({ ...round, title: `${index + 1}회차` }));
-      const nextSaleEnd = defaultSaleEndForRounds(nextRounds);
-      setGlobalSaleEnd(nextSaleEnd);
       setExpandedRoundIds((current) => current.filter((item) => item !== id));
       setRoundMessages((current) => {
         const next = { ...current };
         delete next[id];
         return next;
       });
-      if (activeSaleRoundId === id) setActiveSaleRoundId(null);
-      return nextRounds.map((round) => (
-        !roundSaleOverrideEnabled || round.useGlobalSalePeriod
-          ? { ...round, saleEndDate: nextSaleEnd, saleEndTime: '21:00' }
-          : round
-      ));
+      return nextRounds;
     });
   };
 
@@ -433,8 +318,6 @@ export default function EventCreatePage({ navigation }: any) {
     setErrors(nextErrors);
     setInvalidFields(nextInvalid);
     setRoundMessages(nextRoundMessages);
-    setSaleMessages([]);
-    setSaleRoundErrors({});
     if (nextErrors.length > 0) {
       if (nextInvalid.rounds) setExpandedRoundIds(rounds.map((round) => round.id));
       const firstField = Object.keys(FIELD_OFFSET).find((field) => nextInvalid[field]);
@@ -450,10 +333,7 @@ export default function EventCreatePage({ navigation }: any) {
     const sortedRounds = [...rounds].sort((a, b) => roundStartIso(a).localeCompare(roundStartIso(b)));
     const firstRound = sortedRounds[0];
     const lastRound = [...sortedRounds].sort((a, b) => roundEndIso(b).localeCompare(roundEndIso(a)))[0];
-    const saleStartTimes = sortedRounds.map((round) => roundSaleOverrideEnabled ? toDateTimeIso(round.saleStartDate, round.saleStartTime) : toDateTimeIso(globalSaleStart, globalSaleStartTime));
-    const saleEndTimes = sortedRounds.map((round) => roundSaleOverrideEnabled ? toDateTimeIso(round.saleEndDate, round.saleEndTime) : toDateTimeIso(globalSaleEnd, globalSaleEndTime));
-    const effectiveSaleStart = saleStartTimes.sort()[0];
-    const effectiveSaleEnd = saleEndTimes.sort()[saleEndTimes.length - 1];
+    const backendSaleWindow = defaultBackendSaleWindow(roundStartIso(firstRound));
 
     setSubmitting(true);
     try {
@@ -483,29 +363,25 @@ export default function EventCreatePage({ navigation }: any) {
         eventEndAt: roundEndIso(lastRound),
         startsAt: roundStartIso(firstRound),
         endsAt: roundEndIso(lastRound),
-        primarySaleStart: effectiveSaleStart,
-        primarySaleEnd: effectiveSaleEnd,
-        salesStartAt: effectiveSaleStart,
-        salesEndAt: effectiveSaleEnd,
+        primarySaleStart: backendSaleWindow.saleStartAt,
+        primarySaleEnd: backendSaleWindow.saleEndAt,
+        salesStartAt: backendSaleWindow.saleStartAt,
+        salesEndAt: backendSaleWindow.saleEndAt,
         ticketPriceWei: '1',
         totalTicketCount: 0,
         resaleAllowed: false,
         maxResalePriceRate: 10000,
         resaleStart: null,
         resaleEnd: null,
-        rounds: sortedRounds.map((round, index) => {
-          const saleStart = roundSaleOverrideEnabled ? toDateTimeIso(round.saleStartDate, round.saleStartTime) : toDateTimeIso(globalSaleStart, globalSaleStartTime);
-          const saleEnd = roundSaleOverrideEnabled ? toDateTimeIso(round.saleEndDate, round.saleEndTime) : toDateTimeIso(globalSaleEnd, globalSaleEndTime);
-          return {
+        rounds: sortedRounds.map((round, index) => ({
             title: round.title || `${index + 1}회차`,
             eventDate: round.eventDate,
             startTime: round.startTime,
             endTime: round.endTime,
-            useGlobalSalePeriod: round.useGlobalSalePeriod,
-            saleStartAt: saleStart,
-            saleEndAt: saleEnd,
-          };
-        }),
+            useGlobalSalePeriod: true,
+            saleStartAt: backendSaleWindow.saleStartAt,
+            saleEndAt: backendSaleWindow.saleEndAt,
+        })),
       });
 
       if (poster) {
@@ -777,142 +653,6 @@ function SingleDatePicker({
   );
 }
 
-function CompactRangePicker({
-  title,
-  compactTitle,
-  ctaLabel = '기간 변경',
-  markedRounds = [],
-  startDate,
-  endDate,
-  onChange,
-  active = false,
-  summaryRounds = [],
-  summaryActiveRoundId = null,
-  onOpen,
-  onClose,
-}: {
-  title: string;
-  compactTitle?: string;
-  ctaLabel?: string;
-  markedRounds?: MarkedRoundDate[];
-  startDate: string;
-  endDate: string;
-  onChange: (start: string, end: string) => void;
-  active?: boolean;
-  summaryRounds?: EventRoundDraft[];
-  summaryActiveRoundId?: string | null;
-  onOpen?: () => void;
-  onClose?: () => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const [draftStart, setDraftStart] = useState(startDate);
-  const [draftEnd, setDraftEnd] = useState(endDate);
-  const [selectingStart, setSelectingStart] = useState(true);
-
-  const openSheet = () => {
-    setDraftStart(startDate);
-    setDraftEnd(endDate);
-    setSelectingStart(true);
-    setOpen(true);
-    onOpen?.();
-  };
-
-  const select = (date: string) => {
-    if (selectingStart) {
-      setDraftStart(date);
-      setDraftEnd('');
-      setSelectingStart(false);
-      return;
-    }
-    if (date < draftStart) {
-      setDraftStart(date);
-      setDraftEnd(draftStart);
-    } else {
-      setDraftEnd(date);
-    }
-  };
-
-  const complete = () => {
-    if (draftStart && draftEnd) {
-      onChange(draftStart, draftEnd);
-    }
-    setOpen(false);
-    onClose?.();
-  };
-
-  return (
-    <View style={styles.rangePickerBox}>
-      <TouchableOpacity style={[styles.compactPickerButton, active && styles.activePickerButton]} onPress={openSheet}>
-        <View style={styles.compactPickerCopy}>
-          <Text style={styles.rangePickerTitle}>{compactTitle || title}</Text>
-          <Text style={styles.rangePickerValue}>{formatDotDate(startDate)} ~ {formatDotDate(endDate)}</Text>
-        </View>
-        <Text style={styles.compactPickerAction}>{ctaLabel}</Text>
-      </TouchableOpacity>
-      <Modal visible={open} transparent animationType="slide" onRequestClose={() => { setOpen(false); onClose?.(); }}>
-        <View style={styles.sheetOverlay}>
-          <TouchableOpacity style={styles.sheetBackdrop} activeOpacity={1} onPress={() => { setOpen(false); onClose?.(); }} />
-          <View style={styles.sheet}>
-            <View style={styles.sheetHandle} />
-            <Text style={styles.sheetTitle}>{title}</Text>
-            <SaleRoundStrip
-              rounds={summaryRounds.length > 0 ? summaryRounds : markedRounds.map((item, index) => ({
-                id: `${item.date}-${index}`,
-                title: item.label,
-                eventDate: item.date,
-                startTime: '00:00',
-                endTime: '00:00',
-                useGlobalSalePeriod: true,
-                saleStartDate: startDate,
-                saleStartTime: '00:00',
-                saleEndDate: endDate,
-                saleEndTime: '00:00',
-              }))}
-              activeRoundId={summaryActiveRoundId}
-              perRound={!!summaryActiveRoundId}
-            />
-            <MonthCalendar selectedStart={draftStart} selectedEnd={draftEnd} markedRounds={markedRounds} onSelect={select} />
-            <TouchableOpacity style={[styles.sheetDoneButton, (!draftStart || !draftEnd) && styles.disabledButton]} disabled={!draftStart || !draftEnd} onPress={complete}>
-              <Text style={styles.sheetDoneText}>완료</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-    </View>
-  );
-}
-
-function SaleRoundStrip({
-  rounds,
-  activeRoundId,
-  perRound,
-}: {
-  rounds: EventRoundDraft[];
-  activeRoundId: string | null;
-  perRound: boolean;
-}) {
-  return (
-    <View style={styles.saleRoundStrip}>
-      {perRound ? (
-        rounds.map((round, index) => {
-          const active = round.id === activeRoundId;
-          return (
-            <View key={round.id} style={[styles.saleRoundChip, active && styles.saleRoundChipActive]}>
-              <Text style={[styles.saleRoundChipText, active && styles.saleRoundChipTextActive]}>{`[${index + 1}회차 · ${formatShortDate(round.eventDate)}]`}</Text>
-            </View>
-          );
-        })
-      ) : (
-        rounds.map((round, index) => (
-          <View key={round.id} style={styles.saleRoundChip}>
-            <Text style={styles.saleRoundChipText}>{`[${index + 1}회차 · ${formatShortDate(round.eventDate)}]`}</Text>
-          </View>
-        ))
-      )}
-    </View>
-  );
-}
-
 function TimeWheelPicker({ label, value, onChange }: { label: string; value: string; onChange: (time: string) => void }) {
   return <TimeWheelPickerBase label={label} value={value} onChange={onChange} />;
 }
@@ -1101,7 +841,6 @@ const styles = StyleSheet.create({
   saleBoundaryRow: { flexDirection: 'row', gap: 8 },
   saleBoundaryField: { flex: 1 },
   saleTimeGrid: { gap: 8, marginTop: 8 },
-  roundSaleItem: { marginTop: 8 },
   saleRoundStrip: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 10 },
   saleRoundChip: { borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6, backgroundColor: '#FFFFFF' },
   saleRoundChipMuted: { backgroundColor: '#F8FAFC' },
@@ -1119,7 +858,6 @@ const styles = StyleSheet.create({
   rangePickerBox: { marginTop: 9 },
   rangePickerTitle: { color: '#64748B', fontSize: 12, fontWeight: '900' },
   rangePickerValue: { marginTop: 3, color: '#0F172A', fontWeight: '900' },
-  roundSaleList: { marginTop: 2 },
   timeWheelRow: { flexDirection: 'row', gap: 10, marginTop: 12 },
   timeWheelCol: { flex: 1 },
   timeWheelLabel: { marginBottom: 6, color: '#64748B', fontSize: 12, fontWeight: '900' },
