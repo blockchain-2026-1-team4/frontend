@@ -20,7 +20,7 @@ type CheckInEvent = {
   tickets: TicketDetail[];
 };
 
-type CheckInSection = '오늘 예정' | '이후 일정' | '종료된 이벤트';
+type CheckInSection = '오늘 일정' | '향후 일정' | '종료된 이벤트';
 
 type CheckInState = {
   label: string;
@@ -63,7 +63,7 @@ function checkInStatus(item: CheckInEvent, now = new Date()): CheckInState {
     return {
       label: '티켓 미발행',
       rank: 2,
-      section: isToday ? '오늘 예정' : '이후 일정',
+      section: isToday ? '오늘 일정' : '향후 일정',
       actionable: false,
       ticketCount,
       usedCount,
@@ -104,7 +104,7 @@ function checkInStatus(item: CheckInEvent, now = new Date()): CheckInState {
       return {
         label,
         rank: 0,
-        section: '오늘 예정',
+        section: '오늘 일정',
         actionable: true,
         ticketCount,
         usedCount,
@@ -119,7 +119,7 @@ function checkInStatus(item: CheckInEvent, now = new Date()): CheckInState {
       return {
         label: '체크인 예정',
         rank: 1,
-        section: '오늘 예정',
+        section: '오늘 일정',
         actionable: false,
         ticketCount,
         usedCount,
@@ -133,7 +133,7 @@ function checkInStatus(item: CheckInEvent, now = new Date()): CheckInState {
     return {
       label: '체크인 예정',
       rank: 2,
-      section: '이후 일정',
+      section: '향후 일정',
       actionable: false,
       ticketCount,
       usedCount,
@@ -147,7 +147,7 @@ function checkInStatus(item: CheckInEvent, now = new Date()): CheckInState {
   return {
     label: '체크인 예정',
     rank: 2,
-    section: '이후 일정',
+    section: '향후 일정',
     actionable: false,
     ticketCount,
     usedCount,
@@ -198,8 +198,8 @@ export default function CheckInHomePage({ navigation }: any) {
 
   const groupedEvents = useMemo<Record<CheckInSection, CheckInEvent[]>>(() => {
     const groups: Record<CheckInSection, CheckInEvent[]> = {
-      '오늘 예정': [],
-      '이후 일정': [],
+      '오늘 일정': [],
+      '향후 일정': [],
       '종료된 이벤트': [],
     };
 
@@ -212,7 +212,7 @@ export default function CheckInHomePage({ navigation }: any) {
   }, [sortedEvents]);
 
   const sectionSummaries = useMemo(() => {
-    const sections: CheckInSection[] = ['오늘 예정', '이후 일정', '종료된 이벤트'];
+    const sections: CheckInSection[] = ['오늘 일정', '향후 일정', '종료된 이벤트'];
 
     return sections.map((section) => {
       const events = groupedEvents[section];
@@ -221,7 +221,7 @@ export default function CheckInHomePage({ navigation }: any) {
         section,
         events,
         ticketMissing,
-        preview: section === '오늘 예정' ? events.slice(0, 2) : [],
+        preview: section === '오늘 일정' ? events.slice(0, 2) : [],
       };
     });
   }, [groupedEvents]);
@@ -284,15 +284,15 @@ export default function CheckInHomePage({ navigation }: any) {
               <Text style={styles.sectionHint}>{events.length}건</Text>
             </View>
 
-            {section === '오늘 예정' ? (
+            {section === '오늘 일정' ? (
               <Text style={styles.summaryMeta}>오늘 실제 운영해야 하는 이벤트를 먼저 보여줍니다.</Text>
-            ) : section === '이후 일정' ? (
+            ) : section === '향후 일정' ? (
               <Text style={styles.summaryMeta}>체크인 예정 이벤트 {events.length}건 · 티켓 미발행 {ticketMissing}건</Text>
             ) : (
               <Text style={styles.summaryMeta}>종료된 체크인 이벤트 {events.length}건</Text>
             )}
 
-            {section === '오늘 예정' ? (
+            {section === '오늘 일정' ? (
               preview.length > 0 ? (
                 <View style={styles.previewList}>{preview.map((item) => renderEventCard(item))}</View>
               ) : (

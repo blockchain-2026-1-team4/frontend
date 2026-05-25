@@ -20,7 +20,7 @@ type CheckInEvent = {
   tickets: TicketDetail[];
 };
 
-type CheckInSection = '오늘 예정' | '이후 일정' | '종료된 이벤트';
+type CheckInSection = '오늘 일정' | '향후 일정' | '종료된 이벤트';
 
 type CheckInState = {
   label: string;
@@ -81,7 +81,7 @@ function checkInStatus(item: CheckInEvent, now = new Date()): CheckInState {
     return {
       label: '티켓 미발행',
       rank: 2,
-      section: isToday ? '오늘 예정' : '이후 일정',
+      section: isToday ? '오늘 일정' : '향후 일정',
       actionable: false,
       ticketCount,
       usedCount,
@@ -120,7 +120,7 @@ function checkInStatus(item: CheckInEvent, now = new Date()): CheckInState {
       return {
         label,
         rank: 0,
-        section: '오늘 예정',
+        section: '오늘 일정',
         actionable: true,
         ticketCount,
         usedCount,
@@ -134,7 +134,7 @@ function checkInStatus(item: CheckInEvent, now = new Date()): CheckInState {
       return {
         label: '체크인 예정',
         rank: 1,
-        section: '오늘 예정',
+        section: '오늘 일정',
         actionable: false,
         ticketCount,
         usedCount,
@@ -147,7 +147,7 @@ function checkInStatus(item: CheckInEvent, now = new Date()): CheckInState {
     return {
       label: '체크인 예정',
       rank: 2,
-      section: '이후 일정',
+      section: '향후 일정',
       actionable: false,
       ticketCount,
       usedCount,
@@ -160,7 +160,7 @@ function checkInStatus(item: CheckInEvent, now = new Date()): CheckInState {
   return {
     label: '체크인 예정',
     rank: 2,
-    section: '이후 일정',
+    section: '향후 일정',
     actionable: false,
     ticketCount,
     usedCount,
@@ -171,7 +171,7 @@ function checkInStatus(item: CheckInEvent, now = new Date()): CheckInState {
 }
 
 export default function CheckInEventListPage({ navigation, route }: any) {
-  const section = (route?.params?.section as CheckInSection | undefined) || '오늘 예정';
+  const section = (route?.params?.section as CheckInSection | undefined) || '오늘 일정';
   const [items, setItems] = useState<CheckInEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -231,7 +231,7 @@ export default function CheckInEventListPage({ navigation, route }: any) {
         <View style={styles.headerCopy}>
           <Text style={styles.eyebrow}>Check-in Events</Text>
           <Text style={styles.title}>{section}</Text>
-          <Text style={styles.subtitle}>{section === '오늘 예정' ? '오늘 체크인 예정 이벤트를 확인합니다.' : section === '이후 일정' ? '예정된 체크인 이벤트를 확인합니다.' : '종료된 체크인 이벤트를 확인합니다.'}</Text>
+          <Text style={styles.subtitle}>{section === '오늘 일정' ? '오늘 체크인 예정 이벤트를 확인합니다.' : section === '향후 일정' ? '예정된 체크인 이벤트를 확인합니다.' : '종료된 체크인 이벤트를 확인합니다.'}</Text>
         </View>
         <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
           <Text style={styles.backButtonText}>뒤로</Text>
