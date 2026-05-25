@@ -266,6 +266,7 @@ export default function TicketIssuePage({ navigation, route }: any) {
   const hasSavedPolicies = policyMode === 'global'
     ? globalSections.length > 0
     : Object.values(roundPolicies).some((policy) => policy.sections.length > 0);
+  const activeRoundTotalCount = roundPolicies[activeKey]?.totalTicketCount || '';
 
   const goBackToEventFlow = () => {
     if (returnTo === 'create') {
@@ -460,12 +461,19 @@ export default function TicketIssuePage({ navigation, route }: any) {
     `${sectionNameOf(policy)} · ${policy.quantity}장 · ${policy.priceEth}ETH · 판매 ${formatDateShort(policy.saleStartDate)}~${formatDateShort(policy.saleEndDate)} · ${policy.resaleEnabled ? `리셀 ${resaleRateOf(policy)}%` : '리셀 불가'}`
   );
 
-  const pageTitle = flowPage === 1 ? '적용 방식 선택' : flowPage === 2 ? '총 티켓 수량 설정' : '좌석 판매 설정';
-  const pageDescription = flowPage === 1
-    ? '좌석 수, 가격, 판매 기간, 리셀 정책을 모든 회차에 동일하게 적용할지 선택하세요.'
+  const pageTitle = flowPage === 1
+    ? '적용 방식 선택'
     : flowPage === 2
-      ? '각 회차의 총 티켓 수를 설정하세요.'
+      ? policyMode === 'round' ? '회차별 총 티켓 수량 설정' : '총 티켓 수량 설정'
+      : '좌석 판매 설정';
+  const pageDescription = flowPage === 1
+    ? '좌석 수, 가격, 판매 기간, 리셀 정책을\n모든 회차에 동일하게 적용할지 선택하세요.'
+    : flowPage === 2
+      ? policyMode === 'round'
+        ? '각 회차마다 티켓 수를 설정할 수 있습니다.'
+        : '모든 회차에 동일한 티켓 수가 적용됩니다.'
       : '좌석 구역을 선택한 뒤 판매할 티켓 상품을 저장하세요.';
+  const topSubtitle = '티켓 판매 규칙을 단계별로 설정합니다.';
   const canRevealQuantity = !!sectionNameOf(currentDraft);
   const canRevealPrice = canRevealQuantity && isPositiveInteger(currentDraft.quantity);
   const canRevealResale = canRevealPrice && isPositiveNumber(currentDraft.priceEth) && !!currentDraft.saleStartDate && !!currentDraft.saleEndDate;
@@ -492,7 +500,7 @@ export default function TicketIssuePage({ navigation, route }: any) {
 
         <Text style={styles.eyebrow}>Ticket Issue</Text>
         <Text style={styles.title}>티켓 발행</Text>
-        <Text style={styles.subtitle}>{event?.name || event?.title || '이벤트'}의 티켓 정책을 단계적으로 설정합니다.</Text>
+        <Text style={styles.subtitle}>{topSubtitle}</Text>
         <StepProgress page={flowPage} />
 
         {feedback ? (
@@ -520,8 +528,6 @@ export default function TicketIssuePage({ navigation, route }: any) {
 
           {flowPage === 2 && policyMode === 'global' ? (
             <View style={styles.sectionBlock}>
-              <Text style={styles.helpText}>모든 회차에 같은 총 티켓 수가 적용됩니다.</Text>
-              <Text style={styles.label}>모든 회차 총 티켓 수</Text>
               <View style={styles.unitInputWrap}>
                 <TextInput
                   style={styles.unitInput}
@@ -535,9 +541,11 @@ export default function TicketIssuePage({ navigation, route }: any) {
               </View>
               <View style={styles.roundSummaryList}>
                 {rounds.map((round, index) => (
-                  <View key={roundKey(round, index)} style={styles.roundSummaryRow}>
+                  <View key={roundKey(round, index)} style={styles.selectableRoundRow}>
                     <Text style={styles.roundSummaryTitle}>{roundLabel(round, index)}</Text>
-                    <Text style={styles.roundSummaryMeta}>{globalTotalTicketCount || 0}장</Text>
+                    <Text style={[styles.roundSummaryStatus, globalTotalTicketCount && styles.roundSummaryStatusSet]}>
+                      {globalTotalTicketCount ? `총 ${globalTotalTicketCount}장 설정됨` : '총 티켓 수 미설정'}
+                    </Text>
                   </View>
                 ))}
               </View>
@@ -546,37 +554,32 @@ export default function TicketIssuePage({ navigation, route }: any) {
 
           {flowPage === 2 && policyMode === 'round' ? (
             <View style={styles.sectionBlock}>
+              <View style={styles.unitInputWrap}>
+                <TextInput
+                  style={styles.unitInput}
+                  value={activeRoundTotalCount}
+                  onChangeText={(value) => updateRoundPolicy(activeKey, { totalTicketCount: value })}
+                  keyboardType="number-pad"
+                  inputMode="numeric"
+                  placeholder="예: 300"
+                />
+                <Text style={styles.unitText}>장</Text>
+              </View>
+              <View style={styles.roundSummaryList}>
               {rounds.map((round, index) => {
                 const key = roundKey(round, index);
                 const policy = roundPolicies[key];
-                const expanded = policy?.expanded ?? index === 0;
+                const active = activeKey === key;
                 return (
-                  <View key={key} style={styles.roundBox}>
-                    <TouchableOpacity style={styles.roundHeader} onPress={() => updateRoundPolicy(key, { expanded: !expanded })}>
-                      <View style={styles.roundHeaderCopy}>
-                        <Text style={styles.roundTitle}>{expanded ? '▼' : '▶'} {roundLabel(round, index)}</Text>
-                        <Text style={styles.roundMeta}>{policy?.totalTicketCount ? `총 ${policy.totalTicketCount}장 설정됨` : '총 티켓 수 미설정'}</Text>
-                      </View>
-                    </TouchableOpacity>
-                    {expanded ? (
-                      <View style={styles.roundBody}>
-                        <Text style={styles.label}>총 티켓 수</Text>
-                        <View style={styles.unitInputWrap}>
-                          <TextInput
-                            style={styles.unitInput}
-                            value={policy?.totalTicketCount || ''}
-                            onChangeText={(value) => updateRoundPolicy(key, { totalTicketCount: value })}
-                            keyboardType="number-pad"
-                            inputMode="numeric"
-                            placeholder="예: 300"
-                          />
-                          <Text style={styles.unitText}>장</Text>
-                        </View>
-                      </View>
-                    ) : null}
-                  </View>
+                  <TouchableOpacity key={key} style={[styles.selectableRoundRow, active && styles.selectableRoundRowActive]} onPress={() => setActiveRoundKey(key)}>
+                    <Text style={styles.roundSummaryTitle}>{roundLabel(round, index)}</Text>
+                    <Text style={[styles.roundSummaryStatus, policy?.totalTicketCount && styles.roundSummaryStatusSet]}>
+                      {policy?.totalTicketCount ? `총 ${policy.totalTicketCount}장 설정됨` : '총 티켓 수 미설정'}
+                    </Text>
+                  </TouchableOpacity>
                 );
               })}
+              </View>
             </View>
           ) : null}
 
@@ -878,7 +881,7 @@ const styles = StyleSheet.create({
   messageText: { fontSize: 13, fontWeight: '800', lineHeight: 19 },
   errorText: { color: '#DC2626' },
   successText: { color: '#047857' },
-  card: { marginTop: 14, backgroundColor: '#FFFFFF', borderRadius: 8, padding: 14, borderWidth: 1, borderColor: '#E2E8F0' },
+  card: { marginTop: 10, backgroundColor: '#FFFFFF', borderRadius: 8, padding: 14, borderWidth: 1, borderColor: '#E2E8F0' },
   compactCard: { marginTop: 12, backgroundColor: '#FFFFFF', borderRadius: 8, padding: 12, borderWidth: 1, borderColor: '#E2E8F0' },
   compactTitle: { color: '#0F172A', fontSize: 15, fontWeight: '900' },
   cardTitle: { color: '#0F172A', fontSize: 17, fontWeight: '900' },
@@ -898,9 +901,12 @@ const styles = StyleSheet.create({
   unitInput: { flex: 1, padding: 11, color: '#0F172A' },
   unitText: { color: '#64748B', fontWeight: '900' },
   roundSummaryList: { marginTop: 12, gap: 8 },
-  roundSummaryRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#F8FAFC', borderRadius: 8, padding: 10 },
   roundSummaryTitle: { color: '#0F172A', fontWeight: '900', fontSize: 13 },
   roundSummaryMeta: { color: '#2563EB', fontWeight: '900', fontSize: 12 },
+  selectableRoundRow: { borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 8, backgroundColor: '#FFFFFF', padding: 12 },
+  selectableRoundRowActive: { borderWidth: 2, borderColor: '#2563EB', backgroundColor: '#EFF6FF' },
+  roundSummaryStatus: { marginTop: 5, color: '#64748B', fontSize: 12, fontWeight: '800' },
+  roundSummaryStatusSet: { color: '#2563EB', fontWeight: '900' },
   roundBox: { marginTop: 10, borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 8, backgroundColor: '#FFFFFF' },
   roundHeader: { padding: 12, flexDirection: 'row', alignItems: 'center', gap: 8 },
   roundHeaderCopy: { flex: 1 },
