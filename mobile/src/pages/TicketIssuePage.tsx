@@ -190,6 +190,7 @@ export default function TicketIssuePage({ navigation, route }: any) {
   const [lastIssuedSummary, setLastIssuedSummary] = useState('');
   const [ticketConfigConfirmed, setTicketConfigConfirmed] = useState(false);
   const [issueSeatModalVisible, setIssueSeatModalVisible] = useState(false);
+  const [actionPolicy, setActionPolicy] = useState<SectionPolicy | null>(null);
 
   const load = useCallback(async () => {
     if (!eventId) return;
@@ -396,15 +397,33 @@ export default function TicketIssuePage({ navigation, route }: any) {
     setFeedback({ type: 'success', message: `${sectionNameOf(policy)} 정책을 수정할 수 있도록 펼쳤습니다.` });
   };
 
-  const openSavedPolicyActions = (policy: SectionPolicy) => {
-    Alert.alert(`${sectionNameOf(policy)} 좌석 정책`, '작업을 선택해주세요.', [
-      { text: '수정', onPress: () => editSavedPolicy(policy) },
-      { text: '삭제', style: 'destructive', onPress: () => removeSavedPolicy(policy.id) },
-      { text: '취소', style: 'cancel' },
-    ]);
+  const sectionPrefix = (policy: SectionPolicy, roundIndex: number) => `${roundIndex + 1}회차-${sectionNameOf(policy)}`;
+
+  const issuedMaxSeatNumber = (policy: SectionPolicy, roundIndex: number) => {
+    const prefix = sectionPrefix(policy, roundIndex);
+    return tickets.reduce((max, ticket) => {
+      const ticketSection = ticket.sectionName || String(ticket.seatInfo || '').replace(/-\d+$/, '');
+      if (ticketSection !== prefix && !String(ticket.seatInfo || '').startsWith(`${prefix}-`)) return max;
+      const match = String(ticket.seatInfo || '').match(/-(\d+)$/);
+      return Math.max(max, match ? Number(match[1]) : 0);
+    }, 0);
   };
 
-  const sectionToPayload = (policy: SectionPolicy, round: EventRound, roundIndex: number): IssueSectionPayload => {
+  const policyStartNumber = (policy: SectionPolicy, roundIndex: number, policies: SectionPolicy[]) => {
+    const section = sectionNameOf(policy);
+    const policyIndex = policies.findIndex((item) => item.id === policy.id);
+    const beforeQuantity = policies
+      .slice(0, policyIndex >= 0 ? policyIndex : policies.length)
+      .filter((item) => sectionNameOf(item) === section)
+      .reduce((sum, item) => sum + Number(item.quantity || 0), 0);
+    return issuedMaxSeatNumber(policy, roundIndex) + beforeQuantity + 1;
+  };
+
+  const openSavedPolicyActions = (policy: SectionPolicy) => {
+    setActionPolicy(policy);
+  };
+
+  const sectionToPayload = (policy: SectionPolicy, round: EventRound, roundIndex: number, policies: SectionPolicy[]): IssueSectionPayload => {
     const rawSection = sectionNameOf(policy);
     return {
       eventRoundId: round.id,
@@ -414,7 +433,7 @@ export default function TicketIssuePage({ navigation, route }: any) {
       saleEndAt: toDateTimeIso(policy.saleEndDate, policy.saleEndTime),
       resaleEnabled: policy.resaleEnabled,
       resaleCapRate: Math.round(Number(resaleRateOf(policy)) * 100),
-      startNumber: Number(policy.startNumber),
+      startNumber: policyStartNumber(policy, roundIndex, policies),
       quantity: Number(policy.quantity),
     };
   };
@@ -429,10 +448,11 @@ export default function TicketIssuePage({ navigation, route }: any) {
       return;
     }
     const payload = policyMode === 'global'
-      ? rounds.flatMap((round, index) => globalSections.map((section) => sectionToPayload(section, round, index)))
+      ? rounds.flatMap((round, index) => globalSections.map((section) => sectionToPayload(section, round, index, globalSections)))
       : rounds.flatMap((round, index) => {
         const key = roundKey(round, index);
-        return (roundPolicies[key]?.sections || []).map((section) => sectionToPayload(section, round, index));
+        const sections = roundPolicies[key]?.sections || [];
+        return sections.map((section) => sectionToPayload(section, round, index, sections));
       });
     if (payload.length === 0) {
       showError('발행할 좌석 정책을 먼저 저장해주세요.');
@@ -457,16 +477,16 @@ export default function TicketIssuePage({ navigation, route }: any) {
     }
   };
 
-  const seatRange = (policy: SectionPolicy) => {
+  const seatRange = (policy: SectionPolicy, startNumber = Number(policy.startNumber || '1')) => {
     const section = sectionNameOf(policy) || '좌석';
-    const start = Number(policy.startNumber || '1');
+    const start = startNumber;
     const quantity = Number(policy.quantity || '0');
     const end = quantity > 0 ? start + quantity - 1 : start;
     return quantity === 1 ? `${section}-${start}` : `${section}-${start} ~ ${section}-${end}`;
   };
 
-  const previewRange = (policy: SectionPolicy, roundIndex: number) => {
-    return `${roundIndex + 1}회차-${seatRange(policy)}`;
+  const previewRange = (policy: SectionPolicy, roundIndex: number, policies: SectionPolicy[] = currentSections) => {
+    return `${roundIndex + 1}회차-${seatRange(policy, policyStartNumber(policy, roundIndex, policies))}`;
   };
 
   const savedPolicyTitle = (policy: SectionPolicy) => `${sectionNameOf(policy)} · ${policy.quantity}장 · ${policy.priceEth} ETH`;
@@ -474,9 +494,9 @@ export default function TicketIssuePage({ navigation, route }: any) {
     ? `판매 ${formatDateShort(policy.saleStartDate)} ${policy.saleStartTime} ~ ${policy.saleEndTime}`
     : `판매 ${formatDateShort(policy.saleStartDate)} ${policy.saleStartTime} ~ ${formatDateShort(policy.saleEndDate)} ${policy.saleEndTime}`;
   const savedPolicyResaleSummary = (policy: SectionPolicy) => policy.resaleEnabled ? `리셀 허용 · 최대 ${resaleRateOf(policy)}%` : '리셀 불가';
-  const saleDeadlineGuide = policyMode === 'global'
-    ? `판매 종료 기준: 가장 빠른 회차 ${rounds.length ? roundLabel(rounds[0], 0) : '-'} 시작 전`
-    : `판매 종료 기준: ${activeRound ? roundLabel(activeRound, activeRoundIndex) : '-'} 시작 전`;
+  const saleDeadlineRoundLabel = policyMode === 'global'
+    ? rounds.length ? roundLabel(rounds[0], 0) : '-'
+    : activeRound ? roundLabel(activeRound, activeRoundIndex) : '-';
   const issueSeatSummary = (() => {
     const totals = new Map<string, number>();
     if (policyMode === 'global') {
@@ -496,13 +516,19 @@ export default function TicketIssuePage({ navigation, route }: any) {
   })();
   const issueSeatLines = (() => {
     if (policyMode === 'global') {
-      return rounds.flatMap((round, index) => globalSections.map((section) => previewRange(section, index)));
+      return rounds.flatMap((round, index) => globalSections.map((section) => previewRange(section, index, globalSections)));
     }
     return rounds.flatMap((round, index) => {
       const key = roundKey(round, index);
-      return (roundPolicies[key]?.sections || []).map((section) => previewRange(section, index));
+      const sections = roundPolicies[key]?.sections || [];
+      return sections.map((section) => previewRange(section, index, sections));
     });
   })();
+  const currentDraftStartNumber = issuedMaxSeatNumber(currentDraft, activeRoundIndex)
+    + currentSections
+      .filter((section) => sectionNameOf(section) === sectionNameOf(currentDraft))
+      .reduce((sum, section) => sum + Number(section.quantity || 0), 0)
+    + 1;
 
   const confirmTicketConfig = () => {
     if (!hasSavedPolicies) {
@@ -711,7 +737,7 @@ export default function TicketIssuePage({ navigation, route }: any) {
                     </View>
                     <View style={styles.issuePreviewBox}>
                       <Text style={styles.previewLabel}>발행 예정</Text>
-                      <Text style={styles.previewTextStrong}>{seatRange(currentDraft)}</Text>
+                      <Text style={styles.previewTextStrong}>{seatRange(currentDraft, currentDraftStartNumber)}</Text>
                     </View>
                   </View>
                 ) : null}
@@ -719,7 +745,8 @@ export default function TicketIssuePage({ navigation, route }: any) {
                 {canRevealPrice ? (
                   <View style={[styles.stepCard, styles.formStepCard]}>
                     <Text style={styles.builderTitle}>STEP 3 · 가격 및 판매 기간 설정</Text>
-                    <Text style={styles.deadlineGuide}>{saleDeadlineGuide}</Text>
+                    <Text style={styles.deadlineGuide}>판매 종료는 가장 빠른 회차 시작 전까지만 가능합니다.</Text>
+                    <Text style={styles.deadlineGuideMeta}>({saleDeadlineRoundLabel})</Text>
                     <Text style={styles.label}>가격</Text>
                     <View style={styles.unitInputWrap}>
                       <TextInput style={styles.unitInput} value={currentDraft.priceEth} onChangeText={(value) => updateDraft({ priceEth: value })} keyboardType="decimal-pad" inputMode="decimal" placeholder="예: 0.2" />
@@ -780,6 +807,11 @@ export default function TicketIssuePage({ navigation, route }: any) {
                   </View>
                 ) : null}
               </View>
+              {hasSavedPolicies && !ticketConfigConfirmed ? (
+                <TouchableOpacity style={styles.completeConfigButton} onPress={confirmTicketConfig}>
+                  <Text style={styles.completeConfigButtonText}>티켓 설정 완료</Text>
+                </TouchableOpacity>
+              ) : null}
             </View>
           ) : null}
         </View>
@@ -830,6 +862,36 @@ export default function TicketIssuePage({ navigation, route }: any) {
             </View>
           </View>
         </Modal>
+        <Modal visible={!!actionPolicy} transparent animationType="fade" onRequestClose={() => setActionPolicy(null)}>
+          <View style={styles.menuOverlay}>
+            <View style={styles.actionMenu}>
+              <Text style={styles.actionMenuTitle}>{actionPolicy ? `${sectionNameOf(actionPolicy)} 좌석 정책` : '좌석 정책'}</Text>
+              <TouchableOpacity
+                style={styles.actionMenuItem}
+                onPress={() => {
+                  const target = actionPolicy;
+                  setActionPolicy(null);
+                  if (target) editSavedPolicy(target);
+                }}
+              >
+                <Text style={styles.actionMenuText}>수정</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.actionMenuItem}
+                onPress={() => {
+                  const target = actionPolicy;
+                  setActionPolicy(null);
+                  if (target) removeSavedPolicy(target.id);
+                }}
+              >
+                <Text style={styles.actionMenuDeleteText}>삭제</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.actionMenuCancel} onPress={() => setActionPolicy(null)}>
+                <Text style={styles.actionMenuText}>취소</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
       </ScrollView>
 
       <View style={styles.bottomBar}>
@@ -853,8 +915,8 @@ export default function TicketIssuePage({ navigation, route }: any) {
             <TouchableOpacity style={styles.bottomSecondaryButton} onPress={() => setFlowPage(2)}>
               <Text style={styles.bottomSecondaryText}>이전</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.bottomPrimaryButton, (!hasSavedPolicies || ticketConfigConfirmed) && styles.disabledButton]} disabled={!hasSavedPolicies || ticketConfigConfirmed} onPress={confirmTicketConfig}>
-              <Text style={styles.primaryButtonText}>{ticketConfigConfirmed ? '설정 완료됨' : '티켓 설정 완료'}</Text>
+            <TouchableOpacity style={[styles.bottomPrimaryButton, !ticketConfigConfirmed && styles.disabledButton]} disabled={!ticketConfigConfirmed} onPress={issueTickets}>
+              <Text style={styles.primaryButtonText}>다음: 티켓 발행하기</Text>
             </TouchableOpacity>
           </View>
         ) : null}
@@ -1139,6 +1201,7 @@ const styles = StyleSheet.create({
   formStepCard: { borderColor: '#BFDBFE', backgroundColor: '#F8FBFF' },
   stepBox: { marginTop: 14, borderTopWidth: 1, borderTopColor: '#DBEAFE', paddingTop: 14 },
   deadlineGuide: { marginTop: 8, color: '#2563EB', fontSize: 12, fontWeight: '900', lineHeight: 17 },
+  deadlineGuideMeta: { marginTop: 3, color: '#475569', fontSize: 12, fontWeight: '800', lineHeight: 17 },
   chipGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 },
   choiceChip: { borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: '#FFFFFF' },
   activeChip: { borderColor: '#2563EB', backgroundColor: '#EFF6FF' },
@@ -1156,6 +1219,8 @@ const styles = StyleSheet.create({
   toggleOff: { backgroundColor: '#F1F5F9', color: '#64748B' },
   savePolicyButton: { marginTop: 14, borderWidth: 1, borderColor: '#2563EB', borderRadius: 8, paddingVertical: 12, alignItems: 'center', backgroundColor: '#EFF6FF' },
   savePolicyButtonText: { color: '#2563EB', fontWeight: '900' },
+  completeConfigButton: { marginTop: 16, backgroundColor: '#2563EB', borderRadius: 8, paddingVertical: 14, alignItems: 'center' },
+  completeConfigButtonText: { color: '#FFFFFF', fontSize: 15, fontWeight: '900' },
   issuePreviewBox: { marginTop: 12, backgroundColor: '#EFF6FF', borderRadius: 8, padding: 12, borderWidth: 1, borderColor: '#BFDBFE' },
   previewLabel: { marginTop: 10, color: '#64748B', fontSize: 12, fontWeight: '900' },
   previewText: { marginTop: 5, color: '#0F172A', fontWeight: '800', lineHeight: 20 },
@@ -1211,4 +1276,11 @@ const styles = StyleSheet.create({
   timeOptionTextActive: { color: '#2563EB' },
   issueSeatList: { maxHeight: 360 },
   issueSeatLine: { borderBottomWidth: 1, borderBottomColor: '#F1F5F9', paddingVertical: 10, color: '#0F172A', fontWeight: '900' },
+  menuOverlay: { flex: 1, justifyContent: 'center', padding: 24, backgroundColor: 'rgba(15, 23, 42, 0.35)' },
+  actionMenu: { borderRadius: 12, backgroundColor: '#FFFFFF', padding: 10 },
+  actionMenuTitle: { padding: 12, color: '#0F172A', fontSize: 15, fontWeight: '900' },
+  actionMenuItem: { padding: 14, borderTopWidth: 1, borderTopColor: '#F1F5F9' },
+  actionMenuText: { color: '#0F172A', fontSize: 15, fontWeight: '900', textAlign: 'center' },
+  actionMenuDeleteText: { color: '#DC2626', fontSize: 15, fontWeight: '900', textAlign: 'center' },
+  actionMenuCancel: { marginTop: 8, padding: 14, borderRadius: 8, backgroundColor: '#F8FAFC' },
 });
