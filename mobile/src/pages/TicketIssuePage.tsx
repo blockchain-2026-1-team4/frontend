@@ -14,7 +14,6 @@ import {
 } from 'react-native';
 import { accountStatusMessage, errorMessage } from '../lib/account';
 import { backendApi } from '../lib/backend';
-import { weiToEth } from '../lib/ticketDisplay';
 import type { EventDetail, EventRound, TicketDetail } from '../types/api';
 
 const SECTION_PRESETS = ['VIP', 'R', 'S', 'A', 'B', 'C', '스탠딩'];
@@ -172,10 +171,6 @@ function isPositiveNumber(value: string) {
   return Number.isFinite(number) && number > 0;
 }
 
-function ticketSectionOf(ticket: TicketDetail) {
-  return ticket.sectionName || String(ticket.seatInfo || '').split('-')[0] || 'GENERAL';
-}
-
 export default function TicketIssuePage({ navigation, route }: any) {
   const eventId = route?.params?.eventId as string;
   const returnTo = route?.params?.returnTo as 'create' | 'detail' | undefined;
@@ -193,6 +188,8 @@ export default function TicketIssuePage({ navigation, route }: any) {
   const [drafts, setDrafts] = useState<Record<string, SectionPolicy>>({});
   const [feedback, setFeedback] = useState<{ type: 'error' | 'success'; message: string } | null>(null);
   const [lastIssuedSummary, setLastIssuedSummary] = useState('');
+  const [ticketConfigConfirmed, setTicketConfigConfirmed] = useState(false);
+  const [issueSeatModalVisible, setIssueSeatModalVisible] = useState(false);
 
   const load = useCallback(async () => {
     if (!eventId) return;
@@ -269,6 +266,10 @@ export default function TicketIssuePage({ navigation, route }: any) {
     ? globalSections.length > 0
     : Object.values(roundPolicies).some((policy) => policy.sections.length > 0);
   const activeRoundTotalCount = roundPolicies[activeKey]?.totalTicketCount || '';
+  const finalTotalCount = totalConfiguredCapacity;
+  const finalIssuedCount = issuedCount;
+  const finalIssueCount = totalPlannedQuantity;
+  const finalRemainingCount = finalTotalCount - finalIssuedCount - finalIssueCount;
 
   const goBackToEventFlow = () => {
     if (returnTo === 'create') {
@@ -366,10 +367,12 @@ export default function TicketIssuePage({ navigation, route }: any) {
       }));
     }
     setDrafts((current) => ({ ...current, [draftKey]: makeSectionPolicy(activeRound) }));
+    setTicketConfigConfirmed(false);
     setFeedback({ type: 'success', message: `${sectionNameOf(saved)} 정책을 저장했습니다.` });
   };
 
   const removeSavedPolicy = (sectionId: string) => {
+    setTicketConfigConfirmed(false);
     if (policyMode === 'global') {
       setGlobalSections((current) => current.filter((section) => section.id !== sectionId));
       return;
@@ -383,26 +386,13 @@ export default function TicketIssuePage({ navigation, route }: any) {
     }));
   };
 
-  const toggleSavedPolicy = (sectionId: string) => {
-    if (policyMode === 'global') {
-      setGlobalSections((current) => current.map((section) => section.id === sectionId ? { ...section, expanded: !section.expanded } : section));
-      return;
-    }
-    setRoundPolicies((current) => ({
-      ...current,
-      [activeKey]: {
-        ...current[activeKey],
-        sections: (current[activeKey]?.sections || []).map((section) => section.id === sectionId ? { ...section, expanded: !section.expanded } : section),
-      },
-    }));
-  };
-
   const editSavedPolicy = (policy: SectionPolicy) => {
     setDrafts((current) => ({
       ...current,
       [draftKey]: { ...policy, id: makeId('section'), expanded: false },
     }));
     removeSavedPolicy(policy.id);
+    setTicketConfigConfirmed(false);
     setFeedback({ type: 'success', message: `${sectionNameOf(policy)} 정책을 수정할 수 있도록 펼쳤습니다.` });
   };
 
@@ -430,6 +420,10 @@ export default function TicketIssuePage({ navigation, route }: any) {
   };
 
   const issueTickets = async () => {
+    if (!ticketConfigConfirmed) {
+      showError('티켓 설정 완료 후 발행할 수 있습니다.');
+      return;
+    }
     if (!policyMode || !hasSavedPolicies) {
       showError('발행할 좌석 정책을 먼저 저장해주세요.');
       return;
@@ -454,6 +448,7 @@ export default function TicketIssuePage({ navigation, route }: any) {
       const summary = issued.slice(0, 3).map((ticket) => ticket.seatInfo).join(', ');
       setLastIssuedSummary(summary ? `${summary}${issued.length > 3 ? ` 외 ${issued.length - 3}장` : ''}` : `${issued.length}장`);
       setFeedback({ type: 'success', message: `티켓 ${issued.length}장을 발행했습니다.` });
+      setTicketConfigConfirmed(false);
       await load();
     } catch (error: any) {
       showError(errorMessage(error, '티켓을 발행하지 못했습니다.'));
@@ -482,6 +477,46 @@ export default function TicketIssuePage({ navigation, route }: any) {
   const saleDeadlineGuide = policyMode === 'global'
     ? `판매 종료 기준: 가장 빠른 회차 ${rounds.length ? roundLabel(rounds[0], 0) : '-'} 시작 전`
     : `판매 종료 기준: ${activeRound ? roundLabel(activeRound, activeRoundIndex) : '-'} 시작 전`;
+  const issueSeatSummary = (() => {
+    const totals = new Map<string, number>();
+    if (policyMode === 'global') {
+      globalSections.forEach((section) => {
+        const name = sectionNameOf(section);
+        totals.set(name, (totals.get(name) || 0) + Number(section.quantity || 0) * rounds.length);
+      });
+    } else {
+      Object.values(roundPolicies).forEach((policy) => {
+        policy.sections.forEach((section) => {
+          const name = sectionNameOf(section);
+          totals.set(name, (totals.get(name) || 0) + Number(section.quantity || 0));
+        });
+      });
+    }
+    return Array.from(totals.entries()).map(([name, quantity]) => `${name} ${quantity}장`).join(' · ');
+  })();
+  const issueSeatLines = (() => {
+    if (policyMode === 'global') {
+      return rounds.flatMap((round, index) => globalSections.map((section) => previewRange(section, index)));
+    }
+    return rounds.flatMap((round, index) => {
+      const key = roundKey(round, index);
+      return (roundPolicies[key]?.sections || []).map((section) => previewRange(section, index));
+    });
+  })();
+
+  const confirmTicketConfig = () => {
+    if (!hasSavedPolicies) {
+      showError('저장된 좌석 정책이 없습니다.');
+      return;
+    }
+    if (!validateCapacityPage()) return;
+    if (finalRemainingCount < 0) {
+      showError('이번 발행 수량이 남은 수량보다 많습니다.');
+      return;
+    }
+    setTicketConfigConfirmed(true);
+    setFeedback({ type: 'success', message: '티켓 설정을 완료했습니다. 최종 발행 내용을 확인해주세요.' });
+  };
 
   const pageTitle = flowPage === 1
     ? '적용 방식 선택'
@@ -622,23 +657,15 @@ export default function TicketIssuePage({ navigation, route }: any) {
                       <View key={policy.id} style={styles.savedPolicyCard}>
                         <View style={styles.savedPolicyHeader}>
                           <View style={styles.savedPolicyHeaderTop}>
-                            <Text style={styles.savedPolicyArrow}>{policy.expanded ? '▼' : '▶'}</Text>
+                            <Text style={styles.savedBadge}>저장됨</Text>
                             <TouchableOpacity style={styles.kebabButton} onPress={() => openSavedPolicyActions(policy)}>
                               <Text style={styles.kebabText}>⋮</Text>
                             </TouchableOpacity>
                           </View>
-                          <TouchableOpacity onPress={() => toggleSavedPolicy(policy.id)}>
-                            <Text style={styles.savedPolicyText}>{savedPolicyTitle(policy)}</Text>
-                            <Text style={styles.savedPolicyMeta}>{savedPolicySaleSummary(policy)}</Text>
-                            <Text style={styles.savedPolicyMeta}>{savedPolicyResaleSummary(policy)}</Text>
-                          </TouchableOpacity>
+                          <Text style={styles.savedPolicyText}>{savedPolicyTitle(policy)}</Text>
+                          <Text style={styles.savedPolicyMeta}>{savedPolicySaleSummary(policy)}</Text>
+                          <Text style={styles.savedPolicyMeta}>{savedPolicyResaleSummary(policy)}</Text>
                         </View>
-                        {policy.expanded ? (
-                          <View style={styles.savedPolicyDetail}>
-                            <Text style={styles.previewLabel}>발행 예정</Text>
-                            <Text style={styles.previewTextStrong}>{previewRange(policy, activeRoundIndex)}</Text>
-                          </View>
-                        ) : null}
                       </View>
                     ))}
                   </View>
@@ -757,39 +784,52 @@ export default function TicketIssuePage({ navigation, route }: any) {
           ) : null}
         </View>
 
-        {flowPage === 3 && hasSavedPolicies ? (
+        {flowPage === 3 && ticketConfigConfirmed ? (
           <View style={styles.statusBand}>
-            <Text style={styles.statusLabel}>최종 발행 영역</Text>
-            <Text style={styles.statusLine}>총 {totalConfiguredCapacity || '-'}장 · 발행 {issuedCount}장 · 남은 {totalConfiguredCapacity ? Math.max(totalConfiguredCapacity - issuedCount, 0) : '-'}장</Text>
-            <Text style={styles.previewLabel}>발행 예정 좌석</Text>
-            <Text style={styles.previewText}>{hasSavedPolicies ? `${totalPlannedQuantity}장 발행 예정` : '저장된 좌석 정책이 없습니다.'}</Text>
+            <Text style={styles.statusLabel}>최종 발행 확인</Text>
+            <View style={styles.finalCountList}>
+              <Text style={styles.finalCountText}>총 티켓 수: {finalTotalCount}장</Text>
+              <Text style={styles.finalCountText}>이미 발행됨: {finalIssuedCount}장</Text>
+              <Text style={styles.finalCountText}>이번에 발행됨: {finalIssueCount}장</Text>
+              <Text style={styles.finalCountText}>발행 후 남음: {Math.max(finalRemainingCount, 0)}장</Text>
+            </View>
+            <Text style={styles.previewLabel}>이번 발행 좌석</Text>
+            <Text style={styles.previewText}>{issueSeatSummary || '저장된 좌석 정책이 없습니다.'}</Text>
             {lastIssuedSummary ? (
               <>
                 <Text style={styles.previewLabel}>방금 발행됨</Text>
                 <Text style={styles.previewText}>{lastIssuedSummary}</Text>
               </>
             ) : null}
+            <TouchableOpacity style={[styles.primaryButton, styles.finalActionButton, issuing && styles.disabledButton]} disabled={issuing} onPress={issueTickets}>
+              <Text style={styles.primaryButtonText}>{issuing ? '발행 중...' : '티켓 발행'}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.secondaryButton} onPress={() => navigation.navigate('TicketExplore', { eventId })}>
+              <Text style={styles.secondaryButtonText}>티켓 발행 현황 보기</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.secondaryButton} onPress={() => setIssueSeatModalVisible(true)}>
+              <Text style={styles.secondaryButtonText}>이번 발행 좌석 보기</Text>
+            </TouchableOpacity>
           </View>
         ) : null}
 
-        {lastIssuedSummary ? (
-          <TouchableOpacity style={styles.secondaryButton} onPress={() => navigation.navigate('TicketExplore', { eventId })}>
-            <Text style={styles.secondaryButtonText}>전체 발행 티켓 보기</Text>
-          </TouchableOpacity>
-        ) : null}
-
-        {flowPage === 3 && hasSavedPolicies ? (
-          <View style={styles.compactCard}>
-            <Text style={styles.compactTitle}>발행 티켓 요약</Text>
-            {tickets.length === 0 ? (
-              <Text style={styles.emptyText}>아직 발행된 티켓이 없습니다.</Text>
-            ) : (
-              <Text style={styles.previewText}>
-                최근 {tickets.slice(0, 3).map((ticket) => `${ticket.seatInfo} · ${ticketSectionOf(ticket)} · ${weiToEth(ticket.originalPriceWei || ticket.priceWei)} ETH`).join('\n')}
-              </Text>
-            )}
+        <Modal visible={issueSeatModalVisible} transparent animationType="slide" onRequestClose={() => setIssueSeatModalVisible(false)}>
+          <View style={styles.sheetOverlay}>
+            <View style={styles.sheet}>
+              <View style={styles.sheetHeader}>
+                <Text style={styles.sheetTitle}>이번 발행 좌석</Text>
+                <TouchableOpacity onPress={() => setIssueSeatModalVisible(false)}>
+                  <Text style={styles.sheetClose}>닫기</Text>
+                </TouchableOpacity>
+              </View>
+              <ScrollView style={styles.issueSeatList}>
+                {issueSeatLines.map((line) => (
+                  <Text key={line} style={styles.issueSeatLine}>{line}</Text>
+                ))}
+              </ScrollView>
+            </View>
           </View>
-        ) : null}
+        </Modal>
       </ScrollView>
 
       <View style={styles.bottomBar}>
@@ -813,8 +853,8 @@ export default function TicketIssuePage({ navigation, route }: any) {
             <TouchableOpacity style={styles.bottomSecondaryButton} onPress={() => setFlowPage(2)}>
               <Text style={styles.bottomSecondaryText}>이전</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.bottomPrimaryButton, (!hasSavedPolicies || issuing) && styles.disabledButton]} disabled={!hasSavedPolicies || issuing} onPress={issueTickets}>
-              <Text style={styles.primaryButtonText}>{issuing ? '발행 중...' : '티켓 발행'}</Text>
+            <TouchableOpacity style={[styles.bottomPrimaryButton, (!hasSavedPolicies || ticketConfigConfirmed) && styles.disabledButton]} disabled={!hasSavedPolicies || ticketConfigConfirmed} onPress={confirmTicketConfig}>
+              <Text style={styles.primaryButtonText}>{ticketConfigConfirmed ? '설정 완료됨' : '티켓 설정 완료'}</Text>
             </TouchableOpacity>
           </View>
         ) : null}
@@ -1123,6 +1163,9 @@ const styles = StyleSheet.create({
   statusBand: { marginTop: 14, backgroundColor: '#FFFFFF', borderRadius: 8, padding: 14, borderWidth: 1, borderColor: '#E2E8F0' },
   statusLabel: { color: '#64748B', fontSize: 12, fontWeight: '900' },
   statusLine: { marginTop: 6, color: '#0F172A', fontSize: 17, fontWeight: '900' },
+  finalCountList: { marginTop: 10, gap: 7, borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 8, padding: 12, backgroundColor: '#F8FAFC' },
+  finalCountText: { color: '#0F172A', fontSize: 14, fontWeight: '900' },
+  finalActionButton: { marginTop: 14 },
   removeButton: { marginTop: 10, alignSelf: 'flex-start', borderWidth: 1, borderColor: '#FECACA', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6, backgroundColor: '#FEF2F2' },
   removeButtonText: { color: '#B91C1C', fontSize: 12, fontWeight: '900' },
   editButton: { marginTop: 10, alignSelf: 'flex-start', borderWidth: 1, borderColor: '#BFDBFE', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6, backgroundColor: '#EFF6FF' },
@@ -1166,4 +1209,6 @@ const styles = StyleSheet.create({
   timeOptionActive: { backgroundColor: '#EFF6FF', borderWidth: 1, borderColor: '#2563EB' },
   timeOptionText: { color: '#334155', fontWeight: '900' },
   timeOptionTextActive: { color: '#2563EB' },
+  issueSeatList: { maxHeight: 360 },
+  issueSeatLine: { borderBottomWidth: 1, borderBottomColor: '#F1F5F9', paddingVertical: 10, color: '#0F172A', fontWeight: '900' },
 });
