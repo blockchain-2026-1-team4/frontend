@@ -64,8 +64,23 @@ function formatDateTime(date: string, time: string) {
   return `${formatDotDate(date)} ${time}`;
 }
 
+function normalizeDate(value?: string | null, fallback = localDate(new Date())) {
+  if (!value) return fallback;
+  const raw = String(value);
+  if (/^\d{4}-\d{2}-\d{2}/.test(raw)) return raw.slice(0, 10);
+  const parsed = new Date(raw);
+  return Number.isNaN(parsed.getTime()) ? fallback : localDate(parsed);
+}
+
+function normalizeTime(value?: string | null, fallback = '19:00') {
+  if (!value) return fallback;
+  const match = String(value).match(/^(\d{1,2}):(\d{2})/);
+  if (!match) return fallback;
+  return `${String(Math.min(23, Math.max(0, Number(match[1])))).padStart(2, '0')}:${String(Math.min(59, Math.max(0, Number(match[2])))).padStart(2, '0')}`;
+}
+
 function toDateTimeIso(date: string, time: string) {
-  return new Date(`${date}T${time}:00`).toISOString();
+  return new Date(`${normalizeDate(date)}T${normalizeTime(time)}:00`).toISOString();
 }
 
 function roundStartIso(round: RoundDraft) {
@@ -107,9 +122,9 @@ function toRoundDraft(round: EventRound, index: number): RoundDraft {
   return {
     id: round.id || `${Date.now()}-${index}`,
     title: round.title || `${index + 1}회차`,
-    eventDate: round.eventDate,
-    startTime: round.startTime,
-    endTime: round.endTime,
+    eventDate: normalizeDate(round.eventDate),
+    startTime: normalizeTime(round.startTime),
+    endTime: normalizeTime(round.endTime, '21:00'),
   };
 }
 
@@ -145,14 +160,26 @@ export default function EventSettingsPage({ navigation, route }: any) {
   const [expandedRoundIds, setExpandedRoundIds] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
+  const [issuedTicketCount, setIssuedTicketCount] = useState(0);
   const [errors, setErrors] = useState<string[]>([]);
 
   const markedRounds = rounds.map((round, index) => ({ date: round.eventDate, label: `${index + 1}회차` }));
+  const scheduleLocked = issuedTicketCount > 0;
 
   const load = useCallback(async () => {
+    if (!eventId) {
+      setLoadError('이벤트 정보가 없어 수정 화면을 열 수 없습니다.');
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
-      const detail = await backendApi.getEvent(eventId);
+      setLoadError('');
+      const [detail, issuedTickets] = await Promise.all([
+        backendApi.getEvent(eventId),
+        backendApi.getEventTickets(eventId).catch(() => []),
+      ]);
       const nextRounds = detail.rounds?.length
         ? detail.rounds.map((round, index) => toRoundDraft(round, index))
         : [fallbackRound(detail)];
@@ -167,9 +194,12 @@ export default function EventSettingsPage({ navigation, route }: any) {
       setPosterPreviewOpen(false);
       setRounds(nextRounds);
       setExpandedRoundIds([]);
+      setIssuedTicketCount(issuedTickets.length);
       setErrors([]);
     } catch (error: any) {
-      Alert.alert('이벤트 정보 로드 실패', errorMessage(error, '이벤트 정보를 불러오지 못했습니다.'));
+      const message = errorMessage(error, '이벤트 정보를 불러오지 못했습니다.');
+      setLoadError(message);
+      Alert.alert('이벤트 정보 로드 실패', message);
     } finally {
       setLoading(false);
     }
@@ -198,10 +228,15 @@ export default function EventSettingsPage({ navigation, route }: any) {
   };
 
   const updateRound = (id: string, patch: Partial<RoundDraft>) => {
+    if (scheduleLocked) return;
     setRounds((current) => current.map((round) => (round.id === id ? { ...round, ...patch } : round)));
   };
 
   const addRound = () => {
+    if (scheduleLocked) {
+      Alert.alert('공연 일정 수정 불가', '이미 발행된 티켓이 있어 공연 일정은 변경할 수 없습니다.');
+      return;
+    }
     setRounds((current) => {
       const nextDate = addDays(current.at(-1)?.eventDate || localDate(new Date()), 1);
       const next = {
@@ -217,6 +252,10 @@ export default function EventSettingsPage({ navigation, route }: any) {
   };
 
   const removeRound = (id: string) => {
+    if (scheduleLocked) {
+      Alert.alert('공연 일정 수정 불가', '이미 발행된 티켓이 있어 공연 일정은 변경할 수 없습니다.');
+      return;
+    }
     setRounds((current) => {
       if (current.length <= 1) return current;
       const next = current.filter((round) => round.id !== id).map((round, index) => ({ ...round, title: `${index + 1}회차` }));
@@ -257,23 +296,24 @@ export default function EventSettingsPage({ navigation, route }: any) {
     const firstRound = sortedRounds[0];
     const lastRound = [...sortedRounds].sort((a, b) => roundEndIso(b).localeCompare(roundEndIso(a)))[0];
     const backendSaleWindow = defaultBackendSaleWindow(roundStartIso(firstRound));
-    setSaving(true);
-    try {
-      await backendApi.updateEvent(event.id, {
-        name: name.trim(),
-        category,
-        venue: venue.trim(),
-        location: {
-          name: venue.trim(),
-          address: venue.trim(),
-          placeId: event.venuePlaceId || event.location?.placeId || null,
-          latitude: event.location?.latitude ?? null,
-          longitude: event.location?.longitude ?? null,
-        },
-        venuePlaceId: event.venuePlaceId || event.location?.placeId || null,
-        description: description.trim(),
-        imageUrl: posterRemoved ? null : imageUrl.trim() || null,
-        removeImage: posterRemoved,
+    const updatePayload: Record<string, unknown> = {
+      name: name.trim(),
+      category,
+      venue: venue.trim(),
+      location: {
+        name: venue.trim(),
+        address: venue.trim(),
+        placeId: event.venuePlaceId || event.location?.placeId || null,
+        latitude: event.location?.latitude ?? null,
+        longitude: event.location?.longitude ?? null,
+      },
+      venuePlaceId: event.venuePlaceId || event.location?.placeId || null,
+      description: description.trim(),
+      imageUrl: posterRemoved ? null : imageUrl.trim() || null,
+      removeImage: posterRemoved,
+    };
+    if (!scheduleLocked) {
+      Object.assign(updatePayload, {
         eventAt: roundStartIso(firstRound),
         eventStartAt: roundStartIso(firstRound),
         eventEndAt: roundEndIso(lastRound),
@@ -284,15 +324,19 @@ export default function EventSettingsPage({ navigation, route }: any) {
         salesStartAt: backendSaleWindow.saleStartAt,
         salesEndAt: backendSaleWindow.saleEndAt,
         rounds: sortedRounds.map((round, index) => ({
-            title: round.title || `${index + 1}회차`,
-            eventDate: round.eventDate,
-            startTime: round.startTime,
-            endTime: round.endTime,
-            useGlobalSalePeriod: true,
-            saleStartAt: backendSaleWindow.saleStartAt,
-            saleEndAt: backendSaleWindow.saleEndAt,
+          title: round.title || `${index + 1}회차`,
+          eventDate: round.eventDate,
+          startTime: round.startTime,
+          endTime: round.endTime,
+          useGlobalSalePeriod: true,
+          saleStartAt: backendSaleWindow.saleStartAt,
+          saleEndAt: backendSaleWindow.saleEndAt,
         })),
       });
+    }
+    setSaving(true);
+    try {
+      await backendApi.updateEvent(event.id, updatePayload);
       if (poster) {
         await backendApi.uploadEventImage(event.id, posterFile(poster));
       }
@@ -308,6 +352,18 @@ export default function EventSettingsPage({ navigation, route }: any) {
 
   if (loading) {
     return <View style={styles.center}><ActivityIndicator size="large" color="#2563EB" /></View>;
+  }
+
+  if (loadError && !event) {
+    return (
+      <View style={styles.center}>
+        <Text style={styles.emptyTitle}>이벤트 수정 화면을 열 수 없습니다.</Text>
+        <Text style={styles.emptyText}>{loadError}</Text>
+        <TouchableOpacity style={styles.primaryButton} onPress={() => navigation.navigate('MyEvents')}>
+          <Text style={styles.primaryButtonText}>이벤트 목록으로 돌아가기</Text>
+        </TouchableOpacity>
+      </View>
+    );
   }
 
   return (
@@ -379,6 +435,9 @@ export default function EventSettingsPage({ navigation, route }: any) {
           <Text style={styles.cardTitle}>일정</Text>
           <Text style={styles.helpText}>공연 회차별로 날짜와 시간을 설정하세요.</Text>
           <Text style={styles.helpText}>장소나 일정 차이가 큰 경우 별도 이벤트 등록을 권장합니다.</Text>
+          {scheduleLocked ? (
+            <Text style={styles.lockedNotice}>이미 발행된 티켓 {issuedTicketCount}장이 있어 공연 일정은 수정할 수 없습니다. 카테고리, 이름, 장소, 소개, 포스터만 저장됩니다.</Text>
+          ) : null}
           {rounds.map((round, index) => {
             const expanded = expandedRoundIds.includes(round.id);
             return (
@@ -388,7 +447,7 @@ export default function EventSettingsPage({ navigation, route }: any) {
                     <Text style={styles.roundTitle}>{expanded ? '▼' : '▶'} {index + 1}회차 · {formatDotDate(round.eventDate)}</Text>
                     <Text style={styles.roundSummary}>{round.startTime} ~ {round.endTime}</Text>
                   </TouchableOpacity>
-                  {rounds.length > 1 ? (
+                  {rounds.length > 1 && !scheduleLocked ? (
                     <TouchableOpacity style={styles.deleteButton} onPress={() => confirmRemoveRound(round.id, index)}>
                       <Text style={styles.deleteButtonText}>삭제</Text>
                     </TouchableOpacity>
@@ -397,15 +456,15 @@ export default function EventSettingsPage({ navigation, route }: any) {
                 {expanded ? (
                   <View style={styles.roundBody}>
                     <Text style={styles.label}>공연일</Text>
-                    <SingleDatePicker value={round.eventDate} onChange={(value) => updateRound(round.id, { eventDate: value })} markedRounds={markedRounds} />
+                    <SingleDatePicker value={round.eventDate} onChange={(value) => updateRound(round.id, { eventDate: value })} markedRounds={markedRounds} disabled={scheduleLocked} />
                     <View style={styles.timeRow}>
                       <View style={styles.timeCol}>
                         <Text style={styles.label}>공연 시작 시간</Text>
-                        <TimeWheelPicker label="공연 시작 시간" value={round.startTime} onChange={(value) => updateRound(round.id, { startTime: value })} />
+                        <TimeWheelPicker label="공연 시작 시간" value={round.startTime} onChange={(value) => updateRound(round.id, { startTime: value })} disabled={scheduleLocked} />
                       </View>
                       <View style={styles.timeCol}>
                         <Text style={styles.label}>공연 종료 시간</Text>
-                        <TimeWheelPicker label="공연 종료 시간" value={round.endTime} onChange={(value) => updateRound(round.id, { endTime: value })} />
+                        <TimeWheelPicker label="공연 종료 시간" value={round.endTime} onChange={(value) => updateRound(round.id, { endTime: value })} disabled={scheduleLocked} />
                       </View>
                     </View>
                     <TouchableOpacity style={styles.secondaryButton} onPress={() => setExpandedRoundIds((current) => current.filter((item) => item !== round.id))}>
@@ -416,7 +475,7 @@ export default function EventSettingsPage({ navigation, route }: any) {
               </View>
             );
           })}
-          <TouchableOpacity style={styles.addButton} onPress={addRound}>
+          <TouchableOpacity style={[styles.addButton, scheduleLocked && styles.disabledButton]} disabled={scheduleLocked} onPress={addRound}>
             <Text style={styles.addButtonText}>+ 회차 추가</Text>
           </TouchableOpacity>
         </View>
@@ -445,11 +504,11 @@ export default function EventSettingsPage({ navigation, route }: any) {
   );
 }
 
-function SingleDatePicker({ value, onChange, markedRounds = [] }: { value: string; onChange: (date: string) => void; markedRounds?: MarkedRoundDate[] }) {
+function SingleDatePicker({ value, onChange, markedRounds = [], disabled = false }: { value: string; onChange: (date: string) => void; markedRounds?: MarkedRoundDate[]; disabled?: boolean }) {
   const [open, setOpen] = useState(false);
   return (
     <View>
-      <TouchableOpacity style={styles.compactPickerButton} onPress={() => setOpen(true)}>
+      <TouchableOpacity style={[styles.compactPickerButton, disabled && styles.disabledButton]} disabled={disabled} onPress={() => setOpen(true)}>
         <Text style={styles.compactPickerText}>{formatDotDate(value)}</Text>
         <Text style={styles.compactPickerAction}>선택</Text>
       </TouchableOpacity>
@@ -524,7 +583,7 @@ function MonthCalendar({ selectedStart, selectedEnd, markedRounds = [], onSelect
   );
 }
 
-function TimeWheelPicker({ label, value, onChange }: { label: string; value: string; onChange: (time: string) => void }) {
+function TimeWheelPicker({ label, value, onChange, disabled = false }: { label: string; value: string; onChange: (time: string) => void; disabled?: boolean }) {
   const [open, setOpen] = useState(false);
   const [hour, minute] = value.split(':');
   const [draftHour, setDraftHour] = useState(hour || '00');
@@ -544,7 +603,7 @@ function TimeWheelPicker({ label, value, onChange }: { label: string; value: str
 
   return (
     <View>
-      <TouchableOpacity style={styles.compactPickerButton} onPress={openWheel}>
+      <TouchableOpacity style={[styles.compactPickerButton, disabled && styles.disabledButton]} disabled={disabled} onPress={openWheel}>
         <Text style={styles.timeSingleValue}>{value}</Text>
         <Text style={styles.compactPickerAction}>선택</Text>
       </TouchableOpacity>
@@ -588,6 +647,8 @@ const styles = StyleSheet.create({
   scroll: { flex: 1 },
   content: { padding: 14, paddingBottom: 112 },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F8FAFC' },
+  emptyTitle: { color: '#0F172A', fontSize: 18, fontWeight: '900', textAlign: 'center' },
+  emptyText: { marginTop: 8, color: '#64748B', fontSize: 13, textAlign: 'center', lineHeight: 19 },
   eyebrow: { color: '#2563EB', fontWeight: '800', fontSize: 12 },
   title: { marginTop: 3, fontSize: 26, fontWeight: '900', color: '#0F172A' },
   subtitle: { marginTop: 6, color: '#64748B', fontSize: 13, lineHeight: 19 },
@@ -595,6 +656,7 @@ const styles = StyleSheet.create({
   cardTitle: { color: '#0F172A', fontSize: 16, fontWeight: '900' },
   label: { marginTop: 9, marginBottom: 5, color: '#334155', fontSize: 13, fontWeight: '800' },
   helpText: { marginTop: 5, color: '#64748B', fontSize: 12, lineHeight: 17 },
+  lockedNotice: { marginTop: 8, borderWidth: 1, borderColor: '#FDE68A', backgroundColor: '#FFFBEB', borderRadius: 8, padding: 10, color: '#92400E', fontSize: 12, fontWeight: '800', lineHeight: 18 },
   input: { borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 8, padding: 10, backgroundColor: '#FFFFFF', color: '#0F172A' },
   textArea: { minHeight: 76, maxHeight: 180, textAlignVertical: 'top' },
   posterPreview: { width: '100%', aspectRatio: 3 / 4, borderRadius: 8, backgroundColor: '#E2E8F0' },

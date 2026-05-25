@@ -47,6 +47,7 @@ export default function TicketExplorePage({ navigation, route }: any) {
   const [tickets, setTickets] = useState<TicketDetail[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [loadError, setLoadError] = useState('');
   const [page, setPage] = useState(1);
   const [query, setQuery] = useState('');
   const [selectedSection, setSelectedSection] = useState('전체');
@@ -54,7 +55,14 @@ export default function TicketExplorePage({ navigation, route }: any) {
   const [sortMode, setSortMode] = useState<SortMode>('latest');
 
   const load = useCallback(async () => {
+    if (!eventId) {
+      setLoadError('이벤트 정보가 없어 티켓 발행 현황을 열 수 없습니다.');
+      setLoading(false);
+      setRefreshing(false);
+      return;
+    }
     try {
+      setLoadError('');
       const [detail, list] = await Promise.all([
         backendApi.getEvent(eventId),
         backendApi.getEventTickets(eventId).catch(() => []),
@@ -63,7 +71,9 @@ export default function TicketExplorePage({ navigation, route }: any) {
       setTickets(list);
       setPage(1);
     } catch (error: any) {
-      Alert.alert('티켓 탐색 로드 실패', errorMessage(error, '발행된 티켓을 불러오지 못했습니다.'));
+      const message = errorMessage(error, '발행된 티켓을 불러오지 못했습니다.');
+      setLoadError(message);
+      Alert.alert('티켓 탐색 로드 실패', message);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -104,6 +114,18 @@ export default function TicketExplorePage({ navigation, route }: any) {
     return <View style={styles.center}><ActivityIndicator size="large" color="#2563EB" /></View>;
   }
 
+  if (loadError && !event) {
+    return (
+      <View style={styles.center}>
+        <Text style={styles.emptyTitle}>티켓 발행 현황을 열 수 없습니다.</Text>
+        <Text style={styles.errorText}>{loadError}</Text>
+        <TouchableOpacity style={styles.primaryButton} onPress={() => navigation.navigate('MyEvents')}>
+          <Text style={styles.primaryButtonText}>이벤트 목록으로 돌아가기</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
   return (
     <FlatList
       style={styles.container}
@@ -113,8 +135,8 @@ export default function TicketExplorePage({ navigation, route }: any) {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} />}
       ListHeaderComponent={(
         <>
-          <TouchableOpacity style={styles.backButton} onPress={() => navigation.navigate('MyEvents')}>
-            <Text style={styles.backButtonText}>이벤트 관리로 돌아가기</Text>
+          <TouchableOpacity style={styles.backButton} onPress={() => eventId ? navigation.navigate('OrganizerEventDetail', { eventId }) : navigation.navigate('MyEvents')}>
+            <Text style={styles.backButtonText}>이벤트 상세로 돌아가기</Text>
           </TouchableOpacity>
           <Text style={styles.eyebrow}>Ticket Explore</Text>
           <Text style={styles.title}>전체 발행 티켓 보기</Text>
@@ -196,8 +218,13 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F4F7FB' },
   content: { padding: 18, paddingBottom: 96 },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F4F7FB' },
+  emptyTitle: { color: '#0F172A', fontSize: 18, fontWeight: '900', textAlign: 'center' },
+  emptyText: { color: '#94A3B8', paddingVertical: 48, textAlign: 'center' },
+  errorText: { marginTop: 8, color: '#64748B', fontSize: 13, textAlign: 'center', lineHeight: 19 },
   backButton: { borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 8, paddingVertical: 10, alignItems: 'center', backgroundColor: '#FFFFFF', marginBottom: 14 },
   backButtonText: { color: '#2563EB', fontWeight: '900' },
+  primaryButton: { marginTop: 14, backgroundColor: '#2563EB', borderRadius: 8, paddingHorizontal: 18, paddingVertical: 13, alignItems: 'center' },
+  primaryButtonText: { color: '#FFFFFF', fontSize: 15, fontWeight: '900' },
   eyebrow: { color: '#2563EB', fontWeight: '800', fontSize: 12 },
   title: { marginTop: 4, fontSize: 28, fontWeight: '900', color: '#0F172A' },
   subtitle: { marginTop: 8, color: '#64748B', fontSize: 14, lineHeight: 21 },
@@ -228,5 +255,4 @@ const styles = StyleSheet.create({
   pageButton: { flex: 1, borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 8, paddingVertical: 12, alignItems: 'center', backgroundColor: '#FFFFFF' },
   pageButtonText: { color: '#0F172A', fontWeight: '900' },
   disabledButton: { opacity: 0.55 },
-  emptyText: { color: '#94A3B8', paddingVertical: 48, textAlign: 'center' },
 });
