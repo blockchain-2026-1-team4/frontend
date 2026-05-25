@@ -204,6 +204,28 @@ function isPositiveNumber(value: string) {
   return Number.isFinite(number) && number > 0;
 }
 
+function ticketIdentifier(ticket: TicketDetail) {
+  return ticket.id ? String(ticket.id) : ticket.ticketId != null ? String(ticket.ticketId) : '';
+}
+
+function confirmAction(title: string, message: string) {
+  if (typeof window !== 'undefined' && typeof window.confirm === 'function') {
+    return Promise.resolve(window.confirm(`${title}\n${message}`));
+  }
+
+  return new Promise<boolean>((resolve) => {
+    Alert.alert(
+      title,
+      message,
+      [
+        { text: '취소', style: 'cancel', onPress: () => resolve(false) },
+        { text: '확인', style: 'destructive', onPress: () => resolve(true) },
+      ],
+      { cancelable: true },
+    );
+  });
+}
+
 export default function TicketIssuePage({ navigation, route }: any) {
   const eventId = route?.params?.eventId as string;
   const returnTo = route?.params?.returnTo as 'create' | 'detail' | undefined;
@@ -222,6 +244,7 @@ export default function TicketIssuePage({ navigation, route }: any) {
   const [feedback, setFeedback] = useState<{ type: 'error' | 'success'; message: string } | null>(null);
   const [loadError, setLoadError] = useState('');
   const [lastIssuedSummary, setLastIssuedSummary] = useState('');
+  const [lastIssuedTicketIds, setLastIssuedTicketIds] = useState<string[]>([]);
   const [ticketConfigConfirmed, setTicketConfigConfirmed] = useState(false);
   const [issueCompleted, setIssueCompleted] = useState(false);
   const [issueSeatModalVisible, setIssueSeatModalVisible] = useState(false);
@@ -349,6 +372,8 @@ export default function TicketIssuePage({ navigation, route }: any) {
   const updateDraft = (patch: Partial<SectionPolicy>) => {
     setTicketConfigConfirmed(false);
     setIssueCompleted(false);
+    setLastIssuedTicketIds([]);
+    setLastIssuedSummary('');
     setDrafts((current) => ({
       ...current,
       [draftKey]: { ...currentDraft, ...patch },
@@ -358,6 +383,8 @@ export default function TicketIssuePage({ navigation, route }: any) {
   const updateRoundPolicy = (key: string, patch: Partial<RoundPolicy>) => {
     setTicketConfigConfirmed(false);
     setIssueCompleted(false);
+    setLastIssuedTicketIds([]);
+    setLastIssuedSummary('');
     setRoundPolicies((current) => ({
       ...current,
       [key]: { ...current[key], ...patch },
@@ -368,12 +395,16 @@ export default function TicketIssuePage({ navigation, route }: any) {
     setPolicyMode(mode);
     setTicketConfigConfirmed(false);
     setIssueCompleted(false);
+    setLastIssuedTicketIds([]);
+    setLastIssuedSummary('');
   };
 
   const updateGlobalTotalTicketCount = (value: string) => {
     setGlobalTotalTicketCount(value);
     setTicketConfigConfirmed(false);
     setIssueCompleted(false);
+    setLastIssuedTicketIds([]);
+    setLastIssuedSummary('');
   };
 
   const validateCapacityPage = () => {
@@ -457,12 +488,16 @@ export default function TicketIssuePage({ navigation, route }: any) {
     });
     setTicketConfigConfirmed(false);
     setIssueCompleted(false);
+    setLastIssuedTicketIds([]);
+    setLastIssuedSummary('');
     setFeedback({ type: 'success', message: `${sectionNameOf(saved)} 정책을 저장했습니다.` });
   };
 
   const removeSavedPolicy = (sectionId: string) => {
     setTicketConfigConfirmed(false);
     setIssueCompleted(false);
+    setLastIssuedTicketIds([]);
+    setLastIssuedSummary('');
     if (policyMode === 'global') {
       setGlobalSections((current) => current.filter((section) => section.id !== sectionId));
       return;
@@ -484,6 +519,8 @@ export default function TicketIssuePage({ navigation, route }: any) {
     removeSavedPolicy(policy.id);
     setTicketConfigConfirmed(false);
     setIssueCompleted(false);
+    setLastIssuedTicketIds([]);
+    setLastIssuedSummary('');
     setFeedback({ type: 'success', message: `${sectionNameOf(policy)} 정책을 수정할 수 있도록 펼쳤습니다.` });
   };
 
@@ -556,7 +593,9 @@ export default function TicketIssuePage({ navigation, route }: any) {
       const totalTicketCount = Math.max(eventTotalCount, totalConfiguredCapacity, requestedTotal);
       const issued = await backendApi.issueTickets(eventId, { totalTicketCount, ticketSections: payload });
       const summary = issued.slice(0, 3).map((ticket) => ticket.seatInfo).join(', ');
+      const issuedIds = issued.map(ticketIdentifier).filter(Boolean);
       setLastIssuedSummary(summary ? `${summary}${issued.length > 3 ? ` 외 ${issued.length - 3}장` : ''}` : `${issued.length}장`);
+      setLastIssuedTicketIds(issuedIds);
       setFeedback({ type: 'success', message: `티켓 ${issued.length}장을 발행했습니다.` });
       setTicketConfigConfirmed(true);
       setIssueCompleted(true);
@@ -620,10 +659,13 @@ export default function TicketIssuePage({ navigation, route }: any) {
     const total = policyMode === 'global' ? Number(globalTotalTicketCount || 0) : Number(roundPolicies[key]?.totalTicketCount || 0);
     const alreadyIssued = issuedCountForRound(round, index);
     const issueCount = sections.reduce((sum, section) => sum + Number(section.quantity || 0), 0);
-    const remaining = total - alreadyIssued - issueCount;
+    const displayIssued = issueCompleted ? alreadyIssued + issueCount : alreadyIssued;
+    const remaining = total - displayIssued;
     const summary = sections.map((section) => `${sectionNameOf(section)} ${section.quantity}장`).join(' · ');
-    return { key, label: roundLabel(round, index), total, alreadyIssued, issueCount, remaining, summary };
+    return { key, label: roundLabel(round, index), total, alreadyIssued, displayIssued, issueCount, remaining, summary };
   });
+  const finalDisplayIssuedCount = issueCompleted ? finalIssuedCount + finalIssueCount : finalIssuedCount;
+  const finalDisplayRemainingCount = finalTotalCount - finalDisplayIssuedCount;
   const currentDraftStartNumber = issuedMaxSeatNumber(currentDraft, activeRoundIndex)
     + currentSections
       .filter((section) => sectionNameOf(section) === sectionNameOf(currentDraft))
@@ -665,10 +707,35 @@ export default function TicketIssuePage({ navigation, route }: any) {
     setFeedback({ type: 'success', message: '티켓 설정을 완료했습니다. 최종 발행 내용을 확인해주세요.' });
   };
 
-  const reopenTicketConfig = () => {
+  const reopenTicketConfig = async () => {
+    if (issueCompleted) {
+      if (lastIssuedTicketIds.length === 0) {
+        showError('방금 발행한 티켓 정보를 확인할 수 없어 취소할 수 없습니다. 발행 현황에서 확인해주세요.');
+        return;
+      }
+      const confirmed = await confirmAction(
+        '직전 발행을 취소할까요?',
+        `방금 발행한 티켓 ${lastIssuedTicketIds.length}장을 취소한 뒤 다시 설정합니다. 이미 판매된 티켓은 취소할 수 없습니다.`,
+      );
+      if (!confirmed) return;
+
+      setIssuing(true);
+      try {
+        await backendApi.cancelIssuedTickets(eventId, { ticketIds: lastIssuedTicketIds });
+        setTickets((current) => current.filter((ticket) => !lastIssuedTicketIds.includes(ticketIdentifier(ticket))));
+        setLastIssuedSummary('');
+        setLastIssuedTicketIds([]);
+        setFeedback({ type: 'success', message: '직전 발행을 취소했습니다. 티켓 설정을 다시 수정할 수 있습니다.' });
+        await load();
+      } catch (error: any) {
+        showError(errorMessage(error, '직전 발행을 취소하지 못했습니다.'));
+        return;
+      } finally {
+        setIssuing(false);
+      }
+    }
     setTicketConfigConfirmed(false);
     setIssueCompleted(false);
-    setFeedback(null);
   };
 
   const pageTitle = flowPage === 1
@@ -973,8 +1040,8 @@ export default function TicketIssuePage({ navigation, route }: any) {
                   <View key={summary.key} style={styles.finalRoundCard}>
                     <Text style={styles.finalRoundTitle}>{summary.label}</Text>
                     <Text style={styles.finalCountText}>총 티켓 수: {summary.total}장</Text>
-                    <Text style={styles.finalCountText}>이미 발행됨: {summary.alreadyIssued}장</Text>
-                    <Text style={styles.finalCountText}>이번에 발행됨: {summary.issueCount}장</Text>
+                    <Text style={styles.finalCountText}>{issueCompleted ? '현재 발행됨' : '이미 발행됨'}: {summary.displayIssued}장</Text>
+                    <Text style={styles.finalCountText}>{issueCompleted ? '방금 발행됨' : '이번에 발행됨'}: {summary.issueCount}장</Text>
                     <Text style={styles.finalCountText}>발행 후 남음: {Math.max(summary.remaining, 0)}장</Text>
                     <Text style={styles.previewLabel}>이번 발행 좌석</Text>
                     <Text style={styles.previewText}>{summary.summary || '저장된 좌석 정책이 없습니다.'}</Text>
@@ -984,9 +1051,9 @@ export default function TicketIssuePage({ navigation, route }: any) {
             ) : (
               <View style={styles.finalCountList}>
                 <Text style={styles.finalCountText}>총 티켓 수: {finalTotalCount}장</Text>
-                <Text style={styles.finalCountText}>이미 발행됨: {finalIssuedCount}장</Text>
-                <Text style={styles.finalCountText}>이번에 발행됨: {finalIssueCount}장</Text>
-                <Text style={styles.finalCountText}>발행 후 남음: {Math.max(finalRemainingCount, 0)}장</Text>
+                <Text style={styles.finalCountText}>{issueCompleted ? '현재 발행됨' : '이미 발행됨'}: {finalDisplayIssuedCount}장</Text>
+                <Text style={styles.finalCountText}>{issueCompleted ? '방금 발행됨' : '이번에 발행됨'}: {finalIssueCount}장</Text>
+                <Text style={styles.finalCountText}>발행 후 남음: {Math.max(finalDisplayRemainingCount, 0)}장</Text>
               </View>
             )}
             {policyMode === 'global' ? (
@@ -1008,8 +1075,8 @@ export default function TicketIssuePage({ navigation, route }: any) {
             >
               <Text style={styles.primaryButtonText}>{issueCompleted ? '발행 완료' : issuing ? '발행 중...' : '티켓 발행'}</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.secondaryButton} onPress={reopenTicketConfig}>
-              <Text style={styles.secondaryButtonText}>다시 티켓 설정하기</Text>
+            <TouchableOpacity style={[styles.secondaryButton, issuing && styles.disabledButton]} disabled={issuing} onPress={() => void reopenTicketConfig()}>
+              <Text style={styles.secondaryButtonText}>{issueCompleted ? '직전 발행 취소 후 다시 설정' : '다시 티켓 설정하기'}</Text>
             </TouchableOpacity>
           </View>
         ) : null}

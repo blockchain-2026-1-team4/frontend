@@ -104,6 +104,10 @@ export const backendApi = {
     return unwrap<TicketDetail[]>(http.post(`/events/${eventId}/tickets`, payload));
   },
 
+  async cancelIssuedTickets(eventId: string, payload: { ticketIds: string[] }) {
+    return unwrap<TicketDetail[]>(http.post(`/events/${eventId}/tickets/cancel-issued`, payload));
+  },
+
   async purchasePrimary(ticketId: string) {
     return unwrap<TicketDetail>(http.post(`/tickets/${ticketId}/purchase`));
   },
