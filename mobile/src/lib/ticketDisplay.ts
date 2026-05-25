@@ -172,11 +172,10 @@ export function getEventDisplayStatus(event?: EventSummary | null, now = new Dat
   const remaining = Number(event.remainingTicketCount ?? 0);
   const issued = total > 0 ? total - remaining : 0;
 
-  if (issued <= 0) return { label: '티켓 미발행', tone: 'gray' };
+  if (!Number.isNaN(lastEnd) && current > lastEnd) return { label: '종료', tone: 'gray' };
   if (!Number.isNaN(firstStart) && !Number.isNaN(lastEnd) && current >= firstStart && current <= lastEnd) {
     return { label: '공연 중', tone: 'green' };
   }
-  if (!Number.isNaN(lastEnd) && current > lastEnd) return { label: '종료', tone: 'gray' };
   if ((event.soldOut || remaining === 0) && issued > 0) return { label: '매진', tone: 'red' };
 
   const saleStart = event.salesStartAt || event.primarySaleStart;
@@ -186,6 +185,8 @@ export function getEventDisplayStatus(event?: EventSummary | null, now = new Dat
   if (!Number.isNaN(saleStartTime) && current < saleStartTime) return { label: '판매 예정', tone: 'yellow' };
   if (!Number.isNaN(saleEndTime) && current > saleEndTime) return { label: '종료', tone: 'gray' };
   if (!Number.isNaN(saleStartTime) || !Number.isNaN(saleEndTime)) return { label: '판매 중', tone: 'blue' };
+
+  if (issued <= 0) return { label: '티켓 미발행', tone: 'gray' };
 
   return { label: '판매 예정', tone: 'yellow' };
 }
@@ -221,6 +222,9 @@ export function getNextRoundTime(event?: EventSummary | null, now = new Date()) 
 }
 
 export function formatNextRoundLabel(event?: EventSummary | null, now = new Date()) {
+  if (getEventDisplayStatus(event, now).label === '종료') {
+    return '마지막 회차 · 종료';
+  }
   const nextTime = getNextRoundTime(event, now);
   if (Number.isNaN(nextTime)) return '다음 회차 · -';
   return `다음 회차 · ${formatCompactDateTime(new Date(nextTime).toISOString())}`;
@@ -254,12 +258,12 @@ export function eventDisplaySortRank(event?: EventSummary | null, now = new Date
   const ranks: Record<string, number> = {
     취소: 0,
     종료: 1,
-    '티켓 미발행': 2,
-    '공연 중': 3,
+    '공연 중': 2,
+    '판매 중': 3,
     '판매 예정': 4,
-    '판매 중': 5,
-    매진: 6,
-    '판매 종료': 7,
+    매진: 5,
+    '판매 종료': 6,
+    '티켓 미발행': 7,
   };
   if (status === '종료') {
     const end = event?.eventEndAt || event?.endsAt || event?.eventAt || event?.eventDateTime;

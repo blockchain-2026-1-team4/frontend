@@ -125,7 +125,7 @@ export default function MyEventsPage({ navigation }: any) {
               returnKeyType="search"
             />
             <TouchableOpacity style={styles.expiredButton} onPress={() => { setShowExpired((value) => !value); setPage(1); }}>
-              <Text style={styles.expiredButtonText}>{showExpired ? '진행/예정 이벤트만 보기' : '지난 이벤트 보기'}</Text>
+              <Text style={styles.expiredButtonText}>{showExpired ? '종료된 이벤트 제외' : '종료된 이벤트 포함'}</Text>
             </TouchableOpacity>
             <View style={styles.pageHead}>
               <Text style={styles.pageHint}>결과 {visibleEvents.length}건</Text>
