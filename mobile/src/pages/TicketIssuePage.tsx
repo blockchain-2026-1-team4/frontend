@@ -88,8 +88,28 @@ function timeFromIso(value?: string | null) {
   return localTime(date);
 }
 
+function normalizeDate(value?: string | null, fallback = localDate(new Date())) {
+  if (!value) return fallback;
+  const raw = String(value);
+  if (/^\d{4}-\d{2}-\d{2}/.test(raw)) return raw.slice(0, 10);
+  return dateFromIso(raw) || fallback;
+}
+
+function normalizeTime(value?: string | null, fallback = '19:00') {
+  if (!value) return fallback;
+  const match = String(value).match(/^(\d{1,2}):(\d{2})/);
+  if (!match) return fallback;
+  const hour = Math.min(23, Math.max(0, Number(match[1])));
+  const minute = Math.min(59, Math.max(0, Number(match[2])));
+  return `${pad(hour)}:${pad(minute)}`;
+}
+
 function toDateTimeIso(date: string, time: string) {
-  return new Date(`${date}T${time}:00`).toISOString();
+  const normalizedDate = normalizeDate(date, '');
+  const normalizedTime = normalizeTime(time, '');
+  if (!normalizedDate || !normalizedTime) return '';
+  const value = new Date(`${normalizedDate}T${normalizedTime}:00`);
+  return Number.isNaN(value.getTime()) ? '' : value.toISOString();
 }
 
 function formatDateDot(value?: string) {
@@ -116,6 +136,19 @@ function roundLabel(round: EventRound, index: number) {
 
 function roundStartIso(round: EventRound) {
   return toDateTimeIso(round.eventDate, round.startTime);
+}
+
+function normalizeEventRound(round: EventRound, index: number, event: EventDetail): EventRound {
+  const fallbackStart = event.eventStartAt || event.eventAt || event.startsAt || event.eventDateTime;
+  const fallbackEnd = event.eventEndAt || event.endsAt || fallbackStart;
+  return {
+    ...round,
+    title: round.title || `${index + 1}회차`,
+    eventDate: normalizeDate(round.eventDate, dateFromIso(fallbackStart) || localDate(new Date())),
+    startTime: normalizeTime(round.startTime, timeFromIso(fallbackStart) || '19:00'),
+    endTime: normalizeTime(round.endTime, timeFromIso(fallbackEnd) || '21:00'),
+    useGlobalSalePeriod: round.useGlobalSalePeriod ?? true,
+  };
 }
 
 function ethToWei(value: string) {
@@ -187,14 +220,21 @@ export default function TicketIssuePage({ navigation, route }: any) {
   const [activeRoundKey, setActiveRoundKey] = useState<string | null>(null);
   const [drafts, setDrafts] = useState<Record<string, SectionPolicy>>({});
   const [feedback, setFeedback] = useState<{ type: 'error' | 'success'; message: string } | null>(null);
+  const [loadError, setLoadError] = useState('');
   const [lastIssuedSummary, setLastIssuedSummary] = useState('');
   const [ticketConfigConfirmed, setTicketConfigConfirmed] = useState(false);
   const [issueSeatModalVisible, setIssueSeatModalVisible] = useState(false);
   const [actionPolicy, setActionPolicy] = useState<SectionPolicy | null>(null);
 
   const load = useCallback(async () => {
-    if (!eventId) return;
+    if (!eventId) {
+      setLoadError('이벤트 정보가 없어 티켓 발행 화면을 열 수 없습니다. 이벤트 상세 화면에서 다시 진입해주세요.');
+      setLoading(false);
+      setRefreshing(false);
+      return;
+    }
     try {
+      setLoadError('');
       const profile = await backendApi.getMe();
       const statusMessage = accountStatusMessage(profile.status);
       if (statusMessage) {
@@ -207,8 +247,8 @@ export default function TicketIssuePage({ navigation, route }: any) {
         backendApi.getEvent(eventId),
         backendApi.getEventTickets(eventId).catch(() => []),
       ]);
-      const rounds = eventDetail.rounds?.length ? eventDetail.rounds : [{
-        id: eventDetail.id,
+      const rawRounds = eventDetail.rounds?.length ? eventDetail.rounds : [{
+        id: undefined,
         title: '1회차',
         eventDate: dateFromIso(eventDetail.eventStartAt || eventDetail.eventAt || eventDetail.startsAt) || localDate(new Date()),
         startTime: timeFromIso(eventDetail.eventStartAt || eventDetail.eventAt || eventDetail.startsAt) || '19:00',
@@ -217,6 +257,7 @@ export default function TicketIssuePage({ navigation, route }: any) {
         saleEndAt: eventDetail.primarySaleEnd || eventDetail.salesEndAt,
         useGlobalSalePeriod: true,
       }];
+      const rounds = rawRounds.map((round, index) => normalizeEventRound(round, index, eventDetail));
 
       setEvent({ ...eventDetail, rounds });
       setTickets(issuedTickets);
@@ -235,7 +276,9 @@ export default function TicketIssuePage({ navigation, route }: any) {
         return next;
       });
     } catch (error: any) {
-      Alert.alert('티켓 발행 정보 로드 실패', errorMessage(error, '티켓 발행 정보를 불러오지 못했습니다.'));
+      const message = errorMessage(error, '티켓 발행 정보를 불러오지 못했습니다.');
+      setLoadError(message);
+      Alert.alert('티켓 발행 정보 로드 실패', message);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -245,13 +288,26 @@ export default function TicketIssuePage({ navigation, route }: any) {
   useFocusEffect(useCallback(() => { void load(); }, [load]));
 
   const rounds = event?.rounds || [];
+  const earliestRoundInfo = rounds
+    .map((round, index) => ({ round, index, startsAt: roundStartIso(round) }))
+    .sort((a, b) => a.startsAt.localeCompare(b.startsAt))[0];
   const activeRoundIndex = Math.max(0, rounds.findIndex((round, index) => roundKey(round, index) === activeRoundKey));
   const activeRound = rounds[activeRoundIndex] || rounds[0];
+  const draftBaseRound = policyMode === 'global' ? earliestRoundInfo?.round || activeRound : activeRound;
   const activeKey = activeRound ? roundKey(activeRound, activeRoundIndex) : 'global';
   const draftKey = policyMode === 'global' ? 'global' : activeKey;
-  const currentDraft = drafts[draftKey] || makeSectionPolicy(activeRound);
+  const currentDraft = drafts[draftKey] || makeSectionPolicy(draftBaseRound);
   const currentSections = policyMode === 'global' ? globalSections : roundPolicies[activeKey]?.sections || [];
+  const issuedCountForRound = (round: EventRound | undefined, index: number) => {
+    if (!round) return 0;
+    return tickets.filter((ticket) => {
+      if (round.id && ticket.eventRoundId === round.id) return true;
+      if (rounds.length === 1 && !ticket.eventRoundId) return true;
+      return String(ticket.seatInfo || '').startsWith(`${index + 1}회차-`);
+    }).length;
+  };
   const issuedCount = tickets.length;
+  const activeIssuedCount = issuedCountForRound(activeRound, activeRoundIndex);
   const eventTotalCount = Number(event?.totalTicketCount || 0);
   const currentTotalTicketCount = policyMode === 'global'
     ? Number(globalTotalTicketCount || 0)
@@ -290,6 +346,7 @@ export default function TicketIssuePage({ navigation, route }: any) {
   };
 
   const updateDraft = (patch: Partial<SectionPolicy>) => {
+    setTicketConfigConfirmed(false);
     setDrafts((current) => ({
       ...current,
       [draftKey]: { ...currentDraft, ...patch },
@@ -340,9 +397,9 @@ export default function TicketIssuePage({ navigation, route }: any) {
   };
 
   const saveCurrentPolicy = () => {
-    if (!policyMode || !activeRound) return;
+    if (!policyMode || !draftBaseRound) return;
     const label = policyMode === 'global' ? '공통 정책' : `${activeRoundIndex + 1}회차 정책`;
-    const roundsToValidate = policyMode === 'global' ? rounds : [activeRound];
+    const roundsToValidate = policyMode === 'global' ? [earliestRoundInfo?.round || draftBaseRound] : [draftBaseRound];
     for (const round of roundsToValidate) {
       const message = validateSection(currentDraft, label, round);
       if (message) {
@@ -350,8 +407,18 @@ export default function TicketIssuePage({ navigation, route }: any) {
         return;
       }
     }
-    if (currentTotalTicketCount > 0 && currentSavedQuantity + Number(currentDraft.quantity) > currentTotalTicketCount) {
-      showError('발행 개수가 총 티켓 수보다 많습니다.');
+    const requestedQuantity = Number(currentDraft.quantity || 0);
+    const capacityTargets = policyMode === 'global'
+      ? rounds.map((round, index) => ({ round, index, total: Number(globalTotalTicketCount || 0), saved: currentSavedQuantity }))
+      : [{ round: activeRound, index: activeRoundIndex, total: currentTotalTicketCount, saved: currentSavedQuantity }];
+    const exceeded = capacityTargets.find((target) => {
+      const alreadyIssued = issuedCountForRound(target.round, target.index);
+      return target.total > 0 && alreadyIssued + target.saved + requestedQuantity > target.total;
+    });
+    if (exceeded) {
+      const alreadyIssued = issuedCountForRound(exceeded.round, exceeded.index);
+      const remaining = Math.max(exceeded.total - alreadyIssued - exceeded.saved, 0);
+      showError(`${exceeded.index + 1}회차에 남은 수량이 부족합니다. 총 ${exceeded.total}장 중 이미 ${alreadyIssued}장 발행, 저장된 정책 ${exceeded.saved}장, 남은 수량 ${remaining}장입니다. 이번 입력 수량은 ${requestedQuantity}장입니다.`);
       return;
     }
 
@@ -367,7 +434,11 @@ export default function TicketIssuePage({ navigation, route }: any) {
         },
       }));
     }
-    setDrafts((current) => ({ ...current, [draftKey]: makeSectionPolicy(activeRound) }));
+    setDrafts((current) => {
+      const next = { ...current };
+      delete next[draftKey];
+      return next;
+    });
     setTicketConfigConfirmed(false);
     setFeedback({ type: 'success', message: `${sectionNameOf(saved)} 정책을 저장했습니다.` });
   };
@@ -495,7 +566,7 @@ export default function TicketIssuePage({ navigation, route }: any) {
     : `판매 ${formatDateShort(policy.saleStartDate)} ${policy.saleStartTime} ~ ${formatDateShort(policy.saleEndDate)} ${policy.saleEndTime}`;
   const savedPolicyResaleSummary = (policy: SectionPolicy) => policy.resaleEnabled ? `리셀 허용 · 최대 ${resaleRateOf(policy)}%` : '리셀 불가';
   const saleDeadlineRoundLabel = policyMode === 'global'
-    ? rounds.length ? roundLabel(rounds[0], 0) : '-'
+    ? earliestRoundInfo ? roundLabel(earliestRoundInfo.round, earliestRoundInfo.index) : '-'
     : activeRound ? roundLabel(activeRound, activeRoundIndex) : '-';
   const issueSeatSummary = (() => {
     const totals = new Map<string, number>();
@@ -529,6 +600,26 @@ export default function TicketIssuePage({ navigation, route }: any) {
       .filter((section) => sectionNameOf(section) === sectionNameOf(currentDraft))
       .reduce((sum, section) => sum + Number(section.quantity || 0), 0)
     + 1;
+  const currentCapacityStatus = (() => {
+    const targets = policyMode === 'global'
+      ? rounds.map((round, index) => ({
+        index,
+        total: Number(globalTotalTicketCount || 0),
+        alreadyIssued: issuedCountForRound(round, index),
+        saved: currentSavedQuantity,
+      }))
+      : [{
+        index: activeRoundIndex,
+        total: currentTotalTicketCount,
+        alreadyIssued: activeIssuedCount,
+        saved: currentSavedQuantity,
+      }];
+    const validTargets = targets
+      .filter((target) => target.total > 0)
+      .map((target) => ({ ...target, remaining: Math.max(target.total - target.alreadyIssued - target.saved, 0) }));
+    if (validTargets.length === 0) return null;
+    return validTargets.sort((a, b) => a.remaining - b.remaining)[0];
+  })();
 
   const confirmTicketConfig = () => {
     if (!hasSavedPolicies) {
@@ -537,7 +628,7 @@ export default function TicketIssuePage({ navigation, route }: any) {
     }
     if (!validateCapacityPage()) return;
     if (finalRemainingCount < 0) {
-      showError('이번 발행 수량이 남은 수량보다 많습니다.');
+      showError(`이번 발행 수량이 남은 수량보다 많습니다. 총 ${finalTotalCount}장 중 이미 ${finalIssuedCount}장 발행, 이번 입력 ${finalIssueCount}장, 초과 ${Math.abs(finalRemainingCount)}장입니다.`);
       return;
     }
     setTicketConfigConfirmed(true);
@@ -566,6 +657,18 @@ export default function TicketIssuePage({ navigation, route }: any) {
       <View style={styles.center}>
         <ActivityIndicator size="large" color="#2563EB" />
         <Text style={styles.loadingText}>티켓 발행 정보를 확인하고 있습니다.</Text>
+      </View>
+    );
+  }
+
+  if (loadError && !event) {
+    return (
+      <View style={styles.center}>
+        <Text style={styles.emptyTitle}>티켓 발행 화면을 열 수 없습니다.</Text>
+        <Text style={styles.emptyText}>{loadError}</Text>
+        <TouchableOpacity style={styles.primaryButton} onPress={() => navigation.navigate('MyEvents')}>
+          <Text style={styles.primaryButtonText}>이벤트 목록으로 돌아가기</Text>
+        </TouchableOpacity>
       </View>
     );
   }
@@ -738,6 +841,11 @@ export default function TicketIssuePage({ navigation, route }: any) {
                     <View style={styles.issuePreviewBox}>
                       <Text style={styles.previewLabel}>발행 예정</Text>
                       <Text style={styles.previewTextStrong}>{seatRange(currentDraft, currentDraftStartNumber)}</Text>
+                      {currentCapacityStatus ? (
+                        <Text style={styles.previewText}>
+                          {currentCapacityStatus.index + 1}회차 기준 · 총 {currentCapacityStatus.total}장 · 이미 발행 {currentCapacityStatus.alreadyIssued}장 · 저장됨 {currentCapacityStatus.saved}장 · 남은 수량 {currentCapacityStatus.remaining}장
+                        </Text>
+                      ) : null}
                     </View>
                   </View>
                 ) : null}
@@ -967,7 +1075,7 @@ function RoundSelector({
     <View style={styles.roundChipRow}>
       {rounds.map((round, index) => {
         const key = roundKey(round, index);
-        const active = activeRoundKey === key;
+        const active = disabled || activeRoundKey === key;
         return (
           <TouchableOpacity key={key} style={[styles.roundChip, active && styles.roundChipActive, disabled && !active && styles.disabledRoundChip]} disabled={disabled} onPress={() => onSelect(key)}>
             <Text style={[styles.roundChipText, active && styles.roundChipTextActive]}>{index + 1}회차</Text>
@@ -1122,6 +1230,7 @@ const styles = StyleSheet.create({
   content: { padding: 16, paddingBottom: 118 },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20, backgroundColor: '#F4F7FB' },
   loadingText: { marginTop: 12, color: '#64748B' },
+  emptyTitle: { color: '#0F172A', fontSize: 18, fontWeight: '900', textAlign: 'center' },
   backButton: { borderWidth: 1, borderColor: '#BFDBFE', borderRadius: 8, paddingVertical: 10, alignItems: 'center', backgroundColor: '#EFF6FF', marginBottom: 14 },
   backButtonText: { color: '#2563EB', fontWeight: '900' },
   eyebrow: { color: '#2563EB', fontWeight: '800', fontSize: 12 },

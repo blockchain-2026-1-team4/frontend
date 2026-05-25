@@ -36,7 +36,12 @@ export default function OrganizerEventDetailPage({ navigation, route }: any) {
   );
 
   const load = useCallback(async () => {
-    if (!eventId) return;
+    if (!eventId) {
+      setEvent(null);
+      setLoading(false);
+      setRefreshing(false);
+      return;
+    }
     try {
       const detail = await backendApi.getEvent(eventId);
       const eventTickets = await backendApi.getEventTickets(eventId).catch(() => []);

@@ -383,17 +383,25 @@ export default function EventCreatePage({ navigation }: any) {
             saleEndAt: backendSaleWindow.saleEndAt,
         })),
       });
+      const createdEventId = createdEvent.id || (createdEvent as any).eventId;
+      const createdEventIdParam = createdEventId ? String(createdEventId) : '';
+
+      if (!createdEventIdParam) {
+        setErrors(['이벤트가 생성됐지만 식별자를 확인하지 못했습니다. 내 이벤트 목록에서 다시 확인해주세요.']);
+        scrollRef.current?.scrollTo({ y: 0, animated: true });
+        return;
+      }
 
       if (poster) {
         try {
-          await backendApi.uploadEventImage(createdEvent.id, posterFile(poster));
+          await backendApi.uploadEventImage(createdEventIdParam, posterFile(poster));
         } catch (uploadError: any) {
           Alert.alert('포스터 업로드 실패', errorMessage(uploadError, '이벤트는 생성되었지만 포스터 업로드에 실패했습니다. 이벤트 설정에서 다시 업로드할 수 있습니다.'));
         }
       }
 
       Alert.alert('등록 완료', '이벤트가 등록되었습니다. 티켓 설정으로 이동합니다.');
-      navigation.replace('TicketIssue', { eventId: createdEvent.id, returnTo: 'create' });
+      navigation.replace('TicketIssue', { eventId: createdEventIdParam, returnTo: 'create' });
     } catch (error: any) {
       setErrors([errorMessage(error, '이벤트를 등록하지 못했습니다.')]);
       scrollRef.current?.scrollTo({ y: 0, animated: true });

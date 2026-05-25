@@ -52,11 +52,12 @@ export default function App() {
   const syncCurrentRoute = React.useCallback(() => {
     const route = navigationRef.getCurrentRoute();
     const routeName = route?.name;
-    const routeParams = route?.params as { eventId?: string } | undefined;
+    const routeParams = route?.params as { eventId?: string | number } | undefined;
     const routeEventId = routeParams?.eventId;
+    const normalizedRouteEventId = routeEventId != null ? String(routeEventId).trim() : '';
 
-    if (typeof routeEventId === 'string' && routeEventId.trim()) {
-      lastOrganizerEventIdRef.current = routeEventId;
+    if (normalizedRouteEventId) {
+      lastOrganizerEventIdRef.current = normalizedRouteEventId;
     }
 
     if (routeName) {
@@ -92,9 +93,10 @@ export default function App() {
       }
 
       if (eventScopedRoutes.has(routeName)) {
-        const currentParams = navigationRef.getCurrentRoute()?.params as { eventId?: string } | undefined;
+        const currentParams = navigationRef.getCurrentRoute()?.params as { eventId?: string | number } | undefined;
         const currentEventId = currentParams?.eventId;
-        const eventId = typeof currentEventId === 'string' && currentEventId.trim() ? currentEventId : lastOrganizerEventIdRef.current;
+        const normalizedCurrentEventId = currentEventId != null ? String(currentEventId).trim() : '';
+        const eventId = normalizedCurrentEventId || lastOrganizerEventIdRef.current;
 
         if (eventId) {
           navigationRef.navigate(routeName, { eventId });
