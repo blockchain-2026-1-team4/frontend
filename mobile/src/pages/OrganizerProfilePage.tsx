@@ -71,25 +71,25 @@ export default function OrganizerProfilePage({ navigation }: any) {
     >
       <Text style={styles.eyebrow}>My Account</Text>
       <Text style={styles.title}>내 정보</Text>
-      <Text style={styles.subtitle}>계정 정보와 표시 이름을 관리합니다.</Text>
+      <Text style={styles.subtitle}>내 정보와 역할을 확인합니다.</Text>
 
       <View style={styles.card}>
-        <Text style={styles.label}>표시 이름</Text>
+        <Text style={styles.label}>닉네임</Text>
         {editing ? (
-          <TextInput style={styles.input} value={displayNameDraft} onChangeText={setDisplayNameDraft} placeholder="표시 이름" />
+          <TextInput style={styles.input} value={displayNameDraft} onChangeText={setDisplayNameDraft} placeholder="닉네임" />
         ) : (
           <Text style={styles.displayName}>{profile?.displayName || '-'}</Text>
         )}
 
-        <Text style={styles.label}>이메일 / 지갑</Text>
+        <Text style={styles.label}>이메일/지갑</Text>
         <Text style={styles.value}>{profile?.email || profile?.walletAddress || '-'}</Text>
 
-        <Text style={styles.label}>사용 중 역할</Text>
+        <Text style={styles.label}>내 역할</Text>
         <Text style={styles.value}>{formatRoles(profile?.roles)}</Text>
 
         {!editing ? (
           <TouchableOpacity style={styles.primaryButton} onPress={() => setEditing(true)}>
-            <Text style={styles.primaryButtonText}>표시 이름 수정</Text>
+            <Text style={styles.primaryButtonText}>닉네임 수정</Text>
           </TouchableOpacity>
         ) : (
           <View style={styles.editRow}>
@@ -104,18 +104,14 @@ export default function OrganizerProfilePage({ navigation }: any) {
       </View>
 
       <View style={styles.card}>
-        <Text style={styles.cardTitle}>역할 전환</Text>
+        <Text style={styles.cardTitle}>계정 메뉴</Text>
         <TouchableOpacity style={styles.secondaryButton} onPress={() => navigation.navigate('Main')}>
-          <Text style={styles.secondaryButtonText}>사용자 화면으로</Text>
+          <Text style={styles.secondaryButtonText}>사용자 홈</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.secondaryButton} onPress={() => navigation.navigate('Organizer')}>
-          <Text style={styles.secondaryButtonText}>주최자 센터로</Text>
+        <TouchableOpacity style={styles.logoutButton} onPress={() => navigation.navigate('OrganizerLogout')}>
+          <Text style={styles.logoutButtonText}>로그아웃</Text>
         </TouchableOpacity>
       </View>
-
-      <TouchableOpacity style={styles.logoutButton} onPress={() => navigation.navigate('OrganizerLogout')}>
-        <Text style={styles.logoutButtonText}>로그아웃</Text>
-      </TouchableOpacity>
     </ScrollView>
   );
 }
