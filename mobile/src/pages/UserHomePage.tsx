@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, FlatList, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, FlatList, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, Image } from 'react-native';
 import { backendApi } from '../lib/backend';
-import { formatEventCategory, formatEventDate, getEventDisplayStatus, getNextRoundTime, operationSortRank } from '../lib/ticketDisplay';
+import { formatEventCategory, formatEventDate, getEventDisplayStatus, getNextRoundTime, operationSortRank, getUserEventDisplayStatus, formatNextRoundLabel, weiToEth, userSortRank } from '../lib/ticketDisplay';
 import type { EventSummary } from '../types/api';
 
 const CATEGORIES = [
@@ -24,8 +24,10 @@ export default function UserHomePage({ navigation }: any) {
   const [loading, setLoading] = useState(false);
 
   const sortedEvents = useMemo(() => {
-    return [...events].sort((left, right) => {
-      const rankDiff = operationSortRank(left) - operationSortRank(right);
+    // 사용자에게 노출할 수 있는 이벤트만 남기고, 사용자 우선순위로 정렬
+    const visible = events.filter((e) => getUserEventDisplayStatus(e) !== null);
+    return [...visible].sort((left, right) => {
+      const rankDiff = userSortRank(left) - userSortRank(right);
       if (rankDiff !== 0) return rankDiff;
       const leftTime = getNextRoundTime(left);
       const rightTime = getNextRoundTime(right);
@@ -59,23 +61,36 @@ export default function UserHomePage({ navigation }: any) {
     });
   };
 
-  const renderEventItem = ({ item }: { item: EventSummary }) => (
-    <TouchableOpacity style={styles.card} onPress={() => navigation.navigate('EventDetail', { eventId: item.id })}>
-      <View style={styles.cardHeader}>
-        <Text style={styles.category}>{formatEventCategory(item.category)}</Text>
-        <Text style={styles.status}>{getEventDisplayStatus(item).label}</Text>
-      </View>
-      <Text style={styles.cardTitle} numberOfLines={2}>{eventName(item)}</Text>
-      <View style={styles.metaBlock}>
-        <Text style={styles.meta}>{item.venue || '-'}</Text>
-        <Text style={styles.meta}>{formatEventDate(item.eventAt || item.eventDateTime)}</Text>
-      </View>
-      <View style={styles.actionRow}>
-        <Text style={styles.price}>{item.ticketPriceWei ? `${item.ticketPriceWei} WEI` : '가격 정보 없음'}</Text>
-        <Text style={styles.actionText}>상세 보기</Text>
-      </View>
-    </TouchableOpacity>
-  );
+  const renderEventItem = ({ item }: { item: EventSummary }) => {
+    const userStatus = getUserEventDisplayStatus(item);
+    const badgeLabel = userStatus?.label;
+    const hideForUser = userStatus === null;
+
+    return (
+      <TouchableOpacity style={styles.card} onPress={() => navigation.navigate('EventDetail', { eventId: item.id })}>
+        {(item as any).imageUrl ? (
+          <Image source={{ uri: (item as any).imageUrl }} style={styles.poster} resizeMode="cover" />
+        ) : null}
+
+        <Text style={styles.cardTitle} numberOfLines={2}>{eventName(item)}</Text>
+
+        <View style={styles.metaTop}>
+          <Text style={styles.category}>{formatEventCategory(item.category)}</Text>
+          {!hideForUser && badgeLabel ? <Text style={styles.status}>{badgeLabel}</Text> : null}
+        </View>
+
+        <View style={styles.metaBlock}>
+          <Text style={styles.meta}>{item.venue || '-'}</Text>
+          <Text style={styles.meta}>{formatNextRoundLabel(item)}</Text>
+        </View>
+
+        <View style={styles.actionRow}>
+          <Text style={styles.price}>{weiToEth(item.ticketPriceWei) === '-' ? '가격 정보 없음' : `${weiToEth(item.ticketPriceWei)}`}</Text>
+          <Text style={styles.actionText}>상세 보기</Text>
+        </View>
+      </TouchableOpacity>
+    );
+  };
 
   return (
     <View style={styles.container}>
@@ -141,7 +156,9 @@ const styles = StyleSheet.create({
   list: { padding: 16, paddingBottom: 96 },
   listHeader: { fontSize: 18, fontWeight: '900', marginBottom: 14, color: '#0F172A' },
   card: { backgroundColor: '#FFFFFF', borderRadius: 16, marginBottom: 12, padding: 16, borderColor: '#E2E8F0', borderWidth: 1 },
+  poster: { width: '100%', height: 140, borderRadius: 12, marginBottom: 12, backgroundColor: '#E2E8F0' },
   cardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
+  metaTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 6 },
   category: { color: '#2563EB', fontSize: 12, fontWeight: '900' },
   status: { overflow: 'hidden', borderRadius: 999, backgroundColor: '#EFF6FF', color: '#2563EB', paddingHorizontal: 9, paddingVertical: 5, fontSize: 11, fontWeight: '900' },
   cardTitle: { fontSize: 18, fontWeight: '900', marginBottom: 10, color: '#0F172A', lineHeight: 24 },

@@ -212,6 +212,72 @@ export function getSalesDisplayStatus(event?: EventSummary | null, now = new Dat
   return { label: '판매 중', tone: 'blue' };
 }
 
+// 사용자 화면 전용 상태 해석: 숨김(null) 또는 사용자용 라벨/톤 반환
+export function getUserEventDisplayStatus(event?: EventSummary | null, now = new Date()): DisplayStatus | null {
+  if (!event) return null;
+  const status = normalized(event.status);
+  // 우선순위 1: 비공개/초안/취소는 사용자에게 노출하지 않음
+  if (status === 'DRAFT' || status === 'INACTIVE' || status === 'CANCELLED') return null;
+
+  const current = now.getTime();
+  const roundStarts = event.rounds?.map(roundStartAt).filter((v) => !Number.isNaN(v)) ?? [];
+  const roundEnds = event.rounds?.map(roundEndAt).filter((v) => !Number.isNaN(v)) ?? [];
+  const firstStart = roundStarts.length ? Math.min(...roundStarts) : timeOf(event.eventStartAt || event.startsAt || event.eventAt || event.eventDateTime);
+  const lastEnd = roundEnds.length ? Math.max(...roundEnds) : timeOf(event.eventEndAt || event.endsAt || event.eventAt || event.eventDateTime);
+
+  // 우선순위 2: 공연 종료
+  if (!Number.isNaN(lastEnd) && current > lastEnd) return { label: '종료', tone: 'gray' };
+
+  // 우선순위 3: 공연 중 (종료 시간이 없는 경우에도 시작 시간이 있고 현재가 시작 이후면 공연중으로 간주)
+  if (!Number.isNaN(firstStart) && current >= firstStart && (Number.isNaN(lastEnd) || current <= lastEnd)) {
+    return { label: '공연중', tone: 'green' };
+  }
+
+  const total = Number(event.totalTicketCount ?? 0);
+  const remaining = Number(event.remainingTicketCount ?? 0);
+  const issued = total > 0 ? total - remaining : 0;
+
+  // 우선순위 4: 매진
+  if ((event.soldOut || remaining === 0) && issued > 0) return { label: '매진', tone: 'red' };
+
+  const saleStartTime = timeOf(event.salesStartAt || event.primarySaleStart);
+  const saleEndTime = timeOf(event.salesEndAt || event.primarySaleEnd);
+
+  // 우선순위 5: 판매 기간 전
+  if (!Number.isNaN(saleStartTime) && current < saleStartTime) return { label: '오픈 예정', tone: 'yellow' };
+
+  // 우선순위 6: 판매 기간 안 + 잔여 있음 => 예매중
+  const inSalePeriod = (!Number.isNaN(saleStartTime) ? current >= saleStartTime : true) && (Number.isNaN(saleEndTime) ? true : current <= saleEndTime);
+  if (inSalePeriod && remaining > 0) return { label: '예매중', tone: 'blue' };
+
+  // 우선순위 7: 판매 기간 종료 + 공연 전 => 판매 종료
+  if (!Number.isNaN(saleEndTime) && current > saleEndTime && (Number.isNaN(firstStart) || current < firstStart)) return { label: '판매 종료', tone: 'gray' };
+
+  // 발행(issued) 된 티켓이 하나도 없을 때: 가능한 경우 기본적으로 '오픈 예정'으로 표시
+  if (issued <= 0) return { label: '오픈 예정', tone: 'yellow' };
+
+  return { label: '예매 정보 없음', tone: 'gray' };
+}
+
+// 사용자 화면 정렬 우선순위: 낮을수록 앞에 노출
+export function userSortRank(event?: EventSummary | null, now = new Date()): number {
+  if (!event) return 99;
+  const userStatus = getUserEventDisplayStatus(event, now);
+  // null은 비공개/초안/취소 등 사용자에겐 보이지 않음 → 매우 뒤로
+  if (userStatus === null) return 99;
+  const label = userStatus.label;
+  const ranks: Record<string, number> = {
+    '공연중': 0,
+    '예매중': 1,
+    '오픈 예정': 2,
+    '매진': 3,
+    '판매 종료': 4,
+    '종료': 5,
+    '예매 정보 없음': 6,
+  };
+  return ranks[label] ?? 7;
+}
+
 export function getNextRoundTime(event?: EventSummary | null, now = new Date()) {
   if (!event) return timeOf(null);
   const current = now.getTime();
