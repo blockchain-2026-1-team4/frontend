@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { errorMessage } from '../lib/account';
 import { backendApi } from '../lib/backend';
+import { resolveImageUrl } from '../lib/config';
 import { formatEventCategory, formatEventRange, formatEventStatus, getEventDisplayStatus } from '../lib/ticketDisplay';
 import type { EventDetail, TicketDetail } from '../types/api';
 
@@ -121,8 +122,8 @@ export default function OrganizerEventDetailPage({ navigation, route }: any) {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}
     >
       <View style={styles.hero}>
-        {event.imageUrl ? (
-          <Image source={{ uri: event.imageUrl }} style={styles.poster} resizeMode="cover" />
+        {resolveImageUrl(event.imageUrl) ? (
+          <Image source={{ uri: resolveImageUrl(event.imageUrl)! }} style={styles.poster} resizeMode="cover" />
         ) : (
           <View style={styles.posterEmpty}><Text style={styles.posterEmptyText}>포스터 없음</Text></View>
         )}

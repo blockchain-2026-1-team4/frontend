@@ -12,6 +12,7 @@ import {
   View,
 } from 'react-native';
 import { backendApi } from '../lib/backend';
+import { resolveImageUrl } from '../lib/config';
 import { formatCompactDateTime, formatEventCategory, formatEventStatus, weiToEth } from '../lib/ticketDisplay';
 import type { EventDetail, EventRound, ResaleListing, TicketDetail } from '../types/api';
 
@@ -340,8 +341,8 @@ export default function EventDetailPage({ route, navigation }: any) {
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.posterCard}>
-        {event.imageUrl ? (
-          <Image source={{ uri: event.imageUrl }} style={styles.posterImage} resizeMode="cover" />
+        {resolveImageUrl(event.imageUrl) ? (
+          <Image source={{ uri: resolveImageUrl(event.imageUrl)! }} style={styles.posterImage} resizeMode="cover" />
         ) : (
           <View style={styles.posterFallback}>
             <Text style={styles.posterFallbackText}>{String(event.name || event.title || 'E').slice(0, 1)}</Text>

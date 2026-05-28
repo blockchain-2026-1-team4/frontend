@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, FlatList, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, Image } from 'react-native';
 import { backendApi } from '../lib/backend';
+import { resolveImageUrl } from '../lib/config';
 import { formatEventCategory, formatEventDate, getEventDisplayStatus, getNextRoundTime, operationSortRank, getUserEventDisplayStatus, formatNextRoundLabel, weiToEth, userSortRank } from '../lib/ticketDisplay';
 import type { EventSummary } from '../types/api';
 
@@ -68,8 +69,8 @@ export default function UserHomePage({ navigation }: any) {
 
     return (
       <TouchableOpacity style={styles.card} onPress={() => navigation.navigate('EventDetail', { eventId: item.id })}>
-        {(item as any).imageUrl ? (
-          <Image source={{ uri: (item as any).imageUrl }} style={styles.poster} resizeMode="cover" />
+        {resolveImageUrl((item as any).imageUrl) ? (
+          <Image source={{ uri: resolveImageUrl((item as any).imageUrl)! }} style={styles.poster} resizeMode="cover" />
         ) : null}
 
         <Text style={styles.cardTitle} numberOfLines={2}>{eventName(item)}</Text>

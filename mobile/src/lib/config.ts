@@ -74,6 +74,16 @@ function getApiBaseUrl() {
   return `http://10.0.2.2:${API_PORT}${API_PATH}`;
 }
 
+// Converts a relative image URL returned by the backend (e.g. "/images/uuid.jpg")
+// into an absolute URL using the server origin derived from apiBaseUrl.
+// Required because React Native's Image component cannot resolve relative URLs.
+export function resolveImageUrl(imageUrl: string | null | undefined): string | null {
+  if (!imageUrl) return null;
+  if (/^https?:\/\//i.test(imageUrl)) return imageUrl;
+  const origin = getApiBaseUrl().replace(/\/api\/v1\/?$/, "").replace(/\/$/, "");
+  return `${origin}${imageUrl.startsWith("/") ? "" : "/"}${imageUrl}`;
+}
+
 export const config = {
   apiBaseUrl: getApiBaseUrl(),
   dappName: process.env.EXPO_PUBLIC_DAPP_NAME || "Trust Ticket",
