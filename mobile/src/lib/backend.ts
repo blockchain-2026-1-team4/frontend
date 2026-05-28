@@ -14,6 +14,7 @@ import type {
   UserProfile,
   WalletNonce,
 } from "../types/api";
+import { Platform } from "react-native";
 import { setAccessToken } from "./auth";
 import { http, unwrap } from "./http";
 
@@ -96,7 +97,16 @@ export const backendApi = {
 
   async uploadEventImage(eventId: string, file: File | { uri: string; name?: string; type?: string }) {
     const formData = new FormData();
-    formData.append("file", file as any);
+    if (Platform.OS === "web" && "uri" in file) {
+      // On web, { uri, name, type } is not recognized as a file by the browser.
+      // Fetch the URI as a Blob and append it properly.
+      const response = await fetch(file.uri);
+      const blob = await response.blob();
+      const webFile = new File([blob], file.name || `poster-${Date.now()}.jpg`, { type: file.type || blob.type || "image/jpeg" });
+      formData.append("file", webFile);
+    } else {
+      formData.append("file", file as any);
+    }
     return unwrap<EventDetail>(http.post(`/events/${eventId}/image`, formData));
   },
 

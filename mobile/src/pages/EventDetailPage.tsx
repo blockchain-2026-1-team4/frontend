@@ -342,7 +342,11 @@ export default function EventDetailPage({ route, navigation }: any) {
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.posterCard}>
         {resolveImageUrl(event.imageUrl) ? (
-          <Image source={{ uri: resolveImageUrl(event.imageUrl)! }} style={styles.posterImage} resizeMode="cover" />
+          <Image
+            source={{ uri: resolveImageUrl(event.imageUrl)! }}
+            style={styles.posterImage}
+            resizeMode="cover"
+          />
         ) : (
           <View style={styles.posterFallback}>
             <Text style={styles.posterFallbackText}>{String(event.name || event.title || 'E').slice(0, 1)}</Text>

@@ -158,9 +158,12 @@ function buildRound(index: number, eventDate: string): EventRoundDraft {
 }
 
 function posterFile(asset: PosterAsset) {
-  const name = asset.fileName || `poster-${Date.now()}.jpg`;
-  const type = asset.mimeType || (name.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg');
-  return { uri: asset.uri, name, type };
+  // Derive extension from mimeType so iOS HEIC→JPEG conversion doesn't leave a .heic filename
+  // that the backend would reject (ALLOWED_EXTENSIONS = jpg, jpeg, png, webp).
+  const mimeType = asset.mimeType || 'image/jpeg';
+  const ext = mimeType === 'image/png' ? 'png' : mimeType === 'image/webp' ? 'webp' : 'jpg';
+  const name = `poster-${Date.now()}.${ext}`;
+  return { uri: asset.uri, name, type: mimeType };
 }
 
 export default function EventCreatePage({ navigation }: any) {

@@ -1,5 +1,6 @@
 import React, { useCallback, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
+import * as ImagePicker from 'expo-image-picker';
 import {
   ActivityIndicator,
   Alert,
@@ -45,6 +46,7 @@ export default function OrganizerEventDetailPage({ navigation, route }: any) {
   const [refreshing, setRefreshing] = useState(false);
   const [statusDraft, setStatusDraft] = useState('PUBLISHED');
   const [statusSaving, setStatusSaving] = useState(false);
+  const [posterUploading, setPosterUploading] = useState(false);
 
   const soldTickets = tickets.filter((ticket) => ['SOLD', 'LISTED', 'USED'].includes(String(ticket.status).toUpperCase())).length;
   const usedTickets = tickets.filter((ticket) => String(ticket.status).toUpperCase() === 'USED').length;
@@ -77,6 +79,36 @@ export default function OrganizerEventDetailPage({ navigation, route }: any) {
   const refresh = () => {
     setRefreshing(true);
     void load();
+  };
+
+  const uploadPoster = async () => {
+    if (!event) return;
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert('권한 필요', '사진 접근 권한이 필요합니다.');
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [16, 9],
+      quality: 0.85,
+    });
+    if (result.canceled || !result.assets?.[0]) return;
+    const asset = result.assets[0];
+    const mimeType = asset.mimeType || 'image/jpeg';
+    const ext = mimeType === 'image/png' ? 'png' : mimeType === 'image/webp' ? 'webp' : 'jpg';
+    const file = { uri: asset.uri, name: `poster-${Date.now()}.${ext}`, type: mimeType };
+    setPosterUploading(true);
+    try {
+      await backendApi.uploadEventImage(event.id, file);
+      Alert.alert('업로드 완료', '포스터가 저장되었습니다.');
+      await load();
+    } catch (err: any) {
+      Alert.alert('업로드 실패', errorMessage(err, '포스터 업로드에 실패했습니다.\n\n' + (err?.response?.data?.message ?? err?.message ?? '')));
+    } finally {
+      setPosterUploading(false);
+    }
   };
 
   const saveStatus = async () => {
@@ -123,7 +155,11 @@ export default function OrganizerEventDetailPage({ navigation, route }: any) {
     >
       <View style={styles.hero}>
         {resolveImageUrl(event.imageUrl) ? (
-          <Image source={{ uri: resolveImageUrl(event.imageUrl)! }} style={styles.poster} resizeMode="cover" />
+          <Image
+            source={{ uri: resolveImageUrl(event.imageUrl)! }}
+            style={styles.poster}
+            resizeMode="cover"
+          />
         ) : (
           <View style={styles.posterEmpty}><Text style={styles.posterEmptyText}>포스터 없음</Text></View>
         )}
@@ -166,6 +202,13 @@ export default function OrganizerEventDetailPage({ navigation, route }: any) {
         <View style={styles.actionList}>
           <TouchableOpacity style={styles.secondaryButton} onPress={() => navigation.navigate('EventSettings', { eventId: event.id })}>
             <Text style={styles.secondaryButtonText}>이벤트 수정</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.secondaryButton, posterUploading && styles.disabledButton]}
+            disabled={posterUploading}
+            onPress={() => void uploadPoster()}
+          >
+            <Text style={styles.secondaryButtonText}>{posterUploading ? '업로드 중...' : event.imageUrl ? '포스터 교체' : '포스터 등록'}</Text>
           </TouchableOpacity>
         </View>
 
