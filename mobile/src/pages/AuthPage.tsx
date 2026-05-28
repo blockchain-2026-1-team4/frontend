@@ -79,6 +79,7 @@ function isStaleWalletSessionError(error: any) {
 
 export default function AuthPage({ navigation, route }: any) {
   const initialRole = route?.params?.initialRole ?? 'USER';
+  const startsInWalletMode = Boolean(route?.params?.walletMode || route?.params?.autoWalletLogin);
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -86,10 +87,11 @@ export default function AuthPage({ navigation, route }: any) {
   const [walletAddress, setWalletAddress] = useState('');
   const [walletMessage, setWalletMessage] = useState('');
   const [walletStep, setWalletStep] = useState<WalletStep>('idle');
-  const [walletMode, setWalletMode] = useState(false);
+  const [walletMode, setWalletMode] = useState(startsInWalletMode);
   const [loading, setLoading] = useState(false);
   const [pendingWalletLogin, setPendingWalletLogin] = useState(false);
   const [feedback, setFeedback] = useState<{ type: 'error' | 'success'; message: string } | null>(null);
+  const autoStartWalletRef = useRef(false);
   const autoWalletLoginRef = useRef(false);
 
   const { open, disconnect } = useAppKit();
@@ -298,6 +300,14 @@ export default function AuthPage({ navigation, route }: any) {
       autoWalletLoginRef.current = false;
     });
   }, [appKitAddress, isConnected, loading, pendingWalletLogin, provider, providerType]);
+
+  useEffect(() => {
+    if (!route?.params?.autoWalletLogin || autoStartWalletRef.current || loading) return;
+
+    autoStartWalletRef.current = true;
+    setWalletMode(true);
+    void handleWalletLogin();
+  }, [loading, route?.params?.autoWalletLogin]);
 
   return (
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.container}>

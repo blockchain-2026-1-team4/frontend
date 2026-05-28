@@ -81,7 +81,21 @@ export default function ResaleDetailPage({ route, navigation }: any) {
       Alert.alert('구매 불가', blockMessage);
       return;
     }
+    if (!me?.walletAddress?.trim()) {
+      Alert.alert('지갑 로그인 필요', '리셀 티켓 구매는 지갑 로그인 후 가능합니다.', [
+        { text: '취소', style: 'cancel' },
+        { text: '지갑 로그인', onPress: () => navigation.navigate('Auth', { initialRole: 'USER', walletMode: true, autoWalletLogin: true }) },
+      ]);
+      return;
+    }
 
+    Alert.alert('리셀 티켓 구매', '선택한 리셀 티켓을 구매할까요?', [
+      { text: '취소', style: 'cancel' },
+      { text: '구매하기', onPress: () => void submitPurchase() },
+    ]);
+  };
+
+  const submitPurchase = async () => {
     setSubmitting(true);
     setFeedback('');
     try {

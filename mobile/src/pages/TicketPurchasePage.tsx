@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { backendApi } from '../lib/backend';
 import { formatCompactDateTime, formatTicketStatus, weiToEth } from '../lib/ticketDisplay';
-import type { EventDetail, TicketDetail } from '../types/api';
+import type { EventDetail, TicketDetail, UserProfile } from '../types/api';
 
 function isAvailable(ticket?: TicketDetail | null) {
   return String(ticket?.status ?? '').toUpperCase() === 'AVAILABLE';
@@ -60,6 +60,7 @@ export default function TicketPurchasePage({ route, navigation }: any) {
   const { ticketId, eventId } = route.params;
   const [ticket, setTicket] = useState<TicketDetail | null>(null);
   const [event, setEvent] = useState<EventDetail | null>(null);
+  const [me, setMe] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
@@ -67,8 +68,12 @@ export default function TicketPurchasePage({ route, navigation }: any) {
     const load = async () => {
       setLoading(true);
       try {
-        const ticketData = await backendApi.getTicket(String(ticketId));
+        const [ticketData, meData] = await Promise.all([
+          backendApi.getTicket(String(ticketId)),
+          backendApi.getMe().catch(() => null),
+        ]);
         setTicket(ticketData);
+        setMe(meData);
         const targetEventId = eventId ?? ticketData.eventId;
         if (targetEventId) setEvent(await backendApi.getEvent(String(targetEventId)));
       } catch (error: any) {
@@ -82,9 +87,7 @@ export default function TicketPurchasePage({ route, navigation }: any) {
 
   const purchaseState = useMemo(() => getPurchaseState(ticket, event), [event, ticket]);
 
-  const purchase = async () => {
-    if (!purchaseState.canPurchase) return;
-
+  const submitPurchase = async () => {
     setSubmitting(true);
     try {
       const purchased = await backendApi.purchasePrimary(String(ticketId));
@@ -94,6 +97,26 @@ export default function TicketPurchasePage({ route, navigation }: any) {
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const requireWalletLogin = () => {
+    Alert.alert('지갑 로그인 필요', '티켓 구매는 지갑 로그인 후 가능합니다.', [
+      { text: '취소', style: 'cancel' },
+      { text: '지갑 로그인', onPress: () => navigation.navigate('Auth', { initialRole: 'USER', walletMode: true, autoWalletLogin: true }) },
+    ]);
+  };
+
+  const purchase = () => {
+    if (!purchaseState.canPurchase || submitting) return;
+    if (!me?.walletAddress?.trim()) {
+      requireWalletLogin();
+      return;
+    }
+
+    Alert.alert('티켓 예매', '선택한 티켓을 예매할까요?', [
+      { text: '취소', style: 'cancel' },
+      { text: '예매하기', onPress: () => void submitPurchase() },
+    ]);
   };
 
   if (loading) return <View style={styles.center}><ActivityIndicator size="large" color="#2563EB" /></View>;
