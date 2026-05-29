@@ -88,7 +88,10 @@ export default function CheckInManagePage({ navigation, route }: any) {
 
   const checkInAvailability = useMemo(() => {
     if (!event) return { canCheckIn: true, reason: '' };
-    const todayStr = new Date().toLocaleDateString('sv-SE'); // "YYYY-MM-DD"
+    const now = Date.now();
+    const end = new Date(event.eventEndAt || event.endsAt || '').getTime();
+    if (!Number.isNaN(end) && now > end) return { canCheckIn: false, reason: '종료된 공연' };
+    const todayStr = new Date().toLocaleDateString('sv-SE');
     const rounds = event.rounds ?? [];
     if (rounds.length > 0) {
       if (rounds.some((r) => r.eventDate === todayStr)) return { canCheckIn: true, reason: '' };
@@ -410,12 +413,14 @@ export default function CheckInManagePage({ navigation, route }: any) {
               <Text style={styles.emptyText}>등록된 검증자가 없습니다.</Text>
             ) : (
               validators.map((validator, index) => {
-                const name = String(validator.validatorDisplayName ?? validator.displayName ?? '-');
-                const email = String(validator.validatorEmail ?? validator.email ?? '');
+                const displayName = String(validator.validatorDisplayName ?? validator.displayName ?? '').trim();
+                const email = String(validator.validatorEmail ?? validator.email ?? '').trim();
+                const nameLabel = displayName || email || '-';
+                const emailLabel = displayName ? email : '';
                 return (
                   <View key={String(validator.id ?? index)} style={styles.validatorRow}>
-                    <Text style={styles.validatorName}>{name}</Text>
-                    {email ? <Text style={styles.validatorEmail}>{email}</Text> : null}
+                    <Text style={styles.validatorName}>{nameLabel}</Text>
+                    {emailLabel ? <Text style={styles.validatorEmail}>{emailLabel}</Text> : null}
                   </View>
                 );
               })

@@ -91,12 +91,13 @@ function checkInStatus(item: CheckInEvent, now = new Date()): CheckInState {
     };
   }
 
-  const end = new Date(item.event.eventEndAt || item.event.endsAt || item.event.eventAt || item.event.eventDateTime || '').getTime();
+  const end = new Date(item.event.eventEndAt || item.event.endsAt || '').getTime();
   const current = now.getTime();
+
   if (!Number.isNaN(end) && current > end) {
     return {
       label: '종료',
-      rank: 3,
+      rank: 4,
       section: '종료된 이벤트',
       actionable: false,
       ticketCount,
@@ -112,14 +113,25 @@ function checkInStatus(item: CheckInEvent, now = new Date()): CheckInState {
     const startDate = new Date(startTime);
     const isToday = startDate.toDateString() === now.toDateString();
     const isSoon = diff > 0 && diff <= 3 * 60 * 60 * 1000;
-    const isActive = current >= startTime && (Number.isNaN(end) || current <= end);
 
-    if (isActive) {
+    if (current >= startTime) {
       const elapsed = current - startTime;
-      const label = elapsed <= 30 * 60 * 1000 ? '입장 진행중' : elapsed <= 90 * 60 * 1000 ? '입장 마감' : '공연 중';
+      if (elapsed <= 30 * 60 * 1000) {
+        return {
+          label: '입장 진행중',
+          rank: 0,
+          section: '오늘 일정',
+          actionable: true,
+          ticketCount,
+          usedCount,
+          startSummary,
+          buttonLabel: '입장 처리',
+          buttonDanger: false,
+        };
+      }
       return {
-        label,
-        rank: 0,
+        label: '지연 입장',
+        rank: 1,
         section: '오늘 일정',
         actionable: true,
         ticketCount,
@@ -133,20 +145,20 @@ function checkInStatus(item: CheckInEvent, now = new Date()): CheckInState {
     if (isSoon || isToday) {
       return {
         label: '체크인 예정',
-        rank: 1,
+        rank: 2,
         section: '오늘 일정',
-        actionable: false,
+        actionable: true,
         ticketCount,
         usedCount,
         startSummary,
-        buttonLabel: '체크인 예정',
-        buttonDanger: true,
+        buttonLabel: '체크인 하기',
+        buttonDanger: false,
       };
     }
 
     return {
       label: '체크인 예정',
-      rank: 2,
+      rank: 3,
       section: '향후 일정',
       actionable: false,
       ticketCount,
@@ -159,7 +171,7 @@ function checkInStatus(item: CheckInEvent, now = new Date()): CheckInState {
 
   return {
     label: '체크인 예정',
-    rank: 2,
+    rank: 3,
     section: '향후 일정',
     actionable: false,
     ticketCount,
