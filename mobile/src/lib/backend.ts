@@ -206,6 +206,10 @@ export const backendApi = {
     return unwrap<PageResult<UserAdminRecord>>(http.get("/users", { params }));
   },
 
+  async searchUsers(query: string) {
+    return unwrap<PageResult<UserAdminRecord>>(http.get("/users", { params: { query, size: 10 } }));
+  },
+
   async suspendUser(userId: string) {
     return unwrap<UserAdminRecord>(http.patch(`/users/${userId}/suspend`));
   },

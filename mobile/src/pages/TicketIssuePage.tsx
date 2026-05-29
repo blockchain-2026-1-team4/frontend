@@ -40,11 +40,9 @@ type SectionPolicy = {
   useCustomSectionName: boolean;
   quantity: string;
   priceEth: string;
-  saleStartDate: string;
-  saleStartTime: string;
-  saleEndDate: string;
-  saleEndTime: string;
-  saleEndHoursBefore: string;
+  useCustomSaleStart: boolean;
+  customSaleStartDate: string;
+  customSaleStartTime: string;
   resaleEnabled: boolean;
   resaleCapRate: string;
   useCustomResaleRate: boolean;
@@ -56,6 +54,10 @@ type SectionPolicy = {
 type RoundPolicy = {
   roundKey: string;
   totalTicketCount: string;
+  saleStartDate: string;
+  saleStartTime: string;
+  saleEndHoursBefore: string;
+  showAdvancedSaleStart: boolean;
   expanded: boolean;
   sections: SectionPolicy[];
 };
@@ -173,8 +175,7 @@ function makeId(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-function makeSectionPolicy(round?: EventRound): SectionPolicy {
-  const now = new Date();
+function makeSectionPolicy(): SectionPolicy {
   return {
     id: makeId('section'),
     sectionName: '',
@@ -182,11 +183,9 @@ function makeSectionPolicy(round?: EventRound): SectionPolicy {
     useCustomSectionName: false,
     quantity: '',
     priceEth: '',
-    saleStartDate: localDate(now),
-    saleStartTime: localTime(now),
-    saleEndDate: round?.eventDate || localDate(now),
-    saleEndTime: round?.startTime || '23:59',
-    saleEndHoursBefore: '1',
+    useCustomSaleStart: false,
+    customSaleStartDate: localDate(new Date()),
+    customSaleStartTime: '10:00',
     resaleEnabled: true,
     resaleCapRate: '120',
     useCustomResaleRate: false,
@@ -248,6 +247,10 @@ export default function TicketIssuePage({ navigation, route }: any) {
   const [issuing, setIssuing] = useState(false);
   const [policyMode, setPolicyMode] = useState<PolicyMode | null>(null);
   const [globalTotalTicketCount, setGlobalTotalTicketCount] = useState('');
+  const [globalSaleStartDate, setGlobalSaleStartDate] = useState(localDate(new Date()));
+  const [globalSaleStartTime, setGlobalSaleStartTime] = useState('10:00');
+  const [globalSaleEndHoursBefore, setGlobalSaleEndHoursBefore] = useState('1');
+  const [globalShowAdvancedSaleStart, setGlobalShowAdvancedSaleStart] = useState(false);
   const [globalSections, setGlobalSections] = useState<SectionPolicy[]>([]);
   const [roundPolicies, setRoundPolicies] = useState<Record<string, RoundPolicy>>({});
   const [activeRoundKey, setActiveRoundKey] = useState<string | null>(null);
@@ -301,9 +304,14 @@ export default function TicketIssuePage({ navigation, route }: any) {
         const next: Record<string, RoundPolicy> = {};
         rounds.forEach((round, index) => {
           const key = roundKey(round, index);
-          next[key] = current[key] || {
+          const existing = current[key];
+          next[key] = existing ?? {
             roundKey: key,
             totalTicketCount: '',
+            saleStartDate: localDate(new Date()),
+            saleStartTime: '10:00',
+            saleEndHoursBefore: '1',
+            showAdvancedSaleStart: false,
             expanded: index === 0,
             sections: [],
           };
@@ -331,7 +339,7 @@ export default function TicketIssuePage({ navigation, route }: any) {
   const draftBaseRound = policyMode === 'global' ? earliestRoundInfo?.round || activeRound : activeRound;
   const activeKey = activeRound ? roundKey(activeRound, activeRoundIndex) : 'global';
   const draftKey = policyMode === 'global' ? 'global' : activeKey;
-  const currentDraft = drafts[draftKey] || makeSectionPolicy(draftBaseRound);
+  const currentDraft = drafts[draftKey] || makeSectionPolicy();
   const currentSections = policyMode === 'global' ? globalSections : roundPolicies[activeKey]?.sections || [];
   const issuedCountForRound = (round: EventRound | undefined, index: number) => {
     if (!round) return 0;
@@ -428,7 +436,23 @@ export default function TicketIssuePage({ navigation, route }: any) {
         showError('모든 회차에 적용할 총 티켓 수를 입력해주세요.');
         return false;
       }
+      if (!globalSaleStartDate || !globalSaleStartTime) {
+        showError('판매 시작 날짜와 시간을 입력해주세요.');
+        return false;
+      }
+      if (!globalSaleEndHoursBefore) {
+        showError('판매 종료 시점을 선택해주세요.');
+        return false;
+      }
       return true;
+    }
+    const missingSale = rounds.find((round, index) => {
+      const rp = roundPolicies[roundKey(round, index)];
+      return !rp?.saleStartDate || !rp?.saleStartTime || !rp?.saleEndHoursBefore;
+    });
+    if (missingSale) {
+      showError('각 회차의 판매 기간을 모두 설정해주세요.');
+      return false;
     }
     const missing = rounds.find((round, index) => !isPositiveInteger(roundPolicies[roundKey(round, index)]?.totalTicketCount || ''));
     if (missing) {
@@ -438,23 +462,15 @@ export default function TicketIssuePage({ navigation, route }: any) {
     return true;
   };
 
-  const validateSection = (policy: SectionPolicy, label: string, round?: EventRound, relativeEnd = false) => {
+  const validateSection = (policy: SectionPolicy, label: string) => {
     const sectionName = sectionNameOf(policy);
     const resaleRate = Number(resaleRateOf(policy));
     if (!sectionName) return `${label} 좌석 구역을 선택해주세요.`;
     if (!isPositiveInteger(policy.quantity)) return `${label} 발행 개수는 1장 이상이어야 합니다.`;
     if (!isPositiveInteger(policy.startNumber)) return `${label} 시작 번호는 1 이상이어야 합니다.`;
     if (!isPositiveNumber(policy.priceEth)) return `${label} 가격은 0보다 큰 값이어야 합니다.`;
-    if (!policy.saleStartDate || !policy.saleStartTime) return `${label} 판매 시작 날짜와 시간을 입력해주세요.`;
-    if (relativeEnd) {
-      const hours = Number(policy.saleEndHoursBefore);
-      if (!Number.isFinite(hours) || hours <= 0) return `${label} 판매 종료 시점을 선택해주세요.`;
-    } else {
-      if (!policy.saleEndDate || !policy.saleEndTime) return `${label} 판매 종료 날짜와 시간을 입력해주세요.`;
-      const saleStart = toDateTimeIso(policy.saleStartDate, policy.saleStartTime);
-      const saleEnd = toDateTimeIso(policy.saleEndDate, policy.saleEndTime);
-      if (saleStart >= saleEnd) return `${label} 판매 종료는 판매 시작보다 늦어야 합니다.`;
-      if (round && saleEnd > roundStartIso(round)) return `${label} 판매 종료는 공연 시작 전이어야 합니다.`;
+    if (policy.useCustomSaleStart && (!policy.customSaleStartDate || !policy.customSaleStartTime)) {
+      return `${label} 구역별 판매 시작 날짜와 시간을 입력해주세요.`;
     }
     if (policy.resaleEnabled && (!Number.isFinite(resaleRate) || resaleRate < 100)) return `${label} 최대 리셀가는 100% 이상이어야 합니다.`;
     return null;
@@ -463,14 +479,10 @@ export default function TicketIssuePage({ navigation, route }: any) {
   const saveCurrentPolicy = () => {
     if (!policyMode || !draftBaseRound) return;
     const label = policyMode === 'global' ? '공통 정책' : `${activeRoundIndex + 1}회차 정책`;
-    const isRelativeEnd = policyMode === 'global';
-    const roundsToValidate = policyMode === 'global' ? [earliestRoundInfo?.round || draftBaseRound] : [draftBaseRound];
-    for (const round of roundsToValidate) {
-      const message = validateSection(currentDraft, label, round, isRelativeEnd);
-      if (message) {
-        showError(message);
-        return;
-      }
+    const message = validateSection(currentDraft, label);
+    if (message) {
+      showError(message);
+      return;
     }
     const requestedQuantity = Number(currentDraft.quantity || 0);
     const capacityTargets = policyMode === 'global'
@@ -568,16 +580,27 @@ export default function TicketIssuePage({ navigation, route }: any) {
     setActionPolicy(policy);
   };
 
-  const sectionToPayload = (policy: SectionPolicy, round: EventRound, roundIndex: number, policies: SectionPolicy[], useRelativeEnd = false): IssueSectionPayload => {
+  const sectionToPayload = (
+    policy: SectionPolicy,
+    round: EventRound,
+    roundIndex: number,
+    policies: SectionPolicy[],
+    roundSaleStartDate: string,
+    roundSaleStartTime: string,
+    roundSaleEndHoursBefore: string,
+  ): IssueSectionPayload => {
     const rawSection = sectionNameOf(policy);
-    const saleEndAt = useRelativeEnd
-      ? new Date(new Date(roundStartIso(round)).getTime() - Number(policy.saleEndHoursBefore) * 3_600_000).toISOString()
-      : toDateTimeIso(policy.saleEndDate, policy.saleEndTime);
+    const saleStartAt = policy.useCustomSaleStart
+      ? toDateTimeIso(policy.customSaleStartDate, policy.customSaleStartTime)
+      : toDateTimeIso(roundSaleStartDate, roundSaleStartTime);
+    const saleEndAt = new Date(
+      new Date(roundStartIso(round)).getTime() - Number(roundSaleEndHoursBefore) * 3_600_000
+    ).toISOString();
     return {
       eventRoundId: round.id,
       sectionName: `${roundIndex + 1}회차-${rawSection}`,
       priceWei: ethToWei(policy.priceEth),
-      saleStartAt: toDateTimeIso(policy.saleStartDate, policy.saleStartTime),
+      saleStartAt,
       saleEndAt,
       resaleEnabled: policy.resaleEnabled,
       resaleCapRate: Math.round(Number(resaleRateOf(policy)) * 100),
@@ -596,12 +619,19 @@ export default function TicketIssuePage({ navigation, route }: any) {
       return;
     }
     const payload = policyMode === 'global'
-      ? rounds.flatMap((round, index) => globalSections.map((section) => sectionToPayload(section, round, index, globalSections, true)))
+      ? rounds.flatMap((round, index) =>
+          globalSections.map((section) =>
+            sectionToPayload(section, round, index, globalSections, globalSaleStartDate, globalSaleStartTime, globalSaleEndHoursBefore)
+          )
+        )
       : rounds.flatMap((round, index) => {
-        const key = roundKey(round, index);
-        const sections = roundPolicies[key]?.sections || [];
-        return sections.map((section) => sectionToPayload(section, round, index, sections));
-      });
+          const key = roundKey(round, index);
+          const rp = roundPolicies[key];
+          const sections = rp?.sections || [];
+          return sections.map((section) =>
+            sectionToPayload(section, round, index, sections, rp?.saleStartDate || '', rp?.saleStartTime || '', rp?.saleEndHoursBefore || '1')
+          );
+        });
     if (payload.length === 0) {
       showError('발행할 좌석 정책을 먼저 저장해주세요.');
       return;
@@ -641,19 +671,12 @@ export default function TicketIssuePage({ navigation, route }: any) {
 
   const savedPolicyTitle = (policy: SectionPolicy) => `${sectionNameOf(policy)} · ${policy.quantity}장 · ${policy.priceEth} ETH`;
   const savedPolicySaleSummary = (policy: SectionPolicy) => {
-    const endLabel = SALE_END_HOURS_OPTIONS.find((opt) => opt.value === policy.saleEndHoursBefore)?.label
-      ?? (policy.saleEndHoursBefore ? `${policy.saleEndHoursBefore}시간 전` : null);
-    if (policyMode === 'global' && endLabel) {
-      return `판매 ${formatDateShort(policy.saleStartDate)} ${policy.saleStartTime} ~ 각 공연 ${endLabel}`;
+    if (policy.useCustomSaleStart) {
+      return `판매 시작 ${formatDateShort(policy.customSaleStartDate)} ${policy.customSaleStartTime} (구역별)`;
     }
-    return policy.saleStartDate === policy.saleEndDate
-      ? `판매 ${formatDateShort(policy.saleStartDate)} ${policy.saleStartTime} ~ ${policy.saleEndTime}`
-      : `판매 ${formatDateShort(policy.saleStartDate)} ${policy.saleStartTime} ~ ${formatDateShort(policy.saleEndDate)} ${policy.saleEndTime}`;
+    return '판매 기간: 회차 공통 설정';
   };
   const savedPolicyResaleSummary = (policy: SectionPolicy) => policy.resaleEnabled ? `리셀 허용 · 최대 ${resaleRateOf(policy)}%` : '리셀 불가';
-  const saleDeadlineRoundLabel = policyMode === 'global'
-    ? earliestRoundInfo ? roundLabel(earliestRoundInfo.round, earliestRoundInfo.index) : '-'
-    : activeRound ? roundLabel(activeRound, activeRoundIndex) : '-';
   const issueSeatSummary = (() => {
     const totals = new Map<string, number>();
     if (policyMode === 'global') {
@@ -772,17 +795,16 @@ export default function TicketIssuePage({ navigation, route }: any) {
       ? policyMode === 'round' ? '회차별 총 티켓 수량 설정' : '총 티켓 수량 설정'
       : '좌석 판매 설정';
   const pageDescription = flowPage === 1
-    ? '좌석 수, 가격, 판매 기간, 리셀 정책을\n모든 회차에 동일하게 적용할지 선택하세요.'
+    ? '좌석 수, 가격, 리셀 정책을 모든 회차에 동일하게 적용할지 선택하세요.'
     : flowPage === 2
       ? policyMode === 'round'
-        ? '각 회차마다 티켓 수를 설정할 수 있습니다.'
-        : '모든 회차에 동일한 티켓 수가 적용됩니다.'
-      : '좌석 구역을 선택한 뒤 판매할 티켓 상품을 저장하세요.';
+        ? '회차별로 총 티켓 수와 판매 기간을 설정하세요.'
+        : '전 회차에 공통으로 적용할 총 티켓 수와 판매 기간을 설정하세요.'
+      : '좌석 구역별로 가격과 수량을 설정하세요. 판매 기간은 2단계에서 설정한 값이 적용됩니다.';
   const topSubtitle = '티켓 발행과 판매 정책을 단계별로 설정합니다.';
   const canRevealQuantity = !!sectionNameOf(currentDraft);
   const canRevealPrice = canRevealQuantity && isPositiveInteger(currentDraft.quantity);
-  const canRevealResale = canRevealPrice && isPositiveNumber(currentDraft.priceEth) && !!currentDraft.saleStartDate
-    && (policyMode === 'global' ? !!currentDraft.saleEndHoursBefore : !!currentDraft.saleEndDate);
+  const canRevealResale = canRevealPrice && isPositiveNumber(currentDraft.priceEth);
 
   if (loading) {
     return (
@@ -846,6 +868,7 @@ export default function TicketIssuePage({ navigation, route }: any) {
 
           {flowPage === 2 && policyMode === 'global' ? (
             <View style={styles.sectionBlock}>
+              <Text style={styles.sectionTitle}>총 티켓 수 (회차당)</Text>
               <View style={styles.unitInputWrap}>
                 <TextInput
                   style={styles.unitInput}
@@ -862,9 +885,27 @@ export default function TicketIssuePage({ navigation, route }: any) {
                   <View key={roundKey(round, index)} style={styles.selectableRoundRow}>
                     <Text style={styles.roundSummaryTitle}>{roundLabel(round, index)}</Text>
                     <Text style={[styles.roundSummaryStatus, globalTotalTicketCount && styles.roundSummaryStatusSet]}>
-                      {globalTotalTicketCount ? `총 ${globalTotalTicketCount}장 설정됨` : '총 티켓 수 미설정'}
+                      {globalTotalTicketCount ? `총 ${globalTotalTicketCount}장` : '미설정'}
                     </Text>
                   </View>
+                ))}
+              </View>
+              <Text style={styles.sectionTitle}>판매 기간 (전 회차 공통)</Text>
+              <Text style={styles.label}>판매 시작</Text>
+              <View style={styles.dateTimeGrid}>
+                <DatePickerField label="판매 시작 날짜" value={globalSaleStartDate} onChange={(v) => { setGlobalSaleStartDate(v); setTicketConfigConfirmed(false); }} />
+                <TimePickerField label="시작 시간" value={globalSaleStartTime} onChange={(v) => { setGlobalSaleStartTime(v); setTicketConfigConfirmed(false); }} />
+              </View>
+              <Text style={styles.label}>판매 종료 (각 공연 시작 기준)</Text>
+              <View style={styles.chipGrid}>
+                {SALE_END_HOURS_OPTIONS.map((opt) => (
+                  <TouchableOpacity
+                    key={opt.value}
+                    style={[styles.choiceChip, globalSaleEndHoursBefore === opt.value && styles.activeChip]}
+                    onPress={() => { setGlobalSaleEndHoursBefore(opt.value); setTicketConfigConfirmed(false); }}
+                  >
+                    <Text style={[styles.choiceChipText, globalSaleEndHoursBefore === opt.value && styles.activeChipText]}>{opt.label}</Text>
+                  </TouchableOpacity>
                 ))}
               </View>
             </View>
@@ -872,6 +913,8 @@ export default function TicketIssuePage({ navigation, route }: any) {
 
           {flowPage === 2 && policyMode === 'round' ? (
             <View style={styles.sectionBlock}>
+              <RoundSelector rounds={rounds} activeRoundKey={activeKey} onSelect={setActiveRoundKey} disabled={false} />
+              <Text style={styles.sectionTitle}>총 티켓 수</Text>
               <View style={styles.unitInputWrap}>
                 <TextInput
                   style={styles.unitInput}
@@ -883,20 +926,42 @@ export default function TicketIssuePage({ navigation, route }: any) {
                 />
                 <Text style={styles.unitText}>장</Text>
               </View>
+              <Text style={styles.sectionTitle}>판매 기간 (선택 회차)</Text>
+              <Text style={styles.label}>판매 시작</Text>
+              <View style={styles.dateTimeGrid}>
+                <DatePickerField label="판매 시작 날짜" value={roundPolicies[activeKey]?.saleStartDate || ''} onChange={(v) => updateRoundPolicy(activeKey, { saleStartDate: v })} />
+                <TimePickerField label="시작 시간" value={roundPolicies[activeKey]?.saleStartTime || ''} onChange={(v) => updateRoundPolicy(activeKey, { saleStartTime: v })} />
+              </View>
+              <Text style={styles.label}>판매 종료 (공연 시작 기준)</Text>
+              <View style={styles.chipGrid}>
+                {SALE_END_HOURS_OPTIONS.map((opt) => {
+                  const active = (roundPolicies[activeKey]?.saleEndHoursBefore || '1') === opt.value;
+                  return (
+                    <TouchableOpacity
+                      key={opt.value}
+                      style={[styles.choiceChip, active && styles.activeChip]}
+                      onPress={() => updateRoundPolicy(activeKey, { saleEndHoursBefore: opt.value })}
+                    >
+                      <Text style={[styles.choiceChipText, active && styles.activeChipText]}>{opt.label}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
               <View style={styles.roundSummaryList}>
-              {rounds.map((round, index) => {
-                const key = roundKey(round, index);
-                const policy = roundPolicies[key];
-                const active = activeKey === key;
-                return (
-                  <TouchableOpacity key={key} style={[styles.selectableRoundRow, active && styles.selectableRoundRowActive]} onPress={() => setActiveRoundKey(key)}>
-                    <Text style={styles.roundSummaryTitle}>{roundLabel(round, index)}</Text>
-                    <Text style={[styles.roundSummaryStatus, policy?.totalTicketCount && styles.roundSummaryStatusSet]}>
-                      {policy?.totalTicketCount ? `총 ${policy.totalTicketCount}장 설정됨` : '총 티켓 수 미설정'}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
+                {rounds.map((round, index) => {
+                  const key = roundKey(round, index);
+                  const rp = roundPolicies[key];
+                  const isActive = activeKey === key;
+                  const set = rp?.totalTicketCount && rp?.saleStartDate && rp?.saleEndHoursBefore;
+                  return (
+                    <TouchableOpacity key={key} style={[styles.selectableRoundRow, isActive && styles.selectableRoundRowActive]} onPress={() => setActiveRoundKey(key)}>
+                      <Text style={styles.roundSummaryTitle}>{roundLabel(round, index)}</Text>
+                      <Text style={[styles.roundSummaryStatus, set && styles.roundSummaryStatusSet]}>
+                        {set ? `${rp.totalTicketCount}장 · 설정완료` : '미설정'}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
             </View>
           ) : null}
@@ -986,43 +1051,12 @@ export default function TicketIssuePage({ navigation, route }: any) {
 
                 {canRevealPrice ? (
                   <View style={[styles.stepCard, styles.formStepCard]}>
-                    <Text style={styles.builderTitle}>STEP 3 · 가격 및 판매 기간 설정</Text>
+                    <Text style={styles.builderTitle}>STEP 3 · 가격 설정</Text>
                     <Text style={styles.label}>가격</Text>
                     <View style={styles.unitInputWrap}>
                       <TextInput style={styles.unitInput} value={currentDraft.priceEth} onChangeText={(value) => updateDraft({ priceEth: value })} keyboardType="decimal-pad" inputMode="decimal" placeholder="예: 0.2" />
                       <Text style={styles.unitText}>ETH</Text>
                     </View>
-                    <Text style={styles.label}>판매 시작</Text>
-                    <View style={styles.dateTimeGrid}>
-                      <DatePickerField label="판매 시작 날짜" value={currentDraft.saleStartDate} onChange={(value) => updateDraft({ saleStartDate: value })} />
-                      <TimePickerField label="시작 시간" value={currentDraft.saleStartTime} onChange={(value) => updateDraft({ saleStartTime: value })} />
-                    </View>
-                    {policyMode === 'global' ? (
-                      <>
-                        <Text style={styles.label}>판매 종료 · 각 공연 시작 기준</Text>
-                        <Text style={styles.helpText}>모든 회차에 공통 적용됩니다. 각 회차의 공연 시작 시각에서 설정한 시간을 뺀 시점에 판매가 종료됩니다.</Text>
-                        <View style={styles.chipGrid}>
-                          {SALE_END_HOURS_OPTIONS.map((opt) => (
-                            <TouchableOpacity
-                              key={opt.value}
-                              style={[styles.choiceChip, currentDraft.saleEndHoursBefore === opt.value && styles.activeChip]}
-                              onPress={() => updateDraft({ saleEndHoursBefore: opt.value })}
-                            >
-                              <Text style={[styles.choiceChipText, currentDraft.saleEndHoursBefore === opt.value && styles.activeChipText]}>{opt.label}</Text>
-                            </TouchableOpacity>
-                          ))}
-                        </View>
-                      </>
-                    ) : (
-                      <>
-                        <Text style={styles.label}>판매 종료</Text>
-                        <Text style={styles.deadlineGuide}>가장 빠른 회차 시작 전까지만 가능합니다. ({saleDeadlineRoundLabel})</Text>
-                        <View style={styles.dateTimeGrid}>
-                          <DatePickerField label="판매 종료 날짜" value={currentDraft.saleEndDate} onChange={(value) => updateDraft({ saleEndDate: value })} />
-                          <TimePickerField label="종료 시간" value={currentDraft.saleEndTime} onChange={(value) => updateDraft({ saleEndTime: value })} />
-                        </View>
-                      </>
-                    )}
                   </View>
                 ) : null}
 
@@ -1062,8 +1096,27 @@ export default function TicketIssuePage({ navigation, route }: any) {
                 ) : null}
 
                 {canRevealResale ? (
+                  <View style={[styles.stepCard, styles.formStepCard]}>
+                    <Text style={styles.builderTitle}>STEP 5 · 고급: 이 구역 판매 시작 별도 설정</Text>
+                    <TouchableOpacity style={styles.toggleRow} onPress={() => updateDraft({ useCustomSaleStart: !currentDraft.useCustomSaleStart })}>
+                      <Text style={styles.toggleLabel}>구역별 판매 시작 별도 설정</Text>
+                      <Text style={[styles.toggleBadge, currentDraft.useCustomSaleStart ? styles.toggleOn : styles.toggleOff]}>{currentDraft.useCustomSaleStart ? 'ON' : 'OFF'}</Text>
+                    </TouchableOpacity>
+                    {currentDraft.useCustomSaleStart ? (
+                      <>
+                        <Text style={styles.helpText}>이 구역만 별도 판매 시작 시각을 적용합니다. 종료는 회차 공통 정책을 따릅니다.</Text>
+                        <View style={styles.dateTimeGrid}>
+                          <DatePickerField label="판매 시작 날짜" value={currentDraft.customSaleStartDate} onChange={(v) => updateDraft({ customSaleStartDate: v })} />
+                          <TimePickerField label="시작 시간" value={currentDraft.customSaleStartTime} onChange={(v) => updateDraft({ customSaleStartTime: v })} />
+                        </View>
+                      </>
+                    ) : null}
+                  </View>
+                ) : null}
+
+                {canRevealResale ? (
                   <View style={styles.stepCard}>
-                    <Text style={styles.builderTitle}>STEP 5 · 좌석 정책 저장</Text>
+                    <Text style={styles.builderTitle}>STEP 6 · 좌석 정책 저장</Text>
                     <Text style={styles.helpText}>저장하면 요약 카드로 접히고, 다시 눌러 수정할 수 있습니다.</Text>
                     <TouchableOpacity style={styles.savePolicyButton} onPress={saveCurrentPolicy}>
                       <Text style={styles.savePolicyButtonText}>{sectionNameOf(currentDraft) ? `${sectionNameOf(currentDraft)} 정책 저장` : '좌석 정책 저장'}</Text>
