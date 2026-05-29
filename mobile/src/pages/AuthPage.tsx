@@ -274,7 +274,27 @@ async function ensureWalletNetwork(provider: EthereumProvider): Promise<void> {
       sessionTopic,
     });
 
-    if (switchCode === 4902 || switchCode === -32603) {
+    // Catch conditions for wallet_addEthereumChain fallback:
+    //   4902          – EIP-1193: chain not added to wallet
+    //  -32603          – JSON-RPC internal error (some wallets use this for unknown chain)
+    //   5100          – WalletConnect: requested chains are not supported
+    //   message match – AppKit "chain is not approved" thrown before reaching MetaMask
+    //                   when the chain is absent from the WC session namespaces
+    const isChainNotApproved =
+      switchCode === 4902 ||
+      switchCode === -32603 ||
+      switchCode === 5100 ||
+      switchMsg.includes('not approved') ||
+      switchMsg.includes('not supported') ||
+      switchMsg.includes('does not support');
+
+    console.log('[WalletLogin] switch chain error analysis', {
+      code: switchCode,
+      isChainNotApproved,
+      willTryAddChain: isChainNotApproved,
+    });
+
+    if (isChainNotApproved) {
       console.log('[WalletLogin] add chain start', { chainIdHex, sessionTopic });
 
       try {
@@ -304,7 +324,9 @@ async function ensureWalletNetwork(provider: EthereumProvider): Promise<void> {
         throw new Error(`${addMeta.chainName} 네트워크 추가가 필요합니다. MetaMask에서 네트워크 추가 요청을 승인해주세요.`);
       }
     } else {
-      throw new Error(`${addMeta.chainName} 네트워크 전환이 필요합니다. MetaMask에서 네트워크 전환 요청을 승인해주세요.`);
+      // switch 실패 + 위 조건에 해당하지 않는 경우 (4001 사용자 거절 등)
+      // 에러를 그대로 전파해서 상위 오류 핸들러가 처리하도록 한다.
+      throw switchError;
     }
   }
 }
