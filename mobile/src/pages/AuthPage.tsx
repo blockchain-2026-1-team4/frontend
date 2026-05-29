@@ -18,6 +18,7 @@ import { accountStatusMessage, errorMessage, routeForEntry } from '../lib/accoun
 import { isWalletConnectConfigured } from '../lib/appkit';
 import { clearWalletSessionStorage } from '../lib/appkitStorage';
 import { backendApi } from '../lib/backend';
+import { config } from '../lib/config';
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -196,6 +197,63 @@ async function requestPersonalSign(
   return Promise.race([signPromise, timeout]) as Promise<string>;
 }
 
+// Ensures the target chain (Kaia Kairos) is registered and active in MetaMask
+// before personal_sign is requested. Called only after isConnected, appKitAddress,
+// provider, and providerType === 'eip155' are all confirmed — never when provider
+// is absent, as that indicates a WalletConnect session issue, not a network issue.
+async function ensureWalletNetwork(provider: EthereumProvider): Promise<void> {
+  const chainIdHex = `0x${config.chainId.toString(16)}`;
+
+  console.log('[WalletLogin] ensure network start', {
+    chainId: config.chainId,
+    chainIdHex,
+    rpcUrl: config.chainRpcUrl,
+  });
+
+  try {
+    await provider.request({
+      method: 'wallet_switchEthereumChain',
+      params: [{ chainId: chainIdHex }],
+    });
+
+    console.log('[WalletLogin] switch chain success', chainIdHex);
+  } catch (switchError: any) {
+    console.warn('[WalletLogin] switch chain failed', switchError);
+
+    const code = switchError?.code;
+
+    if (code === 4902 || code === -32603) {
+      console.log('[WalletLogin] add chain start', chainIdHex);
+
+      try {
+        await provider.request({
+          method: 'wallet_addEthereumChain',
+          params: [
+            {
+              chainId: chainIdHex,
+              chainName: 'Kaia Kairos Testnet',
+              nativeCurrency: {
+                name: 'KAIA',
+                symbol: 'KAIA',
+                decimals: 18,
+              },
+              rpcUrls: [config.chainRpcUrl],
+              blockExplorerUrls: ['https://kairos.kaiascan.io'],
+            },
+          ],
+        });
+
+        console.log('[WalletLogin] add chain success', chainIdHex);
+      } catch (addError) {
+        console.error('[WalletLogin] add chain failed', addError);
+        throw new Error('Kaia Kairos 네트워크 추가가 필요합니다. MetaMask에서 네트워크 추가 요청을 승인해주세요.');
+      }
+    } else {
+      throw new Error('Kaia Kairos 네트워크 전환이 필요합니다. MetaMask에서 네트워크 전환 요청을 승인해주세요.');
+    }
+  }
+}
+
 // ─── Component ─────────────────────────────────────────────────────────────
 
 export default function AuthPage({ navigation, route }: any) {
@@ -326,6 +384,7 @@ export default function AuthPage({ navigation, route }: any) {
         setAppForegroundedAt(Date.now());
         setTimeout(() => setAppForegroundedAt(Date.now()), 500);
         setTimeout(() => setAppForegroundedAt(Date.now()), 1000);
+        setTimeout(() => setAppForegroundedAt(Date.now()), 1500);
       }
     });
     return () => sub.remove();
@@ -456,6 +515,11 @@ export default function AuthPage({ navigation, route }: any) {
     if (providerType !== 'eip155') {
       throw new Error('EVM 지갑만 지원합니다. Ethereum 계열 지갑으로 연결해 주세요.');
     }
+
+    // provider가 확보된 뒤에만 네트워크 확인/추가/전환 실행.
+    // provider 없음(isConnected false) 케이스는 이 분기에 도달하지 않으므로
+    // wallet_addEthereumChain은 여기서만 호출된다.
+    await ensureWalletNetwork(provider as EthereumProvider);
 
     setWalletAddress(appKitAddress);
     console.log('[WalletLogin] Session confirmed (source:', source, ') | address:', appKitAddress, '| session topic:', getSessionTopic(provider));
@@ -669,7 +733,14 @@ export default function AuthPage({ navigation, route }: any) {
       return;
     }
     if (!isConnected || !appKitAddress || !provider || providerType !== 'eip155') {
+      // 실패 원인 분리:
+      // - provider/isConnected 없음 → WalletConnect 세션이 아직 앱에 반영되지 않음 (재연결 필요)
+      // - providerType !== 'eip155' → EVM 지갑이 아님
+      const sessionReason = !isConnected || !appKitAddress || !provider
+        ? 'WalletConnect 세션이 앱에 아직 반영되지 않음 — 재시도 또는 재연결 필요'
+        : `providerType이 eip155가 아님 (${providerType})`;
       console.log('[WalletLogin] AppForeground retry — conditions not yet met', {
+        reason: sessionReason,
         pendingWalletLogin,
         isConnected,
         hasAddress: Boolean(appKitAddress),
