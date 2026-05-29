@@ -207,7 +207,7 @@ export const backendApi = {
   },
 
   async searchUsers(query: string) {
-    return unwrap<PageResult<UserAdminRecord>>(http.get("/users", { params: { query, size: 10 } }));
+    return unwrap<PageResult<UserAdminRecord>>(http.get("/users/search", { params: { query, size: 10 } }));
   },
 
   async suspendUser(userId: string) {

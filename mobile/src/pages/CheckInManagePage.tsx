@@ -86,6 +86,22 @@ export default function CheckInManagePage({ navigation, route }: any) {
   }, [expiresAt]);
   const qrState = !hasQrInfo ? '스캔 필요' : expired ? '만료 QR' : '검증 대기';
 
+  const checkInAvailability = useMemo(() => {
+    if (!event) return { canCheckIn: true, reason: '' };
+    const todayStr = new Date().toLocaleDateString('sv-SE'); // "YYYY-MM-DD"
+    const rounds = event.rounds ?? [];
+    if (rounds.length > 0) {
+      if (rounds.some((r) => r.eventDate === todayStr)) return { canCheckIn: true, reason: '' };
+      if (rounds.every((r) => r.eventDate < todayStr)) return { canCheckIn: false, reason: '종료된 공연' };
+      return { canCheckIn: false, reason: '체크인 예정' };
+    }
+    const eventDateStr = (event.eventAt || event.eventStartAt || event.startsAt || event.eventDateTime || '').slice(0, 10);
+    if (!eventDateStr) return { canCheckIn: true, reason: '' };
+    if (eventDateStr === todayStr) return { canCheckIn: true, reason: '' };
+    if (eventDateStr < todayStr) return { canCheckIn: false, reason: '종료된 공연' };
+    return { canCheckIn: false, reason: '체크인 예정' };
+  }, [event]);
+
   const applyParsedPayload = useCallback((payload: QrPayload) => {
     setTicketId(payload.ticketId || '');
     setClaimedOwner(payload.claimedOwner || '');
@@ -284,8 +300,19 @@ export default function CheckInManagePage({ navigation, route }: any) {
           <Info label="상태" value={ticket ? formatTicketEntryStatus(ticket.status) : qrState} />
           <Text style={styles.label}>운영 메모</Text>
           <TextInput style={styles.input} value={memo} onChangeText={setMemo} placeholder="선택 입력" />
-          <TouchableOpacity style={[styles.primaryButton, checkingIn && styles.disabledButton]} disabled={checkingIn} onPress={checkIn}>
-            <Text style={styles.primaryButtonText}>{checkingIn ? '처리 중...' : '입장 처리'}</Text>
+          {checkInAvailability.reason ? (
+            <View style={styles.checkInBlockedBox}>
+              <Text style={styles.checkInBlockedText}>{checkInAvailability.reason}</Text>
+            </View>
+          ) : null}
+          <TouchableOpacity
+            style={[styles.primaryButton, (checkingIn || !checkInAvailability.canCheckIn) && styles.disabledButton]}
+            disabled={checkingIn || !checkInAvailability.canCheckIn}
+            onPress={checkIn}
+          >
+            <Text style={styles.primaryButtonText}>
+              {checkingIn ? '처리 중...' : checkInAvailability.reason || '입장 처리'}
+            </Text>
           </TouchableOpacity>
         </View>
       ) : null}
@@ -438,6 +465,8 @@ const styles = StyleSheet.create({
   secondaryButton: { borderWidth: 1, borderColor: '#CBD5E1', backgroundColor: '#FFFFFF', borderRadius: 14, paddingVertical: 14, alignItems: 'center', marginTop: 12 },
   secondaryButtonText: { color: '#0F172A', fontSize: 16, fontWeight: '900' },
   disabledButton: { opacity: 0.55 },
+  checkInBlockedBox: { marginTop: 10, backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 10, padding: 10 },
+  checkInBlockedText: { color: '#64748B', fontSize: 13, fontWeight: '800', textAlign: 'center' },
   helpText: { marginTop: 6, color: '#94A3B8', fontSize: 12, lineHeight: 17 },
   searchSpinner: { marginTop: 12 },
   searchErrorBox: { marginTop: 10, backgroundColor: '#FEF2F2', borderWidth: 1, borderColor: '#FECACA', borderRadius: 10, padding: 10 },
