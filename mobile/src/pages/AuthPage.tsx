@@ -103,6 +103,22 @@ function isStaleWalletSessionError(error: any) {
   return msg.includes('No matching key') || msg.includes('session:');
 }
 
+// Extracts the WalletConnect session topic from the provider object at runtime.
+// The topic is the canonical session identifier — if it changes between disconnect
+// and reconnect, the old session was truly replaced. Falls back to 'n/a' when
+// the provider or topic is unavailable (e.g. during EthersAdapter initialisation).
+function getSessionTopic(p: unknown): string {
+  if (!p || typeof p !== 'object') return 'n/a';
+  const o = p as Record<string, any>;
+  return (
+    o._provider?.session?.topic ??
+    o.session?.topic ??
+    o.provider?.session?.topic ??
+    o.walletConnectProvider?.session?.topic ??
+    'n/a'
+  );
+}
+
 // Writes or clears the pending-login flag in AsyncStorage.
 // The flag is stored with a timestamp so mount-time reads can detect TTL expiry.
 // NOT called on AuthPage unmount — the flag must survive navigating to MetaMask
@@ -203,6 +219,15 @@ export default function AuthPage({ navigation, route }: any) {
   // Set to true when pendingWalletLogin is restored from AsyncStorage so the
   // auto-login useEffect can report LoginTriggerSource as 'startup-restore'.
   const pendingRestoredFromStorageRef = useRef(false);
+  // True while a manual disconnect→reconnect cycle is in progress.
+  // All wallet-return triggers are blocked until the new WalletConnect session
+  // (identified by a different session topic) is confirmed, preventing the race
+  // where the state-change effect fires with the still-live old session and
+  // starts a personal_sign on a session that is about to be destroyed.
+  const reconnectingRef = useRef(false);
+  // Topic of the session that was active just before a manual disconnect.
+  // Used to verify that the new session is genuinely different.
+  const prevSessionTopicRef = useRef<string>('');
   // Bumped (with a 600ms delay) each time the app foregrounds so the
   // auto-login useEffect re-evaluates even when all deps were already settled
   // while Trust Ticket was in the background.
@@ -412,8 +437,13 @@ export default function AuthPage({ navigation, route }: any) {
     if (source === 'manual') {
       // Disconnect and re-show the Connect modal so MetaMask is guaranteed to
       // be open and unlocked before personal_sign is requested.
-      console.log('[WalletLogin] Manual login with existing session — disconnecting for fresh flow');
+      const prevTopic = getSessionTopic(provider);
+      prevSessionTopicRef.current = prevTopic;
+      // Block all wallet-return triggers until the new session is confirmed.
+      reconnectingRef.current = true;
+      console.log('[WalletLogin] disconnect start | prev session topic:', prevTopic);
       try { disconnect('eip155'); } catch {}
+      console.log('[WalletLogin] disconnect complete');
       await clearWalletSessionStorage();
       setPendingWalletLogin(true);
       syncPendingWalletLogin(true);
@@ -428,7 +458,7 @@ export default function AuthPage({ navigation, route }: any) {
     }
 
     setWalletAddress(appKitAddress);
-    console.log('[WalletLogin] Session confirmed (source:', source, ') — address:', appKitAddress);
+    console.log('[WalletLogin] Session confirmed (source:', source, ') | address:', appKitAddress, '| session topic:', getSessionTopic(provider));
     return { provider: provider as EthereumProvider, address: appKitAddress };
   };
 
@@ -467,8 +497,20 @@ export default function AuthPage({ navigation, route }: any) {
       setWalletStep('signing');
       console.log('[WalletLogin] Nonce issued (expires:', nonce.expiresAt, ') — requesting personal_sign');
 
+      // Pre-sign session guard: abort if we are mid-reconnect or if the session
+      // has become invalid since we confirmed it above.
+      if (reconnectingRef.current) {
+        throw new Error('재연결이 진행 중입니다. 연결 완료 후 다시 시도해 주세요.');
+      }
+      const signTopic = getSessionTopic(connection.provider);
+      if (!connection.provider || !connection.address) {
+        throw new Error('서명 직전 세션이 유효하지 않습니다. 재연결 후 다시 시도해 주세요.');
+      }
+      console.log('[WalletLogin] sign request begin | session topic:', signTopic);
+
       const signature = await requestPersonalSign(connection.provider, nonce.message, nonce.walletAddress);
 
+      console.log('[WalletLogin] sign request resolved | sig length:', typeof signature === 'string' ? signature.length : 'n/a');
       if (typeof signature !== 'string' || !signature.trim()) {
         throw new Error('지갑 서명이 완료되지 않았습니다.');
       }
@@ -530,6 +572,8 @@ export default function AuthPage({ navigation, route }: any) {
   const handleReconnect = async () => {
     if (loading) return;
     console.log('[WalletLogin] Reconnect requested — resetting session');
+    prevSessionTopicRef.current = getSessionTopic(provider);
+    reconnectingRef.current = true;
     autoWalletLoginRef.current = false;
     pendingRestoredFromStorageRef.current = false;
     setPendingWalletLogin(false);
@@ -553,14 +597,47 @@ export default function AuthPage({ navigation, route }: any) {
   // This is the primary "wallet just connected" detector.
   useEffect(() => {
     if (Platform.OS === 'web') return;
+
+    const currentTopic = getSessionTopic(provider);
+
+    // When a manual disconnect→reconnect cycle is in progress, check whether
+    // the new session has a different topic from the one we disconnected.
+    // If so, the reconnect is complete and wallet-return triggers are re-enabled.
+    if (reconnectingRef.current) {
+      if (isConnected && appKitAddress && provider) {
+        const oldTopic = prevSessionTopicRef.current;
+        if (currentTopic !== 'n/a') {
+          const isNewSession = oldTopic === '' || oldTopic === 'n/a' || currentTopic !== oldTopic;
+          if (isNewSession) {
+            console.log('[WalletLogin] Reconnect complete | old topic:', oldTopic, '→ new topic:', currentTopic);
+          } else {
+            console.warn('[WalletLogin] Same session topic after reconnect — possible stale reuse | topic:', currentTopic);
+          }
+        } else {
+          console.log('[WalletLogin] Reconnect: session topic unavailable, allowing trigger');
+        }
+        reconnectingRef.current = false;
+        prevSessionTopicRef.current = '';
+      }
+      // If not yet connected, the reconnect is still in progress — fall through
+      // to log the state but do not trigger wallet-return.
+    }
+
     console.log('[WalletLogin] WC state changed', {
       pendingWalletLogin,
       isConnected,
       address: appKitAddress,
+      sessionTopic: currentTopic,
       walletStep,
       loading,
       autoLoginRunning: autoWalletLoginRef.current,
+      reconnecting: reconnectingRef.current,
     });
+
+    if (reconnectingRef.current) {
+      console.log('[WalletLogin] wallet-return skipped — reconnect in progress');
+      return;
+    }
     if (
       !pendingWalletLogin ||
       !isConnected ||
@@ -587,6 +664,10 @@ export default function AuthPage({ navigation, route }: any) {
   useEffect(() => {
     if (Platform.OS === 'web') return;
     if (!pendingWalletLogin || autoWalletLoginRef.current || loading) return;
+    if (reconnectingRef.current) {
+      console.log('[WalletLogin] AppForeground retry skipped — reconnect in progress');
+      return;
+    }
     if (!isConnected || !appKitAddress || !provider || providerType !== 'eip155') {
       console.log('[WalletLogin] AppForeground retry — conditions not yet met', {
         pendingWalletLogin,
