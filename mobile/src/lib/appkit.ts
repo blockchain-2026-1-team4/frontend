@@ -46,11 +46,21 @@ export const walletNetwork: AppKitNetwork = {
   testnet: config.chainId !== 1,
 };
 
+console.log('[WalletNetwork]', {
+  chainId: config.chainId,
+  chainIdType: typeof config.chainId,
+  chainRpcUrl: config.chainRpcUrl,
+  caipNetworkId: walletNetwork.caipNetworkId,
+  networkId: walletNetwork.id,
+});
+
+const appKitNetworks = [walletNetwork];
+
 const ethersAdapter = new EthersAdapter();
 
 export const appKit = createAppKit({
   projectId: config.reownProjectId || fallbackProjectId,
-  networks: [walletNetwork],
+  networks: appKitNetworks,
   defaultNetwork: walletNetwork,
   adapters: [ethersAdapter],
   storage: appKitStorage,
@@ -65,4 +75,9 @@ export const appKit = createAppKit({
       native: `${config.appScheme}://`,
     },
   },
+});
+
+console.log('[ReownConfig]', {
+  networks: appKitNetworks,
+  defaultNetwork: walletNetwork,
 });
