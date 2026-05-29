@@ -120,6 +120,30 @@ function getSessionTopic(p: unknown): string {
   );
 }
 
+// Extracts the raw WalletConnect session object from the provider at runtime.
+// Mirrors the path probing used by getSessionTopic so both helpers stay consistent.
+function getSessionFromProvider(p: unknown): any {
+  if (!p || typeof p !== 'object') return null;
+  const o = p as Record<string, any>;
+  return (
+    o._provider?.session ??
+    o.session ??
+    o.provider?.session ??
+    o.walletConnectProvider?.session ??
+    null
+  );
+}
+
+// Parses the first EVM address from WalletConnect session namespaces.
+// Used as a fallback when AppKit's useAccount() hook hasn't updated yet.
+// Session accounts follow CAIP-10 format: "eip155:<chainId>:<address>"
+function getAddressFromSession(session: any): string | undefined {
+  const accounts: unknown[] = session?.namespaces?.eip155?.accounts ?? [];
+  const first = accounts[0];
+  if (typeof first !== 'string') return undefined;
+  return first.split(':')[2];
+}
+
 // Writes or clears the pending-login flag in AsyncStorage.
 // The flag is stored with a timestamp so mount-time reads can detect TTL expiry.
 // NOT called on AuthPage unmount — the flag must survive navigating to MetaMask
@@ -481,9 +505,34 @@ export default function AuthPage({ navigation, route }: any) {
     }
 
     setWalletStep('connecting');
-    console.log('[WalletLogin] connectReownWallet | source:', source, '| connected:', isConnected, '| address:', appKitAddress);
 
-    if (!isConnected || !appKitAddress || !provider) {
+    // Read session + addresses BEFORE the "no session" guard so we can log
+    // and use fallback values even when AppKit hooks haven't updated yet.
+    const session = getSessionFromProvider(provider);
+    const sessionAddress = getAddressFromSession(session);
+    const resolvedAddress = appKitAddress || sessionAddress;
+
+    console.log('[WalletLogin] connectReownWallet | source:', source, '| connected:', isConnected, '| address:', appKitAddress);
+    console.log('[WalletLogin] session namespace snapshot', {
+      namespaces: session?.namespaces,
+      accounts: session?.namespaces?.eip155?.accounts,
+      chains: session?.namespaces?.eip155?.chains,
+    });
+    if (resolvedAddress) {
+      console.log(
+        appKitAddress
+          ? '[WalletLogin] resolved address from appKitAddress'
+          : '[WalletLogin] resolved address from session accounts fallback',
+        resolvedAddress,
+      );
+    } else {
+      console.log('[WalletLogin] no address found in appKit hook or session accounts');
+    }
+
+    // provider 없음 또는 session accounts에서도 address를 파싱할 수 없는 경우:
+    // WalletConnect 세션이 아직 수립되지 않은 것으로 간주 → Connect modal 오픈.
+    // isConnected가 false여도 provider + resolvedAddress가 있으면 통과.
+    if (!provider || !resolvedAddress) {
       console.log('[WalletLogin] No active session — opening Connect modal');
       setPendingWalletLogin(true);
       syncPendingWalletLogin(true);
@@ -516,14 +565,14 @@ export default function AuthPage({ navigation, route }: any) {
       throw new Error('EVM 지갑만 지원합니다. Ethereum 계열 지갑으로 연결해 주세요.');
     }
 
-    // provider가 확보된 뒤에만 네트워크 확인/추가/전환 실행.
-    // provider 없음(isConnected false) 케이스는 이 분기에 도달하지 않으므로
-    // wallet_addEthereumChain은 여기서만 호출된다.
+    // provider와 resolvedAddress가 모두 확보된 뒤에만 네트워크 확인/추가/전환 실행.
+    // provider 없음(isConnected false + session 없음) 케이스는 위에서 modal로 빠지므로
+    // wallet_addEthereumChain은 항상 유효한 provider가 있는 상태에서만 호출된다.
     await ensureWalletNetwork(provider as EthereumProvider);
 
-    setWalletAddress(appKitAddress);
-    console.log('[WalletLogin] Session confirmed (source:', source, ') | address:', appKitAddress, '| session topic:', getSessionTopic(provider));
-    return { provider: provider as EthereumProvider, address: appKitAddress };
+    setWalletAddress(resolvedAddress);
+    console.log('[WalletLogin] Session confirmed (source:', source, ') | address:', resolvedAddress, '| session topic:', getSessionTopic(provider));
+    return { provider: provider as EthereumProvider, address: resolvedAddress };
   };
 
   const connectWallet = (source: LoginTriggerSource) => {
@@ -667,8 +716,16 @@ export default function AuthPage({ navigation, route }: any) {
     // When a manual disconnect→reconnect cycle is in progress, check whether
     // the new session has a different topic from the one we disconnected.
     // If so, the reconnect is complete and wallet-return triggers are re-enabled.
+    // Session fallback: read address directly from WC session namespaces in case
+    // AppKit hooks (isConnected / appKitAddress) haven't updated yet.
+    const wcSession = getSessionFromProvider(provider);
+    const wcSessionAddress = getAddressFromSession(wcSession);
+    const resolvedAddress = appKitAddress || wcSessionAddress;
+
     if (reconnectingRef.current) {
-      if (isConnected && appKitAddress && provider) {
+      // Reconnect complete when provider exists AND we can resolve an address
+      // — either from AppKit hook or directly from session namespaces.
+      if (provider && resolvedAddress) {
         const oldTopic = prevSessionTopicRef.current;
         if (currentTopic !== 'n/a') {
           const isNewSession = oldTopic === '' || oldTopic === 'n/a' || currentTopic !== oldTopic;
@@ -691,6 +748,8 @@ export default function AuthPage({ navigation, route }: any) {
       pendingWalletLogin,
       isConnected,
       address: appKitAddress,
+      wcSessionAddress,
+      resolvedAddress,
       sessionTopic: currentTopic,
       walletStep,
       loading,
@@ -704,9 +763,8 @@ export default function AuthPage({ navigation, route }: any) {
     }
     if (
       !pendingWalletLogin ||
-      !isConnected ||
-      !appKitAddress ||
       !provider ||
+      !resolvedAddress ||
       autoWalletLoginRef.current ||
       loading ||
       walletStep === 'signing'
@@ -732,18 +790,28 @@ export default function AuthPage({ navigation, route }: any) {
       console.log('[WalletLogin] AppForeground retry skipped — reconnect in progress');
       return;
     }
-    if (!isConnected || !appKitAddress || !provider || providerType !== 'eip155') {
+    // Session fallback: provider가 있지만 AppKit hook이 아직 갱신되지 않은 경우
+    // WC session namespaces에서 직접 address를 파싱해 사용한다.
+    const fgSession = getSessionFromProvider(provider);
+    const fgSessionAddress = getAddressFromSession(fgSession);
+    const fgResolvedAddress = appKitAddress || fgSessionAddress;
+
+    if (!provider || !fgResolvedAddress || providerType !== 'eip155') {
       // 실패 원인 분리:
-      // - provider/isConnected 없음 → WalletConnect 세션이 아직 앱에 반영되지 않음 (재연결 필요)
+      // - provider 없음 → WalletConnect 세션 미수립 (재연결 필요)
+      // - provider 있지만 address 없음 → session namespaces에 account 미포함 (재연결 필요)
       // - providerType !== 'eip155' → EVM 지갑이 아님
-      const sessionReason = !isConnected || !appKitAddress || !provider
-        ? 'WalletConnect 세션이 앱에 아직 반영되지 않음 — 재시도 또는 재연결 필요'
-        : `providerType이 eip155가 아님 (${providerType})`;
+      const fgReason = !provider
+        ? 'WalletConnect provider 없음 — 재연결 필요'
+        : !fgResolvedAddress
+          ? 'provider 있지만 session accounts에도 address 없음 — 재연결 필요'
+          : `providerType이 eip155가 아님 (${providerType})`;
       console.log('[WalletLogin] AppForeground retry — conditions not yet met', {
-        reason: sessionReason,
+        reason: fgReason,
         pendingWalletLogin,
         isConnected,
         hasAddress: Boolean(appKitAddress),
+        hasFgSessionAddress: Boolean(fgSessionAddress),
         hasProvider: Boolean(provider),
         providerType,
         loading,
