@@ -380,3 +380,27 @@ export function weiToEth(wei?: string | number | null) {
     return String(wei);
   }
 }
+
+export function weiToEthValue(wei?: string | number | null): string {
+  if (wei === undefined || wei === null || wei === '') return '';
+  try {
+    const value = BigInt(String(wei));
+    const whole = value / 1_000_000_000_000_000_000n;
+    const fraction = String(value % 1_000_000_000_000_000_000n).padStart(18, '0').replace(/0+$/, '');
+    return fraction ? `${whole}.${fraction}` : `${whole}`;
+  } catch {
+    return '';
+  }
+}
+
+export function ethToWei(ethValue: string): string {
+  const normalized = ethValue.trim();
+  if (!normalized) return '0';
+  try {
+    const [whole, fraction = ''] = normalized.split('.');
+    const fractionPadded = `${fraction}${'0'.repeat(18)}`.slice(0, 18);
+    return `${BigInt(whole || '0') * 1_000_000_000_000_000_000n + BigInt(fractionPadded || '0')}`;
+  } catch {
+    return '0';
+  }
+}

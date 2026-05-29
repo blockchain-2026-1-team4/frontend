@@ -89,9 +89,11 @@ export default function CheckInManagePage({ navigation, route }: any) {
 
   const load = useCallback(async () => {
     try {
-      const eventDetail = await backendApi.getEvent(eventId).catch(() => null);
+      const [eventDetail, data] = await Promise.all([
+        backendApi.getEvent(eventId).catch(() => null),
+        backendApi.getEventValidators(eventId).catch(() => []),
+      ]);
       setEvent(eventDetail);
-      const data = await backendApi.getEventValidators(eventId).catch(() => []);
       setValidators(data);
     } catch (error: any) {
       setFeedback({ type: 'error', title: '조회 실패', message: errorMessage(error, '검증자 목록을 불러오지 못했습니다.') });
@@ -239,7 +241,6 @@ export default function CheckInManagePage({ navigation, route }: any) {
         <View style={styles.card}>
           <Text style={styles.cardTitle}>QR 스캔 결과</Text>
           <Info label="좌석" value={ticket?.seatInfo || `티켓 ${ticketId}`} />
-          <Info label="사용자" value={claimedOwner || '-'} />
           <Info label="만료 여부" value={expired ? '만료됨' : '유효'} />
           <Info label="상태" value={ticket ? formatTicketEntryStatus(ticket.status) : qrState} />
           <Text style={styles.label}>운영 메모</Text>

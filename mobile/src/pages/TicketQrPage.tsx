@@ -3,7 +3,7 @@ import { ActivityIndicator, Alert, Image, ScrollView, StyleSheet, Text, Touchabl
 import QRCode from 'react-native-qrcode-svg';
 import { backendApi } from '../lib/backend';
 import { formatTicketEntryStatus, isTicketUsableForEntry } from '../lib/ticketDisplay';
-import type { TicketDetail, TicketQr } from '../types/api';
+import type { TicketDetail, TicketQr, UserProfile } from '../types/api';
 
 export default function TicketQrPage({ route }: any) {
   const { ticketId } = route.params;

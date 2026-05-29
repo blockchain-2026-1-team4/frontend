@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import WalletRequiredView from '../components/WalletRequiredView';
 import { errorMessage } from '../lib/account';
 import { backendApi } from '../lib/backend';
-import { formatEventDate, formatTicketStatus, formatTicketValidity } from '../lib/ticketDisplay';
-import type { EventDetail, TicketDetail } from '../types/api';
+import { ethToWei, formatEventDate, formatTicketStatus, formatTicketValidity, weiToEthValue } from '../lib/ticketDisplay';
+import type { EventDetail, TicketDetail, UserProfile } from '../types/api';
 
 function normalizeResaleFailure(cause: any) {
   const message = errorMessage(cause, '리셀 등록에 실패했습니다.');
@@ -52,8 +53,9 @@ export default function TicketResaleCreatePage({ route, navigation }: any) {
   const { ticketId } = route.params;
   const [ticket, setTicket] = useState<TicketDetail | null>(null);
   const [event, setEvent] = useState<EventDetail | null>(null);
+  const [me, setMe] = useState<UserProfile | null>(null);
   const [validity, setValidity] = useState<Record<string, unknown> | null>(null);
-  const [price, setPrice] = useState('');
+  const [priceEth, setPriceEth] = useState('');
   const [feedback, setFeedback] = useState('');
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -61,15 +63,18 @@ export default function TicketResaleCreatePage({ route, navigation }: any) {
   useEffect(() => {
     const load = async () => {
       try {
-        const [ticketData, validityData] = await Promise.all([
+        const [ticketData, validityData, meData] = await Promise.all([
           backendApi.getTicket(String(ticketId)),
           backendApi.getTicketValidity(String(ticketId)),
+          backendApi.getMe().catch(() => null),
         ]);
         const eventData = ticketData.eventId ? await backendApi.getEvent(String(ticketData.eventId)).catch(() => null) : null;
         setTicket(ticketData);
         setEvent(eventData);
         setValidity(validityData);
-        setPrice(String(ticketData.originalPriceWei ?? ticketData.priceWei ?? ''));
+        setMe(meData);
+        const initialEth = weiToEthValue(ticketData.originalPriceWei ?? ticketData.priceWei);
+        setPriceEth(initialEth);
       } catch (error: any) {
         Alert.alert('오류', errorMessage(error, '티켓 정보를 불러오지 못했습니다.'));
       } finally {
@@ -87,8 +92,9 @@ export default function TicketResaleCreatePage({ route, navigation }: any) {
       Alert.alert('리셀 등록 불가', blockReason);
       return;
     }
-    if (!price || Number.isNaN(Number(price)) || Number(price) <= 0) {
-      const message = '리셀 가격을 WEI 단위 숫자로 입력해주세요.';
+    const ethNum = Number(priceEth);
+    if (!priceEth || Number.isNaN(ethNum) || ethNum <= 0) {
+      const message = '리셀 가격을 ETH 단위로 입력해주세요. (예: 0.1)';
       setFeedback(message);
       Alert.alert('입력 오류', message);
       return;
@@ -97,7 +103,8 @@ export default function TicketResaleCreatePage({ route, navigation }: any) {
     setSubmitting(true);
     setFeedback('');
     try {
-      const listing = await backendApi.createResale(String(ticketId), price);
+      const priceWei = ethToWei(priceEth);
+      const listing = await backendApi.createResale(String(ticketId), priceWei);
       navigation.replace('ResaleRegisterComplete', { listingId: listing.id ?? listing.listingId, ticketId });
     } catch (error: any) {
       const message = normalizeResaleFailure(error);
@@ -109,6 +116,7 @@ export default function TicketResaleCreatePage({ route, navigation }: any) {
   };
 
   if (loading) return <View style={styles.center}><ActivityIndicator size="large" color="#2563EB" /></View>;
+  if (!me?.walletAddress?.trim()) return <WalletRequiredView navigation={navigation} feature="리셀 등록" />;
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -130,8 +138,17 @@ export default function TicketResaleCreatePage({ route, navigation }: any) {
       ) : null}
 
       <View style={styles.inputContainer}>
-        <Text style={styles.label}>리셀 가격(WEI)</Text>
-        <TextInput style={styles.input} value={price} onChangeText={setPrice} placeholder="예: 10000" keyboardType="numeric" />
+        <Text style={styles.label}>리셀 가격 (ETH)</Text>
+        <View style={styles.inputRow}>
+          <TextInput
+            style={styles.input}
+            value={priceEth}
+            onChangeText={setPriceEth}
+            placeholder="예: 0.1"
+            keyboardType="decimal-pad"
+          />
+          <Text style={styles.unit}>ETH</Text>
+        </View>
       </View>
 
       {feedback && feedback !== blockReason ? (
@@ -140,8 +157,14 @@ export default function TicketResaleCreatePage({ route, navigation }: any) {
         </View>
       ) : null}
 
-      <TouchableOpacity style={[styles.submitButton, (submitting || Boolean(blockReason)) && styles.disabledButton]} onPress={handleCreateResale} disabled={submitting}>
-        <Text style={styles.submitButtonText}>{submitting ? '등록 중...' : blockReason ? '리셀 등록 불가' : '리셀 등록하기'}</Text>
+      <TouchableOpacity
+        style={[styles.submitButton, (submitting || Boolean(blockReason)) && styles.disabledButton]}
+        onPress={handleCreateResale}
+        disabled={submitting}
+      >
+        <Text style={styles.submitButtonText}>
+          {submitting ? '등록 중...' : blockReason ? '리셀 등록 불가' : '리셀 등록하기'}
+        </Text>
       </TouchableOpacity>
     </ScrollView>
   );
@@ -168,7 +191,19 @@ const styles = StyleSheet.create({
   infoValue: { color: '#0F172A', fontWeight: '900' },
   inputContainer: { marginTop: 8, marginBottom: 14 },
   label: { fontSize: 14, fontWeight: '900', color: '#334155', marginBottom: 10 },
-  input: { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#CBD5E1', padding: 15, borderRadius: 12, fontSize: 18, fontWeight: '900', color: '#0F172A' },
+  inputRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  input: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    padding: 15,
+    borderRadius: 12,
+    fontSize: 18,
+    fontWeight: '900',
+    color: '#0F172A',
+  },
+  unit: { fontSize: 16, fontWeight: '900', color: '#334155', minWidth: 36 },
   feedbackBox: { marginBottom: 14, backgroundColor: '#FEF2F2', borderWidth: 1, borderColor: '#FCA5A5', borderRadius: 12, padding: 12 },
   feedbackText: { color: '#B91C1C', fontWeight: '800', lineHeight: 20 },
   submitButton: { backgroundColor: '#2563EB', padding: 16, borderRadius: 14, alignItems: 'center' },

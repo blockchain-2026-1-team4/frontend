@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import WalletRequiredView from '../components/WalletRequiredView';
 import { backendApi } from '../lib/backend';
 import { showDialog } from '../lib/dialog';
 import { formatCompactDateTime, formatTicketStatus, weiToEth } from '../lib/ticketDisplay';
@@ -100,20 +101,8 @@ export default function TicketPurchasePage({ route, navigation }: any) {
     }
   };
 
-  const requireWalletLogin = () => {
-    showDialog('지갑 로그인 필요', '티켓 구매는 지갑 로그인 후 가능합니다.', [
-      { text: '취소', style: 'cancel' },
-      { text: '지갑 로그인', onPress: () => navigation.navigate('Auth', { initialRole: 'USER', walletMode: true, autoWalletLogin: true }) },
-    ]);
-  };
-
   const purchase = () => {
     if (!purchaseState.canPurchase || submitting) return;
-    if (!me?.walletAddress?.trim()) {
-      requireWalletLogin();
-      return;
-    }
-
     showDialog('티켓 예매', '선택한 티켓을 예매할까요?', [
       { text: '취소', style: 'cancel' },
       { text: '예매하기', onPress: () => void submitPurchase() },
@@ -122,6 +111,7 @@ export default function TicketPurchasePage({ route, navigation }: any) {
 
   if (loading) return <View style={styles.center}><ActivityIndicator size="large" color="#2563EB" /></View>;
   if (!ticket) return <View style={styles.center}><Text>티켓을 찾을 수 없습니다.</Text></View>;
+  if (!me?.walletAddress?.trim()) return <WalletRequiredView navigation={navigation} feature="티켓 구매" />;
 
   const price = ticket.originalPriceWei ?? ticket.priceWei ?? event?.ticketPriceWei;
   const disabled = submitting || !purchaseState.canPurchase;
