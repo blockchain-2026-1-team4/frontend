@@ -14,7 +14,7 @@ type ChainMeta = { name: string; currencyName: string; symbol: string };
 const CHAIN_META: Record<number, ChainMeta> = {
   1: { name: 'Ethereum', currencyName: 'Ether', symbol: 'ETH' },
   1001: { name: 'Kaia Kairos', currencyName: 'KAIA', symbol: 'KAIA' },
-  11155111: { name: 'Ethereum Sepolia', currencyName: 'Sepolia ETH', symbol: 'ETH' },
+  11155111: { name: 'Sepolia', currencyName: 'Sepolia Ether', symbol: 'ETH' },
 };
 
 function resolveChainMeta(chainId: number): ChainMeta {
@@ -24,10 +24,10 @@ function resolveChainMeta(chainId: number): ChainMeta {
 const meta = resolveChainMeta(config.chainId);
 
 // Single network used for both WalletConnect sessions and on-chain operations.
-// EXPO_PUBLIC_CHAIN_ID must be set to 1001 (Kaia Kairos) — MetaMask Mobile stalls
-// at the fox loading screen when the WC session proposal requires an unknown chain
-// such as Hardhat 31337. Kairos is pre-installed in MetaMask Mobile and matches
-// the chain used by the web client.
+// EXPO_PUBLIC_CHAIN_ID controls which chain is requested in the WC session proposal.
+// Currently set to Sepolia (11155111) for login-flow verification — MetaMask Mobile
+// includes Sepolia by default, avoiding network-add prompts during testing.
+// Switch back to Kaia Kairos (1001) by updating EXPO_PUBLIC_CHAIN_ID in .env.
 export const walletNetwork: AppKitNetwork = {
   id: config.chainId,
   name: meta.name,

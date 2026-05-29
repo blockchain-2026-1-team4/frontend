@@ -221,13 +221,33 @@ async function requestPersonalSign(
   return Promise.race([signPromise, timeout]) as Promise<string>;
 }
 
-// Ensures the target chain (Kaia Kairos) is registered and active in MetaMask
-// before personal_sign is requested. Called only after isConnected, appKitAddress,
-// provider, and providerType === 'eip155' are all confirmed — never when provider
-// is absent, as that indicates a WalletConnect session issue, not a network issue.
+// Chain-specific metadata used by wallet_addEthereumChain.
+// Keyed by chainId; add an entry when supporting a new network.
+const CHAIN_ADD_META: Record<number, { chainName: string; nativeCurrency: { name: string; symbol: string; decimals: number }; blockExplorerUrls: string[] }> = {
+  1001: {
+    chainName: 'Kaia Kairos Testnet',
+    nativeCurrency: { name: 'KAIA', symbol: 'KAIA', decimals: 18 },
+    blockExplorerUrls: ['https://kairos.kaiascan.io'],
+  },
+  11155111: {
+    chainName: 'Sepolia Testnet',
+    nativeCurrency: { name: 'Sepolia Ether', symbol: 'ETH', decimals: 18 },
+    blockExplorerUrls: ['https://sepolia.etherscan.io'],
+  },
+};
+
+// Ensures the target chain is registered and active in MetaMask before
+// personal_sign is requested. chainName / nativeCurrency / blockExplorerUrls
+// are resolved from CHAIN_ADD_META so switching networks only requires
+// changing EXPO_PUBLIC_CHAIN_ID — no changes to this function needed.
 async function ensureWalletNetwork(provider: EthereumProvider): Promise<void> {
   const chainIdHex = `0x${config.chainId.toString(16)}`;
   const sessionTopic = getSessionTopic(provider);
+  const addMeta = CHAIN_ADD_META[config.chainId] ?? {
+    chainName: `Chain ${config.chainId}`,
+    nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
+    blockExplorerUrls: [],
+  };
 
   console.log('[WalletLogin] ensure network start', {
     chainId: config.chainId,
@@ -263,14 +283,10 @@ async function ensureWalletNetwork(provider: EthereumProvider): Promise<void> {
           params: [
             {
               chainId: chainIdHex,
-              chainName: 'Kaia Kairos Testnet',
-              nativeCurrency: {
-                name: 'KAIA',
-                symbol: 'KAIA',
-                decimals: 18,
-              },
+              chainName: addMeta.chainName,
+              nativeCurrency: addMeta.nativeCurrency,
               rpcUrls: [config.chainRpcUrl],
-              blockExplorerUrls: ['https://kairos.kaiascan.io'],
+              blockExplorerUrls: addMeta.blockExplorerUrls,
             },
           ],
         });
@@ -285,10 +301,10 @@ async function ensureWalletNetwork(provider: EthereumProvider): Promise<void> {
           raw: (() => { try { return JSON.stringify(addError); } catch { return String(addError); } })(),
           sessionTopic,
         });
-        throw new Error('Kaia Kairos 네트워크 추가가 필요합니다. MetaMask에서 네트워크 추가 요청을 승인해주세요.');
+        throw new Error(`${addMeta.chainName} 네트워크 추가가 필요합니다. MetaMask에서 네트워크 추가 요청을 승인해주세요.`);
       }
     } else {
-      throw new Error('Kaia Kairos 네트워크 전환이 필요합니다. MetaMask에서 네트워크 전환 요청을 승인해주세요.');
+      throw new Error(`${addMeta.chainName} 네트워크 전환이 필요합니다. MetaMask에서 네트워크 전환 요청을 승인해주세요.`);
     }
   }
 }
