@@ -60,6 +60,9 @@ export default function CheckInManagePage({ navigation, route }: any) {
   const [validatorQuery, setValidatorQuery] = useState('');
   const [validatorResults, setValidatorResults] = useState<UserAdminRecord[]>([]);
   const [searching, setSearching] = useState(false);
+  const [searchError, setSearchError] = useState('');
+  const [directIdMode, setDirectIdMode] = useState(false);
+  const [directId, setDirectId] = useState('');
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [ticketId, setTicketId] = useState('');
   const [claimedOwner, setClaimedOwner] = useState('');
@@ -145,6 +148,7 @@ export default function CheckInManagePage({ navigation, route }: any) {
   const handleValidatorQueryChange = (text: string) => {
     setValidatorQuery(text);
     setValidatorResults([]);
+    setSearchError('');
     if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
     if (!text.trim()) return;
     searchTimeoutRef.current = setTimeout(async () => {
@@ -152,7 +156,14 @@ export default function CheckInManagePage({ navigation, route }: any) {
       try {
         const result = await backendApi.searchUsers(text.trim());
         setValidatorResults(result.items ?? []);
-      } catch {
+      } catch (error: any) {
+        const status = error?.response?.status;
+        if (status === 401 || status === 403) {
+          setSearchError('사용자 검색 권한이 없습니다. 하단 "ID 직접 입력"을 사용해 주세요.');
+          setDirectIdMode(true);
+        } else {
+          setSearchError(errorMessage(error, '검색 중 오류가 발생했습니다.'));
+        }
         setValidatorResults([]);
       } finally {
         setSearching(false);
@@ -161,14 +172,26 @@ export default function CheckInManagePage({ navigation, route }: any) {
   };
 
   const addValidatorByUser = async (user: UserAdminRecord) => {
+    await registerValidator(String(user.id), user.displayName || user.email || String(user.id));
+  };
+
+  const addValidatorById = async () => {
+    if (!directId.trim()) {
+      Alert.alert('입력 필요', '사용자 ID를 입력해주세요.');
+      return;
+    }
+    await registerValidator(directId.trim(), directId.trim());
+  };
+
+  const registerValidator = async (userId: string, label: string) => {
     setSaving(true);
     setFeedback(null);
     try {
-      await backendApi.addEventValidator(eventId, { userId: String(user.id) });
+      await backendApi.addEventValidator(eventId, { userId });
       setValidatorQuery('');
       setValidatorResults([]);
-      const name = user.displayName || user.email || String(user.id);
-      setFeedback({ type: 'success', title: '등록 완료', message: `${name}을(를) 검증자로 등록했습니다.` });
+      setDirectId('');
+      setFeedback({ type: 'success', title: '등록 완료', message: `${label}을(를) 검증자로 등록했습니다.` });
       await load();
     } catch (error: any) {
       const message = errorMessage(error, '검증자를 등록하지 못했습니다.');
@@ -290,37 +313,71 @@ export default function CheckInManagePage({ navigation, route }: any) {
         </TouchableOpacity>
         {validatorOpen ? (
           <>
-            <Text style={styles.cardText}>이메일, 이름, 사용자 ID로 검색 후 선택하면 검증자로 등록됩니다.</Text>
-            <TextInput
-              style={styles.input}
-              value={validatorQuery}
-              onChangeText={handleValidatorQueryChange}
-              placeholder="이메일 또는 이름으로 검색"
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
-            {searching ? (
-              <ActivityIndicator style={styles.searchSpinner} color="#2563EB" />
-            ) : validatorResults.length > 0 ? (
-              <View style={styles.searchResultList}>
-                {validatorResults.map((user) => (
-                  <TouchableOpacity
-                    key={String(user.id)}
-                    style={[styles.searchResultItem, saving && styles.disabledButton]}
-                    disabled={saving}
-                    onPress={() => void addValidatorByUser(user)}
-                  >
-                    <View style={styles.searchResultInfo}>
-                      <Text style={styles.searchResultName}>{user.displayName || '-'}</Text>
-                      <Text style={styles.searchResultSub}>{user.email || String(user.id)}</Text>
-                    </View>
-                    <Text style={styles.searchResultAction}>{saving ? '등록 중' : '+ 등록'}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            ) : validatorQuery.trim() && !searching ? (
-              <Text style={styles.emptyText}>검색 결과가 없습니다.</Text>
-            ) : null}
+            <Text style={styles.cardText}>이메일 또는 이름으로 검색하거나, ID를 직접 입력해 등록하세요.</Text>
+
+            {!directIdMode ? (
+              <>
+                <TextInput
+                  style={styles.input}
+                  value={validatorQuery}
+                  onChangeText={handleValidatorQueryChange}
+                  placeholder="이메일 또는 이름으로 검색"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+                {searching ? (
+                  <ActivityIndicator style={styles.searchSpinner} color="#2563EB" />
+                ) : searchError ? (
+                  <View style={styles.searchErrorBox}>
+                    <Text style={styles.searchErrorText}>{searchError}</Text>
+                  </View>
+                ) : validatorResults.length > 0 ? (
+                  <View style={styles.searchResultList}>
+                    {validatorResults.map((user) => (
+                      <TouchableOpacity
+                        key={String(user.id)}
+                        style={[styles.searchResultItem, saving && styles.disabledButton]}
+                        disabled={saving}
+                        onPress={() => void addValidatorByUser(user)}
+                      >
+                        <View style={styles.searchResultInfo}>
+                          <Text style={styles.searchResultName}>{user.displayName || '-'}</Text>
+                          <Text style={styles.searchResultSub}>{user.email || String(user.id)}</Text>
+                        </View>
+                        <Text style={styles.searchResultAction}>{saving ? '등록 중' : '+ 등록'}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                ) : validatorQuery.trim() && !searching ? (
+                  <Text style={styles.emptyText}>검색 결과가 없습니다.</Text>
+                ) : null}
+                <TouchableOpacity style={styles.fallbackToggle} onPress={() => setDirectIdMode(true)}>
+                  <Text style={styles.fallbackToggleText}>ID 직접 입력으로 전환</Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <>
+                <TextInput
+                  style={styles.input}
+                  value={directId}
+                  onChangeText={setDirectId}
+                  placeholder="사용자 ID 입력"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+                <TouchableOpacity
+                  style={[styles.secondaryButton, saving && styles.disabledButton]}
+                  disabled={saving}
+                  onPress={() => void addValidatorById()}
+                >
+                  <Text style={styles.secondaryButtonText}>{saving ? '등록 중...' : '검증자 등록'}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.fallbackToggle} onPress={() => { setDirectIdMode(false); setSearchError(''); }}>
+                  <Text style={styles.fallbackToggleText}>검색으로 전환</Text>
+                </TouchableOpacity>
+              </>
+            )}
+
             <Text style={styles.sectionLabel}>등록된 검증자</Text>
             {validators.length === 0 ? (
               <Text style={styles.emptyText}>등록된 검증자가 없습니다.</Text>
@@ -383,6 +440,10 @@ const styles = StyleSheet.create({
   disabledButton: { opacity: 0.55 },
   helpText: { marginTop: 6, color: '#94A3B8', fontSize: 12, lineHeight: 17 },
   searchSpinner: { marginTop: 12 },
+  searchErrorBox: { marginTop: 10, backgroundColor: '#FEF2F2', borderWidth: 1, borderColor: '#FECACA', borderRadius: 10, padding: 10 },
+  searchErrorText: { color: '#DC2626', fontSize: 13, fontWeight: '800', lineHeight: 18 },
+  fallbackToggle: { marginTop: 10, alignItems: 'center', paddingVertical: 8 },
+  fallbackToggleText: { color: '#2563EB', fontSize: 13, fontWeight: '800' },
   searchResultList: { marginTop: 10, borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 12, overflow: 'hidden' },
   searchResultItem: { flexDirection: 'row', alignItems: 'center', padding: 12, borderBottomWidth: 1, borderBottomColor: '#F1F5F9', backgroundColor: '#FFFFFF' },
   searchResultInfo: { flex: 1 },

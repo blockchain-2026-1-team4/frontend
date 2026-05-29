@@ -93,10 +93,6 @@ export default function MyPage({ navigation }: any) {
         <Text style={styles.label}>사용 중 역할</Text>
         <Text style={styles.value}>{formatRoles(profile?.roles)}</Text>
 
-        <Text style={styles.label}>사용자 ID</Text>
-        <Text style={styles.value} selectable>{profile?.id || '-'}</Text>
-        <Text style={styles.helpText}>이벤트 체크인 검증자 등록 시 이 ID를 주최자에게 공유하세요.</Text>
-
         {!editing ? (
           <TouchableOpacity style={styles.primaryButton} onPress={() => setEditing(true)}>
             <Text style={styles.primaryButtonText}>표시 이름 수정</Text>
