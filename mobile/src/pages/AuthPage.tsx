@@ -19,27 +19,41 @@ import { isWalletConnectConfigured } from '../lib/appkit';
 import { clearWalletSessionStorage } from '../lib/appkitStorage';
 import { backendApi } from '../lib/backend';
 
+// ─── Types ─────────────────────────────────────────────────────────────────
+
 type EthereumProvider = {
   request: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
 };
 
 type WalletStep = 'idle' | 'connecting' | 'signing' | 'signed';
 
-const NATIVE_WALLET_HELP =
-  'WalletConnect 지갑을 연결한 뒤 서명을 승인하면 인증이 완료됩니다.';
+// Describes how the wallet login flow was initiated.
+// Used instead of a boolean flag so branches stay readable as the flow grows.
+//   manual         – user tapped the login button directly
+//   wallet-return  – WC session became ready after returning from MetaMask
+//   startup-restore – pending flag was recovered from AsyncStorage after an app kill
+//   route-param    – navigation params triggered auto-login (autoWalletLogin:true)
+type LoginTriggerSource = 'manual' | 'wallet-return' | 'startup-restore' | 'route-param';
 
+// ─── Constants ─────────────────────────────────────────────────────────────
+
+const NATIVE_WALLET_HELP = 'WalletConnect 지갑을 연결한 뒤 서명을 승인하면 인증이 완료됩니다.';
 const PENDING_WALLET_LOGIN_KEY = '@trustticket:pendingWalletLogin';
 
-// Pending flag expires after this many milliseconds. A cold-start that finds
-// a flag older than this treats it as stale and ignores it, preventing
-// auto-login from firing when the user simply reopens the app normally.
-const PENDING_LOGIN_TTL_MS = 5 * 60 * 1000; // 5 minutes
+// How long a persisted pending-login flag is considered valid.
+// A flag older than this on app start is treated as stale and discarded.
+// 5 minutes is enough for a normal MetaMask interaction; it prevents
+// auto-login from firing when the user opens the app from scratch days later.
+const PENDING_LOGIN_TTL_MS = 5 * 60 * 1000;
 
-// personal_sign can hang indefinitely if the relay drops the response while
-// the app is backgrounded. Reject after 5 minutes so the UI unblocks.
+// Upper bound for a personal_sign round-trip. If the WalletConnect relay
+// fails to deliver the response while the app is backgrounded, this timeout
+// unblocks the UI so the user can retry instead of waiting forever.
 const SIGN_TIMEOUT_MS = 5 * 60 * 1000;
 
 type PendingLoginRecord = { pending: true; timestamp: number };
+
+// ─── Module-level helpers ───────────────────────────────────────────────────
 
 function getEthereumProvider() {
   if (Platform.OS !== 'web') return null;
@@ -89,8 +103,11 @@ function isStaleWalletSessionError(error: any) {
   return msg.includes('No matching key') || msg.includes('session:');
 }
 
-// Writes or removes the pending login flag together with a creation timestamp.
-// The timestamp lets the mount effect ignore flags that are older than TTL.
+// Writes or clears the pending-login flag in AsyncStorage.
+// The flag is stored with a timestamp so mount-time reads can detect TTL expiry.
+// NOT called on AuthPage unmount — the flag must survive navigating to MetaMask
+// and any intermediate navigation transitions; it is only cleared on explicit
+// completion (success, failure, cancel, reconnect) or TTL expiry.
 function syncPendingWalletLogin(pending: boolean): void {
   if (pending) {
     const record: PendingLoginRecord = { pending: true, timestamp: Date.now() };
@@ -100,29 +117,49 @@ function syncPendingWalletLogin(pending: boolean): void {
   }
 }
 
-// Opens the previously chosen wallet app (stored by WalletConnect) so the
-// user can see and approve a pending personal_sign request.
+// Opens the previously chosen wallet app so the user can see a pending
+// personal_sign request. Tries the WalletConnect deeplink choice first,
+// then falls back to the generic metamask:// scheme.
 async function openWalletApp(): Promise<void> {
+  // Attempt 1: use the wallet the user previously selected via AppKit
   try {
     const raw = await AsyncStorage.getItem('WALLETCONNECT_DEEPLINK_CHOICE');
     if (raw) {
-      const choice = JSON.parse(raw) as { href?: string; universal?: string };
+      const choice = JSON.parse(raw) as { href?: string; universal?: string; name?: string };
       const url = choice.href || choice.universal;
-      if (url && (await Linking.canOpenURL(url))) {
-        await Linking.openURL(url);
-        return;
+      if (url) {
+        const supported = await Linking.canOpenURL(url).catch(() => false);
+        if (supported) {
+          await Linking.openURL(url);
+          return;
+        }
+        console.warn('[WalletLogin] Stored deeplink not openable:', url);
       }
     }
-  } catch {}
+  } catch (e) {
+    console.warn('[WalletLogin] openWalletApp: error reading WALLETCONNECT_DEEPLINK_CHOICE:', e);
+  }
+
+  // Attempt 2: generic MetaMask scheme
   try {
-    if (await Linking.canOpenURL('metamask://')) {
+    const supported = await Linking.canOpenURL('metamask://').catch(() => false);
+    if (supported) {
       await Linking.openURL('metamask://');
       return;
     }
-  } catch {}
-  Alert.alert('지갑을 열 수 없습니다', '지갑 앱이 설치되어 있는지 확인해 주세요.');
+  } catch (e) {
+    console.warn('[WalletLogin] openWalletApp: metamask:// open failed:', e);
+  }
+
+  // Nothing worked — guide the user manually
+  Alert.alert(
+    '지갑을 열 수 없습니다',
+    'MetaMask 앱이 설치되어 있지 않거나 딥링크가 지원되지 않습니다.\n' +
+      '직접 MetaMask 앱으로 이동하여 서명 요청을 확인해 주세요.',
+  );
 }
 
+// Wraps personal_sign with a hard timeout so the Promise never hangs silently.
 async function requestPersonalSign(
   provider: EthereumProvider,
   message: string,
@@ -131,12 +168,19 @@ async function requestPersonalSign(
   const signPromise = provider.request({ method: 'personal_sign', params: [message, address] });
   const timeout = new Promise<never>((_, reject) =>
     setTimeout(
-      () => reject(new Error('서명 요청 시간이 초과되었습니다 (5분). MetaMask 앱을 열어 대기 중인 서명 요청을 확인해 주세요.')),
+      () =>
+        reject(
+          new Error(
+            '서명 요청 시간이 초과되었습니다 (5분). MetaMask 앱을 열어 대기 중인 서명 요청을 확인해 주세요.',
+          ),
+        ),
       SIGN_TIMEOUT_MS,
     ),
   );
   return Promise.race([signPromise, timeout]) as Promise<string>;
 }
+
+// ─── Component ─────────────────────────────────────────────────────────────
 
 export default function AuthPage({ navigation, route }: any) {
   const initialRole = route?.params?.initialRole ?? 'USER';
@@ -156,6 +200,9 @@ export default function AuthPage({ navigation, route }: any) {
 
   const autoStartWalletRef = useRef(false);
   const autoWalletLoginRef = useRef(false);
+  // Set to true when pendingWalletLogin is restored from AsyncStorage so the
+  // auto-login useEffect can report LoginTriggerSource as 'startup-restore'.
+  const pendingRestoredFromStorageRef = useRef(false);
 
   const { open, disconnect } = useAppKit();
   const { address: appKitAddress, isConnected } = useAccount();
@@ -163,12 +210,16 @@ export default function AuthPage({ navigation, route }: any) {
 
   const targetLabel = useMemo(() => (initialRole === 'ORGANIZER' ? '주최자' : '사용자'), [initialRole]);
 
-  // Restore a recent pending-login flag that survived an app kill.
-  // Flags older than PENDING_LOGIN_TTL_MS are discarded to avoid firing
-  // auto-login when the user simply opens the app fresh at a later time.
+  // On mount: restore a recent pending-login flag that survived an app kill.
+  // Flags outside the TTL window are treated as stale: the AsyncStorage entry
+  // is deleted and any lingering signing UI is reset so the screen looks clean.
+  // NOTE: there is intentionally NO cleanup (return fn) here. The flag must
+  // survive intermediate navigation transitions and the hop to MetaMask and
+  // back. It is only removed on explicit completion, error, reconnect, or expiry.
   useEffect(() => {
     if (Platform.OS === 'web') return;
     let cancelled = false;
+
     AsyncStorage.getItem(PENDING_WALLET_LOGIN_KEY)
       .then((raw) => {
         if (cancelled || !raw) return;
@@ -177,32 +228,39 @@ export default function AuthPage({ navigation, route }: any) {
           const age = Date.now() - record.timestamp;
           if (record.pending && age < PENDING_LOGIN_TTL_MS) {
             console.log('[WalletLogin] Restored recent pendingWalletLogin (age:', Math.round(age / 1000), 's)');
+            pendingRestoredFromStorageRef.current = true;
             setPendingWalletLogin(true);
             setWalletMode(true);
           } else {
-            console.log('[WalletLogin] Stale pendingWalletLogin in storage (age:', Math.round(age / 1000), 's), discarding');
+            // Stale flag: clear storage and reset any lingering signing state
+            // so the UI does not show a frozen "signing" status from a previous session.
+            console.log('[WalletLogin] Stale pendingWalletLogin (age:', Math.round(age / 1000), 's) — clearing');
             AsyncStorage.removeItem(PENDING_WALLET_LOGIN_KEY).catch(() => {});
+            setWalletStep('idle');
+            setWalletMessage('');
+            setLoading(false);
+            setFeedback({
+              type: 'error',
+              message: '이전 로그인 세션이 만료되었습니다. 다시 지갑으로 로그인해 주세요.',
+            });
           }
         } catch {
           AsyncStorage.removeItem(PENDING_WALLET_LOGIN_KEY).catch(() => {});
         }
       })
       .catch((err) => console.warn('[WalletLogin] Failed to read pending login flag:', err));
+
     return () => { cancelled = true; };
   }, []);
 
-  // Clear the persisted flag when AuthPage is removed from the navigation stack.
-  useEffect(() => {
-    return () => { syncPendingWalletLogin(false); };
-  }, []);
-
-  // Log foreground transitions for debugging.
+  // Log foreground transitions for debugging — helps pinpoint exactly which
+  // state the component is in when the app comes back from MetaMask.
   useEffect(() => {
     if (Platform.OS === 'web') return;
     const sub = AppState.addEventListener('change', (state) => {
       if (state === 'active') {
         console.log(
-          '[WalletLogin] App foregrounded | pending:', pendingWalletLogin,
+          '[WalletLogin] Foregrounded | pending:', pendingWalletLogin,
           '| connected:', isConnected, '| loading:', loading,
           '| step:', walletStep, '| autoRunning:', autoWalletLoginRef.current,
         );
@@ -217,7 +275,7 @@ export default function AuthPage({ navigation, route }: any) {
     }
   }, [appKitAddress, isConnected]);
 
-  // ─── Email auth ────────────────────────────────────────────────────────────
+  // ─── Email auth ─────────────────────────────────────────────────────────
 
   const handleEmailAuth = async () => {
     setFeedback(null);
@@ -246,9 +304,15 @@ export default function AuthPage({ navigation, route }: any) {
           Alert.alert('입력 필요', message);
           return;
         }
-        const result = await backendApi.registerEmail({ email: email.trim(), password, displayName: displayName.trim() });
+        const result = await backendApi.registerEmail({
+          email: email.trim(),
+          password,
+          displayName: displayName.trim(),
+        });
         const profile = result.user ?? await backendApi.getMe();
-        const message = initialRole === 'ORGANIZER' ? '가입되었습니다. 주최자 신청을 이어서 진행해 주세요.' : '가입되었습니다.';
+        const message = initialRole === 'ORGANIZER'
+          ? '가입되었습니다. 주최자 신청을 이어서 진행해 주세요.'
+          : '가입되었습니다.';
         setFeedback({ type: 'success', message });
         Alert.alert('회원가입 완료', message);
         navigation.replace(routeForEntry(profile, initialRole));
@@ -262,32 +326,41 @@ export default function AuthPage({ navigation, route }: any) {
     }
   };
 
-  // ─── Wallet auth ───────────────────────────────────────────────────────────
+  // ─── Wallet auth ─────────────────────────────────────────────────────────
 
   const connectInjectedWallet = async () => {
     const injectedProvider = getEthereumProvider();
     if (!injectedProvider) {
-      throw new Error('브라우저 지갑을 찾을 수 없습니다. MetaMask 같은 Web3 지갑을 설치하거나 지갑 브라우저에서 접속해 주세요.');
+      throw new Error(
+        '브라우저 지갑을 찾을 수 없습니다. MetaMask 같은 Web3 지갑을 설치하거나 지갑 브라우저에서 접속해 주세요.',
+      );
     }
     setWalletStep('connecting');
     const accounts = await injectedProvider.request({ method: 'eth_requestAccounts' });
-    const [address] = Array.isArray(accounts) ? accounts.filter((a): a is string => typeof a === 'string') : [];
+    const [address] = Array.isArray(accounts)
+      ? accounts.filter((a): a is string => typeof a === 'string')
+      : [];
     if (!address) throw new Error('연결된 지갑 주소를 가져오지 못했습니다.');
     setWalletAddress(address);
     return { provider: injectedProvider, address };
   };
 
-  // isAutoTrigger = true  → returning from MetaMask; existing session is fresh, proceed directly.
-  // isAutoTrigger = false → user manually pressed the button; disconnect any existing session
-  //   and show the Connect modal so MetaMask opens fresh (biometric unlock happens during
-  //   connection, ensuring the wallet is ready before personal_sign fires).
-  const connectReownWallet = async (isAutoTrigger: boolean) => {
+  // source === 'manual'  →  user tapped the button: disconnect any existing
+  //   session and show the Connect modal so MetaMask opens fresh, completing
+  //   biometric unlock BEFORE personal_sign is sent. This prevents the race
+  //   where the signing request arrives while the lock screen is still visible.
+  //
+  // source !== 'manual'  →  returning from MetaMask / startup restore / route
+  //   param: the session is already fresh, proceed directly to signing.
+  const connectReownWallet = async (source: LoginTriggerSource) => {
     if (!isWalletConnectConfigured) {
-      throw new Error('WalletConnect Project ID가 설정되지 않았습니다. EXPO_PUBLIC_REOWN_PROJECT_ID를 .env에 추가해 주세요.');
+      throw new Error(
+        'WalletConnect Project ID가 설정되지 않았습니다. EXPO_PUBLIC_REOWN_PROJECT_ID를 .env에 추가해 주세요.',
+      );
     }
 
     setWalletStep('connecting');
-    console.log('[WalletLogin] connectReownWallet | isAutoTrigger:', isAutoTrigger, '| isConnected:', isConnected, '| address:', appKitAddress);
+    console.log('[WalletLogin] connectReownWallet | source:', source, '| connected:', isConnected, '| address:', appKitAddress);
 
     if (!isConnected || !appKitAddress || !provider) {
       console.log('[WalletLogin] No active session — opening Connect modal');
@@ -299,12 +372,10 @@ export default function AuthPage({ navigation, route }: any) {
       return null;
     }
 
-    if (!isAutoTrigger) {
-      // Manual button press with an existing session: disconnect so MetaMask goes
-      // through the full connection flow (including biometric unlock) before we
-      // send personal_sign. This prevents the race where personal_sign arrives
-      // while MetaMask is still showing the lock screen.
-      console.log('[WalletLogin] Manual login with existing session — disconnecting for fresh connection');
+    if (source === 'manual') {
+      // Disconnect and re-show the Connect modal so MetaMask is guaranteed to
+      // be open and unlocked before personal_sign is requested.
+      console.log('[WalletLogin] Manual login with existing session — disconnecting for fresh flow');
       try { disconnect('eip155'); } catch {}
       await clearWalletSessionStorage();
       setPendingWalletLogin(true);
@@ -320,16 +391,16 @@ export default function AuthPage({ navigation, route }: any) {
     }
 
     setWalletAddress(appKitAddress);
-    console.log('[WalletLogin] Active session confirmed — address:', appKitAddress);
+    console.log('[WalletLogin] Session confirmed (source:', source, ') — address:', appKitAddress);
     return { provider: provider as EthereumProvider, address: appKitAddress };
   };
 
-  const connectWallet = (isAutoTrigger: boolean) => {
+  const connectWallet = (source: LoginTriggerSource) => {
     if (Platform.OS === 'web') return connectInjectedWallet();
-    return connectReownWallet(isAutoTrigger);
+    return connectReownWallet(source);
   };
 
-  const handleWalletLogin = async (isAutoTrigger = false) => {
+  const handleWalletLogin = async (source: LoginTriggerSource = 'manual') => {
     if (!isLogin && !displayName.trim()) {
       setPendingWalletLogin(false);
       syncPendingWalletLogin(false);
@@ -341,11 +412,11 @@ export default function AuthPage({ navigation, route }: any) {
 
     setLoading(true);
     setFeedback(null);
-    console.log('[WalletLogin] handleWalletLogin | isAutoTrigger:', isAutoTrigger, '| isLogin:', isLogin);
+    console.log('[WalletLogin] handleWalletLogin | source:', source, '| isLogin:', isLogin);
     try {
-      const connection = await connectWallet(isAutoTrigger);
+      const connection = await connectWallet(source);
       if (!connection) {
-        console.log('[WalletLogin] Waiting for wallet connection.');
+        console.log('[WalletLogin] Waiting for wallet connection modal.');
         return;
       }
 
@@ -416,12 +487,14 @@ export default function AuthPage({ navigation, route }: any) {
     }
   };
 
-  // Explicit reconnect: disconnects the current session and reopens the
-  // Connect modal. Used when signing is stuck or the user wants to switch wallet.
+  // Disconnect + reconnect triggered explicitly by the user (e.g. signing stuck,
+  // wants to change wallet). Clears state and pending flag before reopening the
+  // Connect modal.
   const handleReconnect = async () => {
     if (loading) return;
     console.log('[WalletLogin] Reconnect requested — resetting session');
     autoWalletLoginRef.current = false;
+    pendingRestoredFromStorageRef.current = false;
     setPendingWalletLogin(false);
     syncPendingWalletLogin(false);
     setWalletStep('idle');
@@ -429,7 +502,7 @@ export default function AuthPage({ navigation, route }: any) {
     setFeedback(null);
     try { disconnect('eip155'); } catch {}
     await clearWalletSessionStorage();
-    // Small delay to let AppKit process the disconnect before reopening.
+    // Brief pause so AppKit processes the disconnect before we open the modal.
     await new Promise((r) => setTimeout(r, 300));
     setPendingWalletLogin(true);
     syncPendingWalletLogin(true);
@@ -437,32 +510,37 @@ export default function AuthPage({ navigation, route }: any) {
     setFeedback({ type: 'success', message: '지갑을 재연결합니다. MetaMask에서 연결을 승인해 주세요.' });
   };
 
-  // Auto-login trigger: fires when the wallet session becomes ready after the
-  // user approved the connection in MetaMask (returning from MetaMask).
-  // Always passes isAutoTrigger=true so connectReownWallet does NOT disconnect.
+  // Auto-login: fires when the WalletConnect session becomes ready after the
+  // user approved the connection in MetaMask. Passes the appropriate source so
+  // connectReownWallet does NOT disconnect the just-established session.
   useEffect(() => {
     if (Platform.OS === 'web') return;
     if (!pendingWalletLogin || autoWalletLoginRef.current || loading) return;
     if (!isConnected || !appKitAddress || !provider || providerType !== 'eip155') return;
 
-    console.log('[WalletLogin] Auto-login trigger — WC session ready');
+    const source: LoginTriggerSource = pendingRestoredFromStorageRef.current
+      ? 'startup-restore'
+      : 'wallet-return';
+    pendingRestoredFromStorageRef.current = false;
+
+    console.log('[WalletLogin] Auto-login trigger | source:', source);
     autoWalletLoginRef.current = true;
     setFeedback({ type: 'success', message: '지갑 연결이 완료되었습니다. 서명 요청을 이어갑니다.' });
 
-    void handleWalletLogin(/* isAutoTrigger */ true).finally(() => {
+    void handleWalletLogin(source).finally(() => {
       autoWalletLoginRef.current = false;
     });
   }, [appKitAddress, isConnected, loading, pendingWalletLogin, provider, providerType]);
 
-  // Route-param auto-start (e.g. navigated here with autoWalletLogin:true).
+  // Route-param auto-start (navigated here with autoWalletLogin:true).
   useEffect(() => {
     if (!route?.params?.autoWalletLogin || autoStartWalletRef.current || loading) return;
     autoStartWalletRef.current = true;
     setWalletMode(true);
-    void handleWalletLogin(/* isAutoTrigger */ true);
+    void handleWalletLogin('route-param');
   }, [loading, route?.params?.autoWalletLogin]);
 
-  // ─── Render ────────────────────────────────────────────────────────────────
+  // ─── Render ──────────────────────────────────────────────────────────────
 
   const isSigning = walletStep === 'signing';
 
@@ -495,13 +573,21 @@ export default function AuthPage({ navigation, route }: any) {
               {!isLogin ? (
                 <>
                   <Text style={styles.walletSignupHelp}>지갑으로 새 계정을 만들려면 이름과 지갑 서명이 필요합니다.</Text>
-                  <TextInput style={styles.input} placeholder="이름" value={displayName} onChangeText={setDisplayName} />
+                  <TextInput
+                    style={styles.input}
+                    placeholder="이름"
+                    value={displayName}
+                    onChangeText={setDisplayName}
+                  />
                 </>
               ) : null}
 
               <View style={styles.connectedWalletBox}>
                 <Text style={styles.connectedWalletLabel}>연결된 지갑 주소</Text>
-                <Text style={[styles.connectedWalletAddress, !walletAddress && styles.emptyWalletAddress]} numberOfLines={1}>
+                <Text
+                  style={[styles.connectedWalletAddress, !walletAddress && styles.emptyWalletAddress]}
+                  numberOfLines={1}
+                >
                   {walletAddress || '아직 연결된 지갑이 없습니다.'}
                 </Text>
               </View>
@@ -548,14 +634,13 @@ export default function AuthPage({ navigation, route }: any) {
               <TouchableOpacity
                 style={[styles.primaryButton, loading && styles.disabledButton]}
                 disabled={loading}
-                onPress={() => handleWalletLogin(false)}
+                onPress={() => handleWalletLogin('manual')}
               >
                 <Text style={styles.primaryButtonText}>
                   {loading ? '처리 중...' : isLogin ? '지갑으로 로그인' : '지갑으로 회원가입'}
                 </Text>
               </TouchableOpacity>
 
-              {/* Reconnect shown only when idle — signing state has its own buttons above */}
               {!loading && !isSigning && isConnected ? (
                 <TouchableOpacity style={styles.secondaryAction} onPress={handleReconnect}>
                   <Text style={styles.secondaryActionText}>지갑 재연결</Text>
@@ -565,7 +650,12 @@ export default function AuthPage({ navigation, route }: any) {
           ) : (
             <>
               {!isLogin ? (
-                <TextInput style={styles.input} placeholder="이름" value={displayName} onChangeText={setDisplayName} />
+                <TextInput
+                  style={styles.input}
+                  placeholder="이름"
+                  value={displayName}
+                  onChangeText={setDisplayName}
+                />
               ) : null}
               <TextInput
                 style={styles.input}
@@ -601,8 +691,13 @@ export default function AuthPage({ navigation, route }: any) {
           <View style={styles.divider} />
         </View>
 
-        <TouchableOpacity style={styles.walletButton} onPress={() => { setWalletMode((v) => !v); setFeedback(null); }}>
-          <Text style={styles.walletButtonText}>{walletMode ? '이메일 인증으로 전환' : '지갑 인증으로 전환'}</Text>
+        <TouchableOpacity
+          style={styles.walletButton}
+          onPress={() => { setWalletMode((v) => !v); setFeedback(null); }}
+        >
+          <Text style={styles.walletButtonText}>
+            {walletMode ? '이메일 인증으로 전환' : '지갑 인증으로 전환'}
+          </Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.switchButton} onPress={() => setIsLogin((v) => !v)}>
