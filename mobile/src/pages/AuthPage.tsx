@@ -1,7 +1,9 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAccount, useAppKit, useProvider } from '@reown/appkit-react-native';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
+  AppState,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -24,6 +26,15 @@ type WalletStep = 'idle' | 'connecting' | 'signing' | 'signed';
 
 const NATIVE_WALLET_HELP =
   'WalletConnect 지갑을 연결한 뒤 서명을 승인하면 인증이 완료됩니다.';
+
+// Persisted across app kills so the login flow can resume when the user
+// returns from MetaMask after the app was killed by the OS.
+const PENDING_WALLET_LOGIN_KEY = '@trustticket:pendingWalletLogin';
+
+// personal_sign can hang indefinitely if the WalletConnect relay drops the
+// response while the app is in the background. Reject after this timeout so
+// the user sees a clear error instead of a frozen loading state.
+const SIGN_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 
 function getEthereumProvider() {
   if (Platform.OS !== 'web') return null;
@@ -77,6 +88,45 @@ function isStaleWalletSessionError(error: any) {
   return message.includes('No matching key') || message.includes('session:');
 }
 
+// Persists or clears the pending-login flag in AsyncStorage alongside the
+// React state setter so the flag survives an OS-triggered app kill.
+function syncPendingWalletLogin(pending: boolean): void {
+  if (pending) {
+    AsyncStorage.setItem(PENDING_WALLET_LOGIN_KEY, 'true').catch((e) =>
+      console.warn('[WalletLogin] Failed to persist pendingWalletLogin:', e),
+    );
+  } else {
+    AsyncStorage.removeItem(PENDING_WALLET_LOGIN_KEY).catch((e) =>
+      console.warn('[WalletLogin] Failed to clear pendingWalletLogin:', e),
+    );
+  }
+}
+
+// Wraps personal_sign with a timeout so the call never hangs silently.
+// The relay may drop the response if the app stays in background too long.
+async function requestPersonalSign(
+  provider: EthereumProvider,
+  message: string,
+  address: string,
+): Promise<string> {
+  const signPromise = provider.request({
+    method: 'personal_sign',
+    params: [message, address],
+  });
+  const timeoutPromise = new Promise<never>((_, reject) =>
+    setTimeout(
+      () =>
+        reject(
+          new Error(
+            '서명 요청 시간이 초과되었습니다 (5분). MetaMask 앱을 열어 대기 중인 서명 요청을 확인해 주세요.',
+          ),
+        ),
+      SIGN_TIMEOUT_MS,
+    ),
+  );
+  return Promise.race([signPromise, timeoutPromise]) as Promise<string>;
+}
+
 export default function AuthPage({ navigation, route }: any) {
   const initialRole = route?.params?.initialRole ?? 'USER';
   const startsInWalletMode = Boolean(route?.params?.walletMode || route?.params?.autoWalletLogin);
@@ -99,6 +149,43 @@ export default function AuthPage({ navigation, route }: any) {
   const { provider, providerType } = useProvider();
 
   const targetLabel = useMemo(() => (initialRole === 'ORGANIZER' ? '주최자' : '사용자'), [initialRole]);
+
+  // On mount, restore any pending login flag that survived an app kill.
+  // If MetaMask was open when the OS killed Trust Ticket, this ensures the
+  // login flow resumes automatically once AppKit reconnects the WC session.
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+    let cancelled = false;
+    AsyncStorage.getItem(PENDING_WALLET_LOGIN_KEY)
+      .then((value) => {
+        if (cancelled || value !== 'true') return;
+        console.log('[WalletLogin] Restored pendingWalletLogin from storage (app was killed while MetaMask was open).');
+        setPendingWalletLogin(true);
+        setWalletMode(true);
+      })
+      .catch((err) => console.warn('[WalletLogin] Failed to read pendingWalletLogin from storage:', err));
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Log foreground/background transitions so it is easy to trace exactly when
+  // the app returns from MetaMask and what state it is in at that moment.
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+    const sub = AppState.addEventListener('change', (nextState) => {
+      if (nextState === 'active') {
+        console.log(
+          '[WalletLogin] App foregrounded | pendingWalletLogin:', pendingWalletLogin,
+          '| isConnected:', isConnected,
+          '| loading:', loading,
+          '| step:', walletStep,
+          '| autoLoginRunning:', autoWalletLoginRef.current,
+        );
+      }
+    });
+    return () => sub.remove();
+  });
 
   useEffect(() => {
     if (Platform.OS !== 'web' && isConnected && appKitAddress) {
@@ -186,8 +273,12 @@ export default function AuthPage({ navigation, route }: any) {
     }
 
     setWalletStep('connecting');
+    console.log('[WalletLogin] connectReownWallet | isConnected:', isConnected, '| address:', appKitAddress, '| providerType:', providerType);
+
     if (!isConnected || !appKitAddress || !provider) {
+      console.log('[WalletLogin] No active WC session — opening Connect modal.');
       setPendingWalletLogin(true);
+      syncPendingWalletLogin(true);
       open({ view: 'Connect' });
       setFeedback({ type: 'success', message: '지갑 연결 화면을 열었습니다. 연결 승인 후 자동으로 서명 요청을 이어갑니다.' });
       setWalletStep('idle');
@@ -199,6 +290,7 @@ export default function AuthPage({ navigation, route }: any) {
     }
 
     setWalletAddress(appKitAddress);
+    console.log('[WalletLogin] Active WC session — will use address:', appKitAddress);
     return { provider: provider as EthereumProvider, address: appKitAddress };
   };
 
@@ -213,6 +305,7 @@ export default function AuthPage({ navigation, route }: any) {
   const handleWalletLogin = async () => {
     if (!isLogin && !displayName.trim()) {
       setPendingWalletLogin(false);
+      syncPendingWalletLogin(false);
       const message = '이름을 입력해 주세요.';
       setFeedback({ type: 'error', message });
       Alert.alert('입력 필요', message);
@@ -221,33 +314,40 @@ export default function AuthPage({ navigation, route }: any) {
 
     setLoading(true);
     setFeedback(null);
+    console.log('[WalletLogin] handleWalletLogin start | isLogin:', isLogin);
     try {
       const connection = await connectWallet();
       if (!connection) {
+        // Waiting for wallet modal — will auto-resume via the useEffect below.
+        console.log('[WalletLogin] Waiting for wallet connection modal.');
         return;
       }
 
       setPendingWalletLogin(false);
+      syncPendingWalletLogin(false);
+      console.log('[WalletLogin] Wallet connected — address:', connection.address);
+
       const nonce = await backendApi.issueWalletNonce({ walletAddress: connection.address });
       setWalletAddress(nonce.walletAddress);
       setWalletMessage(nonce.message);
       setWalletStep('signing');
+      console.log('[WalletLogin] Nonce issued — expires:', nonce.expiresAt, '| requesting personal_sign...');
 
-      const signature = await connection.provider.request({
-        method: 'personal_sign',
-        params: [nonce.message, nonce.walletAddress],
-      });
+      const signature = await requestPersonalSign(connection.provider, nonce.message, nonce.walletAddress);
 
       if (typeof signature !== 'string' || !signature.trim()) {
         throw new Error('지갑 서명이 완료되지 않았습니다.');
       }
 
+      console.log('[WalletLogin] Signature received — calling /auth/wallet/login');
       setWalletStep('signed');
       const result = await backendApi.loginWallet({
         walletAddress: nonce.walletAddress,
         nonce: nonce.nonce,
         signature,
       });
+      console.log('[WalletLogin] /auth/wallet/login success | accessToken present:', Boolean(result.accessToken));
+
       const profile = !isLogin && displayName.trim()
         ? await backendApi.updateMe({ displayName: displayName.trim() })
         : result.user ?? await backendApi.getMe();
@@ -257,10 +357,15 @@ export default function AuthPage({ navigation, route }: any) {
         Alert.alert('로그인 실패', statusMessage);
         return;
       }
-      navigation.replace(routeForEntry(profile, initialRole));
+      const targetRoute = routeForEntry(profile, initialRole);
+      console.log('[WalletLogin] Login complete — navigating to', targetRoute);
+      navigation.replace(targetRoute);
     } catch (error: any) {
+      console.error('[WalletLogin] Error:', stringifyWalletError(error));
+
       if (isStaleWalletSessionError(error)) {
         setPendingWalletLogin(false);
+        syncPendingWalletLogin(false);
         const message = '이전 WalletConnect 세션이 만료되어 초기화했습니다. 다시 지갑을 연결해 주세요.';
         try {
           disconnect('eip155');
@@ -280,6 +385,7 @@ export default function AuthPage({ navigation, route }: any) {
         ? errorMessage(error, '지갑 로그인에 실패했습니다.')
         : walletClientMessage(error, '지갑 인증에 실패했습니다.');
       setPendingWalletLogin(false);
+      syncPendingWalletLogin(false);
       setWalletStep('idle');
       setFeedback({ type: 'error', message });
       showWalletAlert(isLogin ? '지갑 로그인 실패' : '지갑 회원가입 실패', message);
@@ -293,6 +399,7 @@ export default function AuthPage({ navigation, route }: any) {
     if (!pendingWalletLogin || autoWalletLoginRef.current || loading) return;
     if (!isConnected || !appKitAddress || !provider || providerType !== 'eip155') return;
 
+    console.log('[WalletLogin] Auto-login trigger — WC session ready, starting handleWalletLogin');
     autoWalletLoginRef.current = true;
     setFeedback({ type: 'success', message: '지갑 연결이 완료되었습니다. 서명 요청을 이어갑니다.' });
 
