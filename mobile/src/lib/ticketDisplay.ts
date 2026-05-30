@@ -2,7 +2,7 @@ import type { EventRound, EventSummary, TicketDetail } from '../types/api';
 
 const TICKET_STATUS_LABEL: Record<string, string> = {
   AVAILABLE: '판매 가능',
-  SOLD: '소유 중',
+  SOLD: '보유 중',
   LISTED: '리셀 판매중',
   USED: '사용 완료',
   CANCELLED: '취소됨',
@@ -55,6 +55,27 @@ function roundStartAt(round?: EventRound) {
 function roundEndAt(round?: EventRound) {
   if (!round?.eventDate || !round?.endTime) return NaN;
   return timeOf(`${round.eventDate}T${round.endTime}`);
+}
+
+export function getEventStartTime(event?: EventSummary | null) {
+  if (!event) return NaN;
+  const roundStarts = event.rounds?.map(roundStartAt).filter((value) => !Number.isNaN(value)) ?? [];
+  return roundStarts.length
+    ? Math.min(...roundStarts)
+    : timeOf(event.eventStartAt || event.startsAt || event.eventAt || event.eventDateTime);
+}
+
+export function getEventEndTime(event?: EventSummary | null) {
+  if (!event) return NaN;
+  const roundEnds = event.rounds?.map(roundEndAt).filter((value) => !Number.isNaN(value)) ?? [];
+  return roundEnds.length
+    ? Math.max(...roundEnds)
+    : timeOf(event.eventEndAt || event.endsAt || event.eventAt || event.eventDateTime);
+}
+
+export function isEventEnded(event?: EventSummary | null, now = new Date()) {
+  const endTime = getEventEndTime(event);
+  return !Number.isNaN(endTime) && now.getTime() > endTime;
 }
 
 export function formatTicketStatus(status?: string | null) {
@@ -175,7 +196,7 @@ export function getEventDisplayStatus(event?: EventSummary | null, now = new Dat
 
   if (!Number.isNaN(lastEnd) && current > lastEnd) return { label: '종료', tone: 'gray' };
   if (!Number.isNaN(firstStart) && !Number.isNaN(lastEnd) && current >= firstStart && current <= lastEnd) {
-    return { label: '공연 중', tone: 'green' };
+    return { label: '개최중', tone: 'green' };
   }
   if ((event.soldOut || remaining === 0) && issued > 0) return { label: '매진', tone: 'red' };
 
@@ -228,9 +249,9 @@ export function getUserEventDisplayStatus(event?: EventSummary | null, now = new
   // 우선순위 2: 공연 종료
   if (!Number.isNaN(lastEnd) && current > lastEnd) return { label: '종료', tone: 'gray' };
 
-  // 우선순위 3: 공연 중 (종료 시간이 없는 경우에도 시작 시간이 있고 현재가 시작 이후면 공연중으로 간주)
+  // 우선순위 3: 개최중 (종료 시간이 없는 경우에도 시작 시간이 있고 현재가 시작 이후면 개최중으로 간주)
   if (!Number.isNaN(firstStart) && current >= firstStart && (Number.isNaN(lastEnd) || current <= lastEnd)) {
-    return { label: '공연중', tone: 'green' };
+    return { label: '개최중', tone: 'green' };
   }
 
   const total = Number(event.totalTicketCount ?? 0);
@@ -246,9 +267,9 @@ export function getUserEventDisplayStatus(event?: EventSummary | null, now = new
   // 우선순위 5: 판매 기간 전
   if (!Number.isNaN(saleStartTime) && current < saleStartTime) return { label: '오픈 예정', tone: 'yellow' };
 
-  // 우선순위 6: 판매 기간 안 + 잔여 있음 => 예매중
+  // 우선순위 6: 판매 기간 안 + 잔여 있음 => 예매 가능
   const inSalePeriod = (!Number.isNaN(saleStartTime) ? current >= saleStartTime : true) && (Number.isNaN(saleEndTime) ? true : current <= saleEndTime);
-  if (inSalePeriod && remaining > 0) return { label: '예매중', tone: 'blue' };
+  if (inSalePeriod && remaining > 0) return { label: '예매 가능', tone: 'blue' };
 
   // 우선순위 7: 판매 기간 종료 + 공연 전 => 예매 종료
   if (!Number.isNaN(saleEndTime) && current > saleEndTime && (Number.isNaN(firstStart) || current < firstStart)) return { label: '예매 종료', tone: 'gray' };
@@ -267,8 +288,8 @@ export function userSortRank(event?: EventSummary | null, now = new Date()): num
   if (userStatus === null) return 99;
   const label = userStatus.label;
   const ranks: Record<string, number> = {
-    '공연중':    0,
-    '예매중':    1,
+    개최중:  0,
+    '예매 가능': 1,
     '오픈 예정': 2,
     '매진':      3,
     '예매 종료': 4,
@@ -300,7 +321,7 @@ export function formatNextRoundLabel(event?: EventSummary | null, now = new Date
 export function getOrganizerEventDisplayStatus(event?: EventSummary | null, tickets: TicketDetail[] = [], now = new Date()): DisplayStatus {
   if (!event) return { label: '-', tone: 'gray' };
   const base = getEventDisplayStatus(event, now);
-  if (base.label === '취소' || base.label === '공연 중' || base.label === '종료') return base;
+  if (base.label === '취소' || base.label === '개최중' || base.label === '종료') return base;
 
   const issued = tickets.length || Number(event.totalTicketCount ?? 0) - Number(event.remainingTicketCount ?? 0);
   const total = Number(event.totalTicketCount ?? 0);
@@ -312,7 +333,7 @@ export function getOrganizerEventDisplayStatus(event?: EventSummary | null, tick
 const CHECK_IN_OPEN_MINUTES = 30;
 
 // event 파라미터가 있으면 이벤트 타이밍을 고려해 상태를 세분화한다.
-// SOLD:      공연 시작 30분 전 ~ 종료 → 입장 가능 / 그 전 → 예매 완료 / 종료 후 → 사용 기간 종료
+// SOLD:      공연 시작 30분 전 ~ 종료 → 입장 가능 / 그 전 → 보유 중 / 종료 후 → 사용 기간 종료
 // AVAILABLE: 공연 종료 후 → 판매 종료
 // LISTED:    공연 종료 후 → 판매 종료
 export function getTicketDisplayStatus(
@@ -344,7 +365,7 @@ export function getTicketDisplayStatus(
     if (status === 'SOLD') {
       if (eventEnded) return { label: '사용 기간 종료', tone: 'gray' };
       if (isCheckInOpen) return { label: '입장 가능', tone: 'green' };
-      return { label: '예매 완료', tone: 'blue' };
+      return { label: '보유 중', tone: 'blue' };
     }
     if (status === 'AVAILABLE') {
       return eventEnded
@@ -359,7 +380,7 @@ export function getTicketDisplayStatus(
   }
 
   // 이벤트 정보 없을 때 fallback
-  if (status === 'SOLD') return { label: '예매 완료', tone: 'blue' };
+  if (status === 'SOLD') return { label: '보유 중', tone: 'blue' };
   if (status === 'AVAILABLE') return { label: '판매 가능', tone: 'blue' };
   if (status === 'LISTED') return { label: '리셀 판매중', tone: 'yellow' };
 
@@ -371,7 +392,7 @@ export function eventDisplaySortRank(event?: EventSummary | null, now = new Date
   const ranks: Record<string, number> = {
     취소: 0,
     종료: 1,
-    '공연 중': 2,
+    개최중: 2,
     '판매 중': 3,
     '판매 예정': 4,
     매진: 5,
@@ -390,7 +411,7 @@ export function eventDisplaySortRank(event?: EventSummary | null, now = new Date
 export function operationSortRank(event?: EventSummary | null, now = new Date()) {
   const status = getEventDisplayStatus(event, now).label;
   const ranks: Record<string, number> = {
-    '공연 중':    0,
+    개최중:      0,
     '판매 중':    1,
     '판매 예정':  2,
     '매진':       3,

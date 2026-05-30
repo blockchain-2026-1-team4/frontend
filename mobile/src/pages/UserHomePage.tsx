@@ -135,7 +135,7 @@ export default function UserHomePage({ navigation }: any) {
           keyExtractor={(item) => item.id}
           renderItem={renderEventItem}
           contentContainerStyle={styles.list}
-          ListHeaderComponent={<Text style={styles.listHeader}>진행 중인 이벤트</Text>}
+          ListHeaderComponent={<Text style={styles.listHeader}>개최중인 이벤트</Text>}
           ListEmptyComponent={<Text style={styles.emptyText}>표시할 이벤트가 없습니다.</Text>}
         />
       )}

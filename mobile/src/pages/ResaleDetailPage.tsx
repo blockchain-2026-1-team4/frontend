@@ -3,6 +3,7 @@ import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View
 import { errorMessage } from '../lib/account';
 import { backendApi } from '../lib/backend';
 import { showDialog } from '../lib/dialog';
+import { isEventEnded } from '../lib/ticketDisplay';
 import type { EventDetail, ResaleListing, TicketDetail, UserProfile } from '../types/api';
 
 const STATUS_LABEL: Record<string, string> = {
@@ -13,15 +14,17 @@ const STATUS_LABEL: Record<string, string> = {
   CANCELLED: '취소됨',
 };
 
-function statusLabel(status?: string) {
+function statusLabel(status?: string, event?: EventDetail | null) {
+  if (isEventEnded(event)) return '판매종료';
   const key = status?.toUpperCase() ?? '';
   return STATUS_LABEL[key] ?? status ?? '-';
 }
 
-function blockedPurchaseMessage(listing: ResaleListing | null, isMyListing: boolean) {
+function blockedPurchaseMessage(listing: ResaleListing | null, isMyListing: boolean, event?: EventDetail | null) {
   if (!listing) return '리셀 티켓 정보를 확인할 수 없습니다.';
   const status = listing.status?.toUpperCase();
   if (isMyListing) return '본인이 등록한 리셀 티켓은 구매할 수 없습니다.';
+  if (isEventEnded(event)) return '공연이 종료되어 판매가 종료된 리셀 티켓입니다.';
   if (status === 'SOLD') return '이미 판매 완료된 리셀 티켓입니다.';
   if (status === 'CLOSED') return '판매가 종료된 리셀 티켓입니다.';
   if (status === 'CANCELED' || status === 'CANCELLED') return '취소된 리셀 티켓입니다.';
@@ -62,19 +65,21 @@ export default function ResaleDetailPage({ route, navigation }: any) {
   }, [listingId]);
 
   const isMyListing = Boolean(listing?.sellerId && me?.id && listing.sellerId === me.id);
-  const blockMessage = useMemo(() => blockedPurchaseMessage(listing, isMyListing), [listing, isMyListing]);
+  const eventEnded = isEventEnded(event);
+  const blockMessage = useMemo(() => blockedPurchaseMessage(listing, isMyListing, event), [event, listing, isMyListing]);
   const isBlocked = Boolean(blockMessage);
 
   const buttonText = useMemo(() => {
     if (submitting) return '구매 처리 중...';
     if (isMyListing) return '내가 등록한 티켓';
+    if (eventEnded) return '판매종료';
     const status = listing?.status?.toUpperCase();
     if (status === 'SOLD') return '판매완료';
     if (status === 'CLOSED') return '판매종료';
     if (status === 'CANCELED' || status === 'CANCELLED') return '취소됨';
     if (status !== 'ACTIVE') return '구매 불가';
     return '리셀 티켓 구매하기';
-  }, [isMyListing, listing?.status, submitting]);
+  }, [eventEnded, isMyListing, listing?.status, submitting]);
 
   const purchase = async () => {
     if (blockMessage) {
@@ -123,7 +128,7 @@ export default function ResaleDetailPage({ route, navigation }: any) {
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.card}>
-        <Text style={styles.status}>{statusLabel(listing.status)}</Text>
+        <Text style={styles.status}>{statusLabel(listing.status, event)}</Text>
         <Text style={styles.title}>{event?.name || listing.eventName || '리셀 티켓'}</Text>
         <Text style={styles.meta}>{event?.venue || '-'}</Text>
         <Text style={styles.meta}>{event?.eventAt ? new Date(event.eventAt).toLocaleString() : '-'}</Text>

@@ -2,7 +2,8 @@
 import { ActivityIndicator, FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { TextInput } from '../components/TextInput';
 import { backendApi } from '../lib/backend';
-import { formatEventCategory, formatCompactDateTime, weiToEth } from '../lib/ticketDisplay';
+import { showDialog } from '../lib/dialog';
+import { formatEventCategory, formatCompactDateTime, isEventEnded, weiToEth } from '../lib/ticketDisplay';
 import type { EventDetail, ResaleListing, UserProfile } from '../types/api';
 
 type SortMode = 'latest' | 'priceAsc' | 'priceDesc' | 'closingSoon';
@@ -57,8 +58,8 @@ function statusLabelOf(status?: string) {
   const normalized = String(status ?? '').toUpperCase();
   if (['ACTIVE', 'LISTED', 'OPEN', 'ON_SALE'].includes(normalized)) return '판매중';
   if (['SOLD', 'COMPLETED', 'PURCHASED'].includes(normalized)) return '판매완료';
-  if (['CANCELED', 'CANCELLED', 'CLOSED'].includes(normalized)) return '취소됨';
-  if (normalized === 'EXPIRED') return '만료됨';
+  if (['CLOSED', 'EXPIRED'].includes(normalized)) return '판매종료';
+  if (['CANCELED', 'CANCELLED'].includes(normalized)) return '취소됨';
   return status || '-';
 }
 
@@ -138,6 +139,7 @@ export default function ResaleListPage({ navigation, route }: any) {
           }),
         );
 
+        const nextEventMap = Object.fromEntries(eventEntries.filter((entry): entry is readonly [string, EventDetail] => entry !== null));
         const enrichedItems = await Promise.all(
           filteredItems.map(async (item) => {
             if (item.seatInfo) return item;
@@ -150,9 +152,14 @@ export default function ResaleListPage({ navigation, route }: any) {
             }
           }),
         );
+        const activeItems = enrichedItems.filter((item) => !isEventEnded(nextEventMap[String(item.eventId)]));
+        const endedCount = enrichedItems.length - activeItems.length;
 
-        setListings(enrichedItems);
-        setEventMap(Object.fromEntries(eventEntries.filter((entry): entry is readonly [string, EventDetail] => entry !== null)));
+        setListings(activeItems);
+        setEventMap(nextEventMap);
+        if (endedCount > 0) {
+          showDialog('판매 종료', `${endedCount}개의 리셀 티켓은 공연이 종료되어 리셀마켓에서 내려갔습니다.`);
+        }
       } catch (error) {
         console.error(error);
       } finally {

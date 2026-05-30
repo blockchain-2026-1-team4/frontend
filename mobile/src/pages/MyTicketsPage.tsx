@@ -7,7 +7,7 @@ import type { EventDetail, TicketDetail } from '../types/api';
 
 const DISPLAY_RANK: Record<string, number> = {
   '입장 가능':    0,
-  '예매 완료':    1,
+  '보유 중':      1,
   '리셀 판매중':  2,
   '판매 가능':    3,
   '판매 종료':    4,

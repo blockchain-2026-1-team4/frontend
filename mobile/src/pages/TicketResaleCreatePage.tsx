@@ -4,7 +4,7 @@ import { TextInput } from '../components/TextInput';
 import WalletRequiredView from '../components/WalletRequiredView';
 import { errorMessage } from '../lib/account';
 import { backendApi } from '../lib/backend';
-import { ethToWei, formatEventDate, formatTicketStatus, formatTicketValidity, weiToEthValue } from '../lib/ticketDisplay';
+import { ethToWei, formatEventDate, formatTicketStatus, formatTicketValidity, isEventEnded, weiToEthValue } from '../lib/ticketDisplay';
 import type { EventDetail, TicketDetail, UserProfile } from '../types/api';
 
 function normalizeResaleFailure(cause: any) {
@@ -17,6 +17,9 @@ function normalizeResaleFailure(cause: any) {
   }
   if (message.includes('사용') || message.includes('USED')) {
     return '사용 완료된 티켓은 리셀할 수 없습니다.';
+  }
+  if (message.includes('종료')) {
+    return '종료된 이벤트의 티켓은 리셀 등록할 수 없습니다.';
   }
   if (message.includes('만료') || message.includes('EXPIRED')) {
     return '만료된 티켓은 리셀할 수 없습니다.';
@@ -44,6 +47,7 @@ function localBlockReason(ticket: TicketDetail | null, event: EventDetail | null
   if (status === 'USED') return '사용 완료된 티켓은 리셀할 수 없습니다.';
   if (status === 'AVAILABLE') return '구매 완료된 본인 티켓만 리셀할 수 있습니다.';
   if (event?.status && event.status !== 'PUBLISHED') return '판매 가능한 이벤트의 티켓만 리셀할 수 있습니다.';
+  if (isEventEnded(event)) return '종료된 이벤트의 티켓은 리셀 등록할 수 없습니다.';
   if (ticket && ticket.resaleEnabled === false) return '리셀 정책상 판매가 제한된 티켓입니다.';
   if (event && event.resaleAllowed === false) return '이 이벤트는 리셀을 허용하지 않습니다.';
   if (event?.resaleStart && now < new Date(event.resaleStart).getTime()) return '아직 리셀 가능 기간이 아닙니다.';
