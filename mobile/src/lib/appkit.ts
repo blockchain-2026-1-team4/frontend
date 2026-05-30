@@ -56,45 +56,16 @@ console.log('[WalletNetwork]', {
 
 const appKitNetworks = [walletNetwork];
 
-const ethersAdapter = new EthersAdapter();
+const walletConnectMethods = [
+  'eth_accounts',
+  'eth_requestAccounts',
+  'personal_sign',
+  'eth_sendTransaction',
+  'wallet_switchEthereumChain',
+  'wallet_addEthereumChain',
+];
 
-// Explicit namespace sent in the WC session proposal's optionalNamespaces.
-// AppKit v2 always uses optionalNamespaces (never requiredNamespaces), so MetaMask
-// can still choose to exclude any chain. However, providing this override ensures:
-//  - Only the target chain appears in optionalNamespaces (no MetaMask-default bloat)
-//  - wallet_addEthereumChain and wallet_switchEthereumChain are always in the method list
-//  - The RPC URL is embedded in the proposal for wallets that use it
-// If MetaMask excludes the chain from the session (e.g. test networks hidden in settings),
-// ensureWalletNetwork in AuthPage falls back to wallet_addEthereumChain.
-const wcNamespaceOverride = {
-  chains: {
-    eip155: [`eip155:${config.chainId}`],
-  },
-  methods: {
-    eip155: [
-      'personal_sign',
-      'eth_accounts',
-      'eth_requestAccounts',
-      'eth_sendTransaction',
-      'eth_signTransaction',
-      'eth_sign',
-      'eth_signTypedData',
-      'eth_signTypedData_v3',
-      'eth_signTypedData_v4',
-      'wallet_switchEthereumChain',
-      'wallet_addEthereumChain',
-      'wallet_watchAsset',
-      'wallet_getPermissions',
-      'wallet_requestPermissions',
-    ],
-  },
-  events: {
-    eip155: ['accountsChanged', 'chainChanged'],
-  },
-  rpcMap: {
-    [`eip155:${config.chainId}`]: config.chainRpcUrl,
-  },
-};
+const ethersAdapter = new EthersAdapter();
 
 export const appKit = createAppKit({
   projectId: config.reownProjectId || fallbackProjectId,
@@ -103,6 +74,15 @@ export const appKit = createAppKit({
   adapters: [ethersAdapter],
   storage: appKitStorage,
   enableAnalytics: false,
+  features: {
+    swaps: false,
+    onramp: false,
+  },
+  universalProviderConfigOverride: {
+    methods: {
+      eip155: walletConnectMethods,
+    },
+  },
   logger: 'silent',
   metadata: {
     name: config.dappName,
@@ -113,11 +93,9 @@ export const appKit = createAppKit({
       native: `${config.appScheme}://`,
     },
   },
-  universalProviderConfigOverride: wcNamespaceOverride,
 });
 
 console.log('[ReownConfig]', {
   networks: appKitNetworks,
   defaultNetwork: walletNetwork,
-  wcNamespaceOverride,
 });
