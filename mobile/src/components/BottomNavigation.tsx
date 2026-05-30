@@ -1,11 +1,15 @@
 import React from 'react';
 import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Svg, { Circle, Path, Rect } from 'react-native-svg';
+
+type TabIcon = 'home' | 'calendar' | 'ticket' | 'qr' | 'user' | 'resale' | 'dispute';
 
 type TabItem = {
   label: string;
   target: string;
   matches: string[];
+  icon: TabIcon;
 };
 
 type BottomNavigationProps = {
@@ -16,23 +20,24 @@ type BottomNavigationProps = {
 const HIDDEN_ROUTES = new Set(['Landing', 'Auth', 'CheckInScan', 'OrganizerLogout']);
 
 const userTabs: TabItem[] = [
-  { label: '홈', target: 'Main', matches: ['Main', 'EventList', 'EventDetail', 'TicketPurchase', 'PurchaseComplete'] },
-  { label: '리셀', target: 'ResaleList', matches: ['ResaleList', 'ResaleDetail'] },
+  { label: '홈', target: 'Main', matches: ['Main', 'EventList', 'EventDetail', 'TicketPurchase', 'PurchaseComplete'], icon: 'home' },
+  { label: '리셀', target: 'ResaleList', matches: ['ResaleList', 'ResaleDetail'], icon: 'resale' },
   {
     label: '내 티켓',
     target: 'MyTickets',
     matches: ['MyTickets', 'TicketDetail', 'TicketQr', 'TicketResaleCreate', 'ResaleRegisterComplete'],
+    icon: 'ticket',
   },
-  { label: '내 분쟁', target: 'MyDisputes', matches: ['MyDisputes', 'DisputeCreate'] },
-  { label: '내 정보', target: 'MyPage', matches: ['MyPage'] },
+  { label: '분쟁', target: 'MyDisputes', matches: ['MyDisputes', 'DisputeCreate'], icon: 'dispute' },
+  { label: '내 정보', target: 'MyPage', matches: ['MyPage'], icon: 'user' },
 ];
 
 const organizerTabs: TabItem[] = [
-  { label: '메인', target: 'Organizer', matches: ['Organizer'] },
-  { label: '이벤트', target: 'MyEvents', matches: ['MyEvents', 'EventCreate', 'OrganizerEventDetail', 'EventSettings'] },
-  { label: '티켓 운영', target: 'SalesStatus', matches: ['SalesStatus', 'TicketExplore', 'TicketIssue'] },
-  { label: '체크인', target: 'CheckInHome', matches: ['CheckInHome', 'CheckInEventList', 'CheckInManage', 'CheckInStatus', 'CheckInScan'] },
-  { label: '내 정보', target: 'OrganizerProfile', matches: ['OrganizerProfile', 'OrganizerLogout'] },
+  { label: '홈', target: 'Organizer', matches: ['Organizer'], icon: 'home' },
+  { label: '이벤트', target: 'MyEvents', matches: ['MyEvents', 'EventCreate', 'OrganizerEventDetail', 'EventSettings'], icon: 'calendar' },
+  { label: '티켓 운영', target: 'SalesStatus', matches: ['SalesStatus', 'TicketExplore', 'TicketIssue'], icon: 'ticket' },
+  { label: '체크인', target: 'CheckInHome', matches: ['CheckInHome', 'CheckInEventList', 'CheckInManage', 'CheckInStatus', 'CheckInScan'], icon: 'qr' },
+  { label: '내 정보', target: 'OrganizerProfile', matches: ['OrganizerProfile', 'OrganizerLogout'], icon: 'user' },
 ];
 
 const userRoutes = new Set(userTabs.flatMap((tab) => tab.matches));
@@ -43,6 +48,65 @@ function tabsForRoute(routeName?: string) {
   if (organizerRoutes.has(routeName)) return organizerTabs;
   if (userRoutes.has(routeName)) return userTabs;
   return null;
+}
+
+function NavIcon({ name, color }: { name: TabIcon; color: string }) {
+  const common = {
+    fill: 'none',
+    stroke: color,
+    strokeLinecap: 'round' as const,
+    strokeLinejoin: 'round' as const,
+    strokeWidth: 2,
+  };
+
+  return (
+    <Svg width={22} height={22} viewBox="0 0 24 24">
+      {name === 'home' ? (
+        <>
+          <Path {...common} d="M3 10.8 12 3l9 7.8" />
+          <Path {...common} d="M5.5 10v10h13V10" />
+          <Path {...common} d="M9.5 20v-6h5v6" />
+        </>
+      ) : null}
+      {name === 'calendar' ? (
+        <>
+          <Rect {...common} x={4} y={5} width={16} height={15} rx={2.5} />
+          <Path {...common} d="M8 3v4m8-4v4M4 10h16" />
+          <Path {...common} d="M8 14h3m2 0h3m-8 3h3" />
+        </>
+      ) : null}
+      {name === 'ticket' ? (
+        <>
+          <Path {...common} d="M4 8a3 3 0 0 1 0 6v3h16v-3a3 3 0 0 1 0-6V5H4v3Z" />
+          <Path {...common} d="M9 9h.01M9 13h.01M13 11h5" />
+        </>
+      ) : null}
+      {name === 'qr' ? (
+        <>
+          <Path {...common} d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4z" />
+          <Path {...common} d="M14 14h2v2h-2zM19 14h1v6h-6v-2h3M14 20h1" />
+        </>
+      ) : null}
+      {name === 'user' ? (
+        <>
+          <Circle {...common} cx={12} cy={8} r={4} />
+          <Path {...common} d="M4.5 21a7.5 7.5 0 0 1 15 0" />
+        </>
+      ) : null}
+      {name === 'resale' ? (
+        <>
+          <Path {...common} d="M7 7h10l3 5-3 5H7l-3-5 3-5Z" />
+          <Path {...common} d="M9 12h6m-2-2 2 2-2 2" />
+        </>
+      ) : null}
+      {name === 'dispute' ? (
+        <>
+          <Path {...common} d="M5 5h14v11H8l-3 3V5Z" />
+          <Path {...common} d="M9 9h6M9 12h4" />
+        </>
+      ) : null}
+    </Svg>
+  );
 }
 
 export default function BottomNavigation({ routeName, onNavigate }: BottomNavigationProps) {
@@ -61,6 +125,7 @@ export default function BottomNavigation({ routeName, onNavigate }: BottomNaviga
     >
       {tabs.map((tab) => {
         const active = tab.matches.includes(routeName ?? '');
+        const color = active ? '#534AB7' : '#9CA3AF';
 
         return (
           <TouchableOpacity
@@ -68,12 +133,13 @@ export default function BottomNavigation({ routeName, onNavigate }: BottomNaviga
             accessibilityRole="button"
             accessibilityState={{ selected: active }}
             onPress={() => onNavigate(tab.target)}
-            style={[styles.tab, active && styles.activeTab]}
+            style={styles.tab}
           >
-            <View style={[styles.indicator, active && styles.activeIndicator]} />
+            <NavIcon name={tab.icon} color={color} />
             <Text numberOfLines={1} style={[styles.label, active && styles.activeLabel]}>
               {tab.label}
             </Text>
+            <View style={[styles.indicator, active && styles.activeIndicator]} />
           </TouchableOpacity>
         );
       })}
@@ -86,9 +152,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     borderTopWidth: 1,
-    borderTopColor: '#E2E8F0',
+    borderTopColor: '#E5E7EB',
     backgroundColor: '#FFFFFF',
-    paddingHorizontal: 8,
+    paddingHorizontal: 6,
     paddingTop: 8,
   },
   webContainer: {
@@ -97,30 +163,26 @@ const styles = StyleSheet.create({
   },
   tab: {
     flex: 1,
-    minHeight: 48,
+    minHeight: 54,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 12,
+    gap: 3,
   },
-  activeTab: {
-    backgroundColor: '#EFF6FF',
+  label: {
+    color: '#9CA3AF',
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  activeLabel: {
+    color: '#534AB7',
   },
   indicator: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    marginBottom: 4,
+    width: 4,
+    height: 4,
+    borderRadius: 2,
     backgroundColor: 'transparent',
   },
   activeIndicator: {
-    backgroundColor: '#2563EB',
-  },
-  label: {
-    color: '#64748B',
-    fontSize: 11,
-    fontWeight: '900',
-  },
-  activeLabel: {
-    color: '#2563EB',
+    backgroundColor: '#534AB7',
   },
 });
