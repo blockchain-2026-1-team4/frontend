@@ -140,7 +140,21 @@ async function ensureWalletNetwork(provider: EthereumProvider): Promise<void> {
     await provider.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: chainIdHex }] });
   } catch (switchError: any) {
     const code = switchError?.code;
-    const msg = switchError?.message ?? '';
+
+    // 런타임에서 실제로 어떤 값이 들어오는지 확인하기 위한 디버그 로그
+    console.log('[WalletLogin] switch chain failed', {
+      code: switchError?.code,
+      message: switchError?.message,
+      messageType: typeof switchError?.message,
+      raw: switchError,
+    });
+
+    // switchError?.message ?? '' 조합은 Hermes 일부 버전에서 undefined를 반환하는
+    // 컴파일 버그가 있으므로 typeof 가드로 완전히 방어한다.
+    // undefined, null, object, array, number 모두 '' 로 치환됨.
+    const rawMsg = switchError?.message;
+    const msg = typeof rawMsg === 'string' ? rawMsg : '';
+
     const needsAdd =
       code === 4902 || code === -32603 || code === 5100 ||
       msg.includes('not approved') || msg.includes('not supported') || msg.includes('does not support');
