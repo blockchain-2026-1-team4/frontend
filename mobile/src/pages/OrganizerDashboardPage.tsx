@@ -11,6 +11,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import Svg, { Defs, Ellipse, LinearGradient as SvgLinearGradient, RadialGradient as SvgRadialGradient, Rect, Stop } from 'react-native-svg';
 import { accountStatusMessage, errorMessage } from '../lib/account';
 import { backendApi } from '../lib/backend';
 import { getNextRoundTime } from '../lib/ticketDisplay';
@@ -211,6 +212,34 @@ export default function OrganizerDashboardPage({ navigation }: any) {
     >
       {/* ── 히어로 ── */}
       <View style={styles.hero}>
+        <Svg style={StyleSheet.absoluteFill} width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none">
+          <Defs>
+            <SvgLinearGradient id="organizerHeroGradient" x1="0" y1="0" x2="1" y2="1">
+              <Stop offset="0%" stopColor="#1A1A2E" />
+              <Stop offset="55%" stopColor="#211E3F" />
+              <Stop offset="100%" stopColor="#2E295A" />
+            </SvgLinearGradient>
+            <SvgRadialGradient id="organizerHeroGlowTopRight" cx="0.82" cy="0.15" rx="0.5" ry="0.42" fx="0.82" fy="0.15">
+              <Stop offset="0%" stopColor="#8B7CFF" stopOpacity="0.6" />
+              <Stop offset="45%" stopColor="#7A6BFF" stopOpacity="0.22" />
+              <Stop offset="100%" stopColor="#6D5EF5" stopOpacity="0" />
+            </SvgRadialGradient>
+            <SvgRadialGradient id="organizerHeroGlowTopRightCore" cx="0.9" cy="0.08" rx="0.18" ry="0.12" fx="0.9" fy="0.08">
+              <Stop offset="0%" stopColor="#B8AEFF" stopOpacity="0.8" />
+              <Stop offset="55%" stopColor="#A99CFF" stopOpacity="0.28" />
+              <Stop offset="100%" stopColor="#A99CFF" stopOpacity="0" />
+            </SvgRadialGradient>
+            <SvgRadialGradient id="organizerHeroGlowBottomLeft" cx="0.08" cy="0.92" rx="0.34" ry="0.28" fx="0.08" fy="0.92">
+              <Stop offset="0%" stopColor="#5B4BD8" stopOpacity="0.26" />
+              <Stop offset="70%" stopColor="#5B4BD8" stopOpacity="0.08" />
+              <Stop offset="100%" stopColor="#5B4BD8" stopOpacity="0" />
+            </SvgRadialGradient>
+          </Defs>
+          <Rect x="0" y="0" width="100" height="100" fill="url(#organizerHeroGradient)" />
+          <Ellipse cx="100" cy="0" rx="42" ry="26" fill="url(#organizerHeroGlowTopRight)" />
+          <Ellipse cx="100" cy="0" rx="24" ry="14" fill="url(#organizerHeroGlowTopRightCore)" />
+          <Ellipse cx="0" cy="100" rx="34" ry="20" fill="url(#organizerHeroGlowBottomLeft)" />
+        </Svg>
         <Text style={styles.eyebrow}>Organizer</Text>
         <Text style={styles.heroTitle}>주최자 센터</Text>
         <Text style={styles.heroSub}>이벤트 등록부터 체크인 운영까지 한 곳에서</Text>
@@ -317,7 +346,7 @@ export default function OrganizerDashboardPage({ navigation }: any) {
                 <Text style={styles.quickBtnSub}>전체 목록 보기</Text>
               </View>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.quickBtn} onPress={() => navigation.navigate('CheckIn')}>
+            <TouchableOpacity style={styles.quickBtn} onPress={() => navigation.navigate('CheckInHome')}>
               <Text style={styles.quickBtnIcon}>📷</Text>
               <View>
                 <Text style={styles.quickBtnLabel}>체크인 관리</Text>
@@ -430,10 +459,11 @@ const styles = StyleSheet.create({
 
   /* 히어로 */
   hero: {
-    backgroundColor: '#1a1a2e',
+    backgroundColor: '#1A1A2E',
     paddingHorizontal: 20,
     paddingTop: 24,
     paddingBottom: 36,
+    overflow: 'hidden',
   },
   eyebrow: {
     color: '#a89cf7',
@@ -499,14 +529,15 @@ const styles = StyleSheet.create({
 
   /* 버튼 */
   primaryButton: {
-    backgroundColor: '#1a1a2e',
+    backgroundColor: '#1A1A2E',
     borderRadius: 14,
     paddingVertical: 16,
     alignItems: 'center',
     marginHorizontal: 16,
     marginTop: 4,
+    overflow: 'hidden',
   },
-  primaryButtonText: { color: '#FFFFFF', fontSize: 15, fontWeight: '700' },
+  primaryButtonText: { color: '#FFFFFF', fontSize: 15, fontWeight: '800' },
   disabledButton: { opacity: 0.55 },
   secondaryButton: {
     backgroundColor: '#FFFFFF',
@@ -528,14 +559,14 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     padding: 14,
     borderWidth: 0.5,
-    borderColor: '#e5e7eb',
+    borderColor: '#DDD6FE',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
   },
   quickBtnIcon: { fontSize: 20 },
-  quickBtnLabel: { fontSize: 12, fontWeight: '700', color: '#1a1a2e' },
-  quickBtnSub: { fontSize: 10, color: '#9ca3af', marginTop: 1 },
+  quickBtnLabel: { fontSize: 12, fontWeight: '700', color: '#2E1065' },
+  quickBtnSub: { fontSize: 10, color: '#7C3AED', marginTop: 1 },
 
   /* 체크인 */
   checkinRow: {
