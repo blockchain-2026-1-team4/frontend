@@ -3,12 +3,16 @@ import type { Storage } from '@reown/appkit-react-native';
 
 const STORAGE_PREFIX = '@trustticket:appkit:';
 const WALLET_STORAGE_PREFIXES = [
-  STORAGE_PREFIX,
+  STORAGE_PREFIX,       // '@trustticket:appkit:' — AppKit 커스텀 storage 어댑터
   '@appkit/',
   '@reown',
   '@walletconnect',
   'walletconnect',
   'wc@',
+  'wc_',               // WalletConnect v2 일부 구현체가 사용
+  '@w3m',              // WalletConnect Modal v2
+  'W3M_',
+  'WALLETCONNECT_',    // 대문자 접두사 변형
 ];
 const WALLET_STORAGE_KEYS = ['WALLETCONNECT_DEEPLINK_CHOICE'];
 
@@ -62,13 +66,21 @@ export const appKitStorage: Storage = {
 
 export async function clearWalletSessionStorage() {
   const keys = await AsyncStorage.getAllKeys();
+  const lk = (k: string) => k.toLowerCase();
   const walletKeys = keys.filter((key) =>
     WALLET_STORAGE_KEYS.includes(key) ||
     WALLET_STORAGE_PREFIXES.some((prefix) => key.startsWith(prefix)) ||
-    key.toLowerCase().includes('walletconnect')
+    lk(key).includes('walletconnect') ||
+    lk(key).includes('reown') ||
+    // '@trustticket:appkit:' 이외의 appkit 키 (예: 서드파티 캐시)
+    (lk(key).includes('appkit') && !key.startsWith(STORAGE_PREFIX))
   );
 
   if (walletKeys.length > 0) {
+    console.log('[WalletStorage] Clearing', walletKeys.length, 'wallet keys:', walletKeys);
     await AsyncStorage.multiRemove(walletKeys);
+    console.log('[WalletStorage] Done');
+  } else {
+    console.log('[WalletStorage] No wallet keys to clear');
   }
 }

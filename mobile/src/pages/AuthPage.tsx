@@ -363,6 +363,10 @@ export default function AuthPage({ navigation, route }: any) {
   // Topic of the session that was active just before a manual disconnect.
   // Used to verify that the new session is genuinely different.
   const prevSessionTopicRef = useRef<string>('');
+  // 이미 handleWalletLogin을 호출한 세션 topic을 기록.
+  // state-change / AppForeground 트리거가 동일 세션에 대해 중복 실행되는 것을 막고,
+  // reconnectingRef가 false인 상태에서 resurrected stale session이 트리거되는 것도 차단.
+  const lastHandledSessionTopicRef = useRef<string>('');
   // Bumped (with a 600ms delay) each time the app foregrounds so the
   // auto-login useEffect re-evaluates even when all deps were already settled
   // while Trust Ticket was in the background.
@@ -691,28 +695,26 @@ export default function AuthPage({ navigation, route }: any) {
     }
 
     if (source === 'manual') {
-      // Disconnect and re-show the Connect modal so MetaMask is guaranteed to
-      // be open and unlocked before personal_sign is requested.
       const prevTopic = getSessionTopic(provider);
       prevSessionTopicRef.current = prevTopic;
-      // Block all wallet-return triggers until the new session is confirmed.
       reconnectingRef.current = true;
-      console.log('[WalletLogin] disconnect start | prev session topic:', prevTopic);
-      try { disconnect('eip155'); } catch {}
-      console.log('[WalletLogin] disconnect complete');
-      const sessionAfterDisconnect = getSessionFromProvider(provider);
-      console.log('[WalletLogin] session after disconnect', {
-        topic: getSessionTopic(provider),
-        accounts: sessionAfterDisconnect?.namespaces?.eip155?.accounts,
-        session: sessionAfterDisconnect,
-      });
+      // 이전 세션으로 중복 트리거되지 않도록 처리 기록 초기화
+      lastHandledSessionTopicRef.current = '';
+
+      // ★ storage를 disconnect보다 먼저 클리어:
+      //    disconnect 직후 AppKit가 storage를 재읽어 세션을 복원하는 현상을 방지
+      console.log('[WalletLogin] clearing session storage before disconnect | prev topic:', prevTopic);
       await clearWalletSessionStorage();
-      console.log('[WalletLogin] wallet session storage cleared');
-      // Wait for AppKit to process the disconnect before opening a new modal.
-      // Without this delay AppKit reuses the in-memory session and the same
-      // WC topic reappears, which is now treated as a stale-session error.
-      await new Promise((r) => setTimeout(r, 300));
-      console.log('[WalletLogin] manual reconnect delay complete');
+      console.log('[WalletLogin] session storage cleared');
+
+      try { disconnect('eip155'); } catch {}
+      console.log('[WalletLogin] disconnect called');
+
+      // disconnect 후 AppKit in-memory 상태가 정리될 때까지 대기.
+      // 300ms는 동일 topic이 복원되는 경우가 있어 500ms로 연장
+      await new Promise((r) => setTimeout(r, 500));
+      console.log('[WalletLogin] post-disconnect wait complete | topic now:', getSessionTopic(provider));
+
       setPendingWalletLogin(true);
       syncPendingWalletLogin(true);
       console.log('[DIAG] open() call start', { view: 'Connect', source: 'manual-reconnect' });
@@ -781,6 +783,8 @@ export default function AuthPage({ navigation, route }: any) {
       if (!connection.provider || !connection.address) {
         throw new Error('서명 직전 세션이 유효하지 않습니다. 재연결 후 다시 시도해 주세요.');
       }
+      // manual/route-param 경로에서도 동일 세션 중복 서명 방지
+      if (signTopic !== 'n/a') lastHandledSessionTopicRef.current = signTopic;
       console.log('[WalletLogin] sign request begin | session topic:', signTopic);
 
       const signature = await requestPersonalSign(connection.provider, nonce.message, nonce.walletAddress);
@@ -851,15 +855,20 @@ export default function AuthPage({ navigation, route }: any) {
     reconnectingRef.current = true;
     autoWalletLoginRef.current = false;
     pendingRestoredFromStorageRef.current = false;
+    // 이전 세션으로 트리거 중복 방지 기록 초기화
+    lastHandledSessionTopicRef.current = '';
     setPendingWalletLogin(false);
     syncPendingWalletLogin(false);
     setWalletStep('idle');
     setWalletMessage('');
     setFeedback(null);
-    try { disconnect('eip155'); } catch {}
+
+    // ★ storage 먼저 클리어 → AppKit가 disconnect 후 재복원하는 것을 방지
     await clearWalletSessionStorage();
-    // Brief pause so AppKit processes the disconnect before we open the modal.
-    await new Promise((r) => setTimeout(r, 300));
+    console.log('[WalletLogin] session storage cleared (handleReconnect)');
+    try { disconnect('eip155'); } catch {}
+    // disconnect 후 AppKit in-memory 상태 정리 대기 (500ms)
+    await new Promise((r) => setTimeout(r, 500));
     setPendingWalletLogin(true);
     syncPendingWalletLogin(true);
     console.log('[DIAG] open() call start', { view: 'Connect', source: 'handleReconnect' });
@@ -891,28 +900,29 @@ export default function AuthPage({ navigation, route }: any) {
     let sameTopicBlocked = false;
 
     if (reconnectingRef.current) {
-      // Reconnect complete when provider exists AND we can resolve an address
-      // — either from AppKit hook or directly from session namespaces.
       if (provider && resolvedAddress) {
         const oldTopic = prevSessionTopicRef.current;
         if (currentTopic !== 'n/a') {
-          const isNewSession = oldTopic === '' || oldTopic === 'n/a' || currentTopic !== oldTopic;
+          const isNewSession = !oldTopic || oldTopic === 'n/a' || currentTopic !== oldTopic;
           if (isNewSession) {
+            // 새 session topic 확인 → reconnect 완료, 이후 wallet-return 허용
             console.log('[WalletLogin] Reconnect complete | old topic:', oldTopic, '→ new topic:', currentTopic);
+            reconnectingRef.current = false;
+            prevSessionTopicRef.current = '';
           } else {
-            // disconnect() did not destroy the WC session — same topic reused.
-            // Block auto-login; user must disconnect from MetaMask manually.
-            console.warn('[WalletLogin] same topic reconnect blocked | topic:', currentTopic, '| oldTopic:', oldTopic);
+            // disconnect()가 WalletConnect 세션을 실제로 종료하지 못해 동일 topic이 복원됨.
+            // ★ reconnectingRef와 prevSessionTopicRef를 유지:
+            //    새 세션이 도착하면 이 effect가 다시 실행돼 isNewSession=true로 통과하고
+            //    pendingWalletLogin이 살아있으므로 자동 로그인이 이어서 재개됨.
+            console.warn('[WalletLogin] Same topic still alive after disconnect — waiting for fresh session', { currentTopic, oldTopic });
             sameTopicBlocked = true;
           }
         } else {
-          console.log('[WalletLogin] Reconnect: session topic unavailable, allowing trigger');
+          // topic 불명: session이 아직 수립 중 → reconnectingRef 유지하며 대기
+          console.log('[WalletLogin] Reconnect: topic unavailable, waiting...');
         }
-        reconnectingRef.current = false;
-        prevSessionTopicRef.current = '';
       }
-      // If not yet connected, the reconnect is still in progress — fall through
-      // to log the state but do not trigger wallet-return.
+      // provider/address 없거나 sameTopicBlocked: reconnect 진행 중 → 대기
     }
 
     console.log('[WalletLogin] WC state changed', {
@@ -935,14 +945,14 @@ export default function AuthPage({ navigation, route }: any) {
     }
 
     if (sameTopicBlocked) {
-      console.warn('[WalletLogin] stale session blocked — clearing pending state and notifying user');
-      setPendingWalletLogin(false);
-      syncPendingWalletLogin(false);
-      setLoading(false);
-      setWalletStep('idle');
+      // ★ pendingWalletLogin과 reconnectingRef를 유지:
+      //    새 세션이 도착하면 state-change effect가 다시 실행되고,
+      //    isNewSession=true → reconnect 완료 → 자동 로그인 재개
+      //    사용자는 MetaMask에서 연결을 해제하거나 "재연결" 버튼으로 강제 초기화 가능
+      console.warn('[WalletLogin] Stale session still alive — waiting for fresh session, topic:', currentTopic);
       setFeedback({
         type: 'error',
-        message: '기존 지갑 세션이 완전히 해제되지 않았습니다. MetaMask 연결된 사이트에서 연결을 해제한 뒤 다시 시도해주세요.',
+        message: '이전 지갑 세션이 아직 활성화되어 있습니다. MetaMask에서 연결을 해제하거나 "재연결" 버튼을 눌러 주세요.',
       });
       return;
     }
@@ -956,7 +966,21 @@ export default function AuthPage({ navigation, route }: any) {
       walletStep === 'signing'
     ) return;
 
+    // reconnectingRef가 false여도 이전에 disconnect했던 세션이 복원된 경우 차단
+    if (currentTopic !== 'n/a' && prevSessionTopicRef.current && currentTopic === prevSessionTopicRef.current) {
+      console.warn('[WalletLogin] State-change: resurrected stale session (topic matches prevDisconnected), skipping', currentTopic);
+      return;
+    }
+
+    // 동일 세션에 대해 이미 로그인 흐름을 시작한 경우 중복 실행 방지
+    if (currentTopic !== 'n/a' && currentTopic === lastHandledSessionTopicRef.current) {
+      console.log('[WalletLogin] State-change: session already handled, skipping', currentTopic);
+      return;
+    }
+
     console.log('[WalletLogin] State-change trigger — calling handleWalletLogin(wallet-return)');
+    // 처리 시작 전에 기록해 이후 중복 트리거를 막음
+    if (currentTopic !== 'n/a') lastHandledSessionTopicRef.current = currentTopic;
     autoWalletLoginRef.current = true;
     setFeedback({ type: 'success', message: '지갑 연결이 완료되었습니다. 서명 요청을 이어갑니다.' });
     void handleWalletLogin('wallet-return').finally(() => {
@@ -1006,12 +1030,27 @@ export default function AuthPage({ navigation, route }: any) {
       return;
     }
 
+    // reconnectingRef가 false여도 이전에 disconnect한 세션이 복원된 경우 차단
+    const fgTopic = getSessionTopic(provider);
+    if (fgTopic !== 'n/a' && prevSessionTopicRef.current && fgTopic === prevSessionTopicRef.current) {
+      console.warn('[WalletLogin] AppForeground: resurrected stale session, skipping', fgTopic);
+      return;
+    }
+
+    // 동일 세션에 대해 이미 로그인 흐름을 시작한 경우 중복 실행 방지
+    if (fgTopic !== 'n/a' && fgTopic === lastHandledSessionTopicRef.current) {
+      console.log('[WalletLogin] AppForeground: session already handled, skipping', fgTopic);
+      return;
+    }
+
     const source: LoginTriggerSource = pendingRestoredFromStorageRef.current
       ? 'startup-restore'
       : 'wallet-return';
     pendingRestoredFromStorageRef.current = false;
 
-    console.log('[WalletLogin] AppForeground trigger | source:', source);
+    console.log('[WalletLogin] AppForeground trigger | source:', source, '| topic:', fgTopic);
+    // 처리 시작 전에 기록
+    if (fgTopic !== 'n/a') lastHandledSessionTopicRef.current = fgTopic;
     autoWalletLoginRef.current = true;
     setFeedback({ type: 'success', message: '지갑 연결이 완료되었습니다. 서명 요청을 이어갑니다.' });
 
