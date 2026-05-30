@@ -129,7 +129,12 @@ export default function App() {
           <View style={[styles.appFrame, Platform.OS === 'web' && styles.webFrame]}>
             <View style={styles.navigationHost}>
               <NavigationContainer ref={navigationRef} onReady={syncCurrentRoute} onStateChange={syncCurrentRoute}>
-                <Stack.Navigator initialRouteName="Landing">
+                <Stack.Navigator
+                  initialRouteName="Landing"
+                  screenOptions={{
+                    headerShown: false,
+                  }}
+                >
           <Stack.Screen name="Landing" component={LandingPage} options={{ headerShown: false }} />
           <Stack.Screen name="Auth" component={AuthPage} options={{ title: '인증' }} />
 

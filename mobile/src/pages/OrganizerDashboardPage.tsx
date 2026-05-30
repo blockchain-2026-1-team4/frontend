@@ -11,9 +11,11 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import Svg, { Defs, Ellipse, LinearGradient as SvgLinearGradient, RadialGradient as SvgRadialGradient, Rect, Stop } from 'react-native-svg';
+import Svg, { Defs, LinearGradient as SvgLinearGradient, Path, Rect, Stop } from 'react-native-svg';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { accountStatusMessage, errorMessage } from '../lib/account';
 import { backendApi } from '../lib/backend';
+import { showDialog } from '../lib/dialog';
 import { getNextRoundTime } from '../lib/ticketDisplay';
 import type { EventSummary, OrganizerApplication, UserProfile } from '../types/api';
 
@@ -68,6 +70,7 @@ function getEventBadge(event: EventSummary): { label: string; style: 'live' | 's
 }
 
 export default function OrganizerDashboardPage({ navigation }: any) {
+  const insets = useSafeAreaInsets();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [applications, setApplications] = useState<OrganizerApplication[]>([]);
   const [events, setEvents] = useState<EventSummary[]>([]);
@@ -157,6 +160,35 @@ export default function OrganizerDashboardPage({ navigation }: any) {
     void load();
   };
 
+  const goBack = () => {
+    if (navigation.canGoBack?.()) {
+      navigation.goBack();
+      return;
+    }
+    navigation.navigate('Main');
+  };
+
+  const showNotifications = () => {
+    if (blockedMessage) {
+      showDialog('알림', blockedMessage);
+      return;
+    }
+
+    if (!isOrganizer) {
+      const status = latestStatus ? APPLICATION_LABEL[latestStatus] ?? latestStatus : '신청 내역 없음';
+      showDialog('알림', `주최자 승인 상태: ${status}`);
+      return;
+    }
+
+    const todayText = todayScheduledEvents === 0
+      ? '오늘 예정된 이벤트가 없습니다.'
+      : `오늘 예정된 이벤트가 ${todayScheduledEvents}개 있습니다.`;
+    const checkInText = ticketMetrics.checkedInTickets === 0
+      ? '오늘 체크인된 티켓은 아직 없습니다.'
+      : `오늘 체크인 ${ticketMetrics.checkedInTickets}건이 있습니다.`;
+    showDialog('알림', `${todayText}\n${checkInText}`);
+  };
+
   const submitApplication = async () => {
     if (!businessName.trim()) {
       const message = '상호명을 입력해주세요.';
@@ -211,35 +243,74 @@ export default function OrganizerDashboardPage({ navigation }: any) {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}
     >
       {/* ── 히어로 ── */}
-      <View style={styles.hero}>
+      <View style={[styles.hero, { paddingTop: Math.max(insets.top + 38, 56) }]}>
         <Svg style={StyleSheet.absoluteFill} width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none">
           <Defs>
-            <SvgLinearGradient id="organizerHeroGradient" x1="0" y1="0" x2="1" y2="1">
-              <Stop offset="0%" stopColor="#1A1A2E" />
-              <Stop offset="55%" stopColor="#211E3F" />
-              <Stop offset="100%" stopColor="#2E295A" />
+            <SvgLinearGradient id="organizerHeroGradient" x1="0" y1="0" x2="0.85" y2="1">
+              <Stop offset="0%" stopColor="#141527" />
+              <Stop offset="24%" stopColor="#1B1A38" />
+              <Stop offset="62%" stopColor="#272454" />
+              <Stop offset="100%" stopColor="#332D70" />
             </SvgLinearGradient>
-            <SvgRadialGradient id="organizerHeroGlowTopRight" cx="0.82" cy="0.15" rx="0.5" ry="0.42" fx="0.82" fy="0.15">
-              <Stop offset="0%" stopColor="#8B7CFF" stopOpacity="0.6" />
-              <Stop offset="45%" stopColor="#7A6BFF" stopOpacity="0.22" />
-              <Stop offset="100%" stopColor="#6D5EF5" stopOpacity="0" />
-            </SvgRadialGradient>
-            <SvgRadialGradient id="organizerHeroGlowTopRightCore" cx="0.9" cy="0.08" rx="0.18" ry="0.12" fx="0.9" fy="0.08">
-              <Stop offset="0%" stopColor="#B8AEFF" stopOpacity="0.8" />
-              <Stop offset="55%" stopColor="#A99CFF" stopOpacity="0.28" />
-              <Stop offset="100%" stopColor="#A99CFF" stopOpacity="0" />
-            </SvgRadialGradient>
-            <SvgRadialGradient id="organizerHeroGlowBottomLeft" cx="0.08" cy="0.92" rx="0.34" ry="0.28" fx="0.08" fy="0.92">
-              <Stop offset="0%" stopColor="#5B4BD8" stopOpacity="0.26" />
-              <Stop offset="70%" stopColor="#5B4BD8" stopOpacity="0.08" />
-              <Stop offset="100%" stopColor="#5B4BD8" stopOpacity="0" />
-            </SvgRadialGradient>
+            <SvgLinearGradient id="organizerHeroVioletWash" x1="0" y1="0" x2="1" y2="0.15">
+              <Stop offset="0%" stopColor="#26224E" stopOpacity="0" />
+              <Stop offset="58%" stopColor="#383275" stopOpacity="0.22" />
+              <Stop offset="100%" stopColor="#453E91" stopOpacity="0.36" />
+            </SvgLinearGradient>
+            <SvgLinearGradient id="organizerHeroTopShade" x1="0" y1="0" x2="0" y2="0.38">
+              <Stop offset="0%" stopColor="#0F1020" stopOpacity="0.46" />
+              <Stop offset="58%" stopColor="#121327" stopOpacity="0.18" />
+              <Stop offset="100%" stopColor="#121327" stopOpacity="0" />
+            </SvgLinearGradient>
           </Defs>
           <Rect x="0" y="0" width="100" height="100" fill="url(#organizerHeroGradient)" />
-          <Ellipse cx="100" cy="0" rx="42" ry="26" fill="url(#organizerHeroGlowTopRight)" />
-          <Ellipse cx="100" cy="0" rx="24" ry="14" fill="url(#organizerHeroGlowTopRightCore)" />
-          <Ellipse cx="0" cy="100" rx="34" ry="20" fill="url(#organizerHeroGlowBottomLeft)" />
+          <Rect x="0" y="0" width="100" height="100" fill="url(#organizerHeroVioletWash)" />
+          <Rect x="0" y="0" width="100" height="100" fill="url(#organizerHeroTopShade)" />
         </Svg>
+        <View style={styles.heroTopBar}>
+          <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityLabel="뒤로가기"
+            style={styles.backButton}
+            onPress={goBack}
+          >
+            <Svg width={24} height={24} viewBox="0 0 24 24">
+              <Path
+                d="M19 12H5m7 7-7-7 7-7"
+                fill="none"
+                stroke="rgba(255,255,255,0.78)"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2.4}
+              />
+            </Svg>
+          </TouchableOpacity>
+          <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityLabel="알림"
+            style={styles.notificationButton}
+            onPress={showNotifications}
+          >
+            <Svg width={18} height={18} viewBox="0 0 24 24">
+              <Path
+                d="M18 16v-5a6 6 0 0 0-12 0v5l-2 2h16l-2-2Z"
+                fill="none"
+                stroke="rgba(255,255,255,0.82)"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+              />
+              <Path
+                d="M9.5 20a2.5 2.5 0 0 0 5 0"
+                fill="none"
+                stroke="rgba(255,255,255,0.82)"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+              />
+            </Svg>
+          </TouchableOpacity>
+        </View>
         <Text style={styles.eyebrow}>Organizer</Text>
         <Text style={styles.heroTitle}>주최자 센터</Text>
         <Text style={styles.heroSub}>이벤트 등록부터 체크인 운영까지 한 곳에서</Text>
@@ -459,11 +530,31 @@ const styles = StyleSheet.create({
 
   /* 히어로 */
   hero: {
-    backgroundColor: '#1A1A2E',
+    backgroundColor: '#302B67',
     paddingHorizontal: 20,
-    paddingTop: 24,
     paddingBottom: 36,
     overflow: 'hidden',
+  },
+  heroTopBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 26,
+  },
+  backButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  notificationButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.13)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   eyebrow: {
     color: '#a89cf7',
@@ -473,7 +564,7 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   heroTitle: { color: '#FFFFFF', fontSize: 24, fontWeight: '800', marginTop: 4, marginBottom: 4 },
-  heroSub: { color: 'rgba(255,255,255,0.5)', fontSize: 12, marginBottom: 18 },
+  heroSub: { color: 'rgba(255,255,255,0.58)', fontSize: 12, marginBottom: 18 },
   todayChip: {
     flexDirection: 'row',
     alignItems: 'center',
