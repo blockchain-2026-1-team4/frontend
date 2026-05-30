@@ -20,24 +20,24 @@ type BottomNavigationProps = {
 const HIDDEN_ROUTES = new Set(['Landing', 'Auth', 'CheckInScan', 'OrganizerLogout']);
 
 const userTabs: TabItem[] = [
-  { label: '홈', target: 'Main', matches: ['Main', 'EventList', 'EventDetail', 'TicketPurchase', 'PurchaseComplete'], icon: 'home' },
-  { label: '리셀', target: 'ResaleList', matches: ['ResaleList', 'ResaleDetail'], icon: 'resale' },
+  { label: '\uD648', target: 'Main', matches: ['Main', 'EventList', 'EventDetail', 'TicketPurchase', 'PurchaseComplete'], icon: 'home' },
+  { label: '\uB9AC\uC140', target: 'ResaleList', matches: ['ResaleList', 'ResaleDetail'], icon: 'resale' },
   {
-    label: '내 티켓',
+    label: '\uB0B4 \uD2F0\uCF13',
     target: 'MyTickets',
     matches: ['MyTickets', 'TicketDetail', 'TicketQr', 'TicketResaleCreate', 'ResaleRegisterComplete'],
     icon: 'ticket',
   },
-  { label: '분쟁', target: 'MyDisputes', matches: ['MyDisputes', 'DisputeCreate'], icon: 'dispute' },
-  { label: '내 정보', target: 'MyPage', matches: ['MyPage'], icon: 'user' },
+  { label: '\uBD84\uC7C1', target: 'MyDisputes', matches: ['MyDisputes', 'DisputeCreate'], icon: 'dispute' },
+  { label: '\uB0B4 \uC815\uBCF4', target: 'MyPage', matches: ['MyPage'], icon: 'user' },
 ];
 
 const organizerTabs: TabItem[] = [
-  { label: '홈', target: 'Organizer', matches: ['Organizer'], icon: 'home' },
-  { label: '이벤트', target: 'MyEvents', matches: ['MyEvents', 'EventCreate', 'OrganizerEventDetail', 'EventSettings'], icon: 'calendar' },
-  { label: '티켓 운영', target: 'SalesStatus', matches: ['SalesStatus', 'TicketExplore', 'TicketIssue'], icon: 'ticket' },
-  { label: '체크인', target: 'CheckInHome', matches: ['CheckInHome', 'CheckInEventList', 'CheckInManage', 'CheckInStatus', 'CheckInScan'], icon: 'qr' },
-  { label: '내 정보', target: 'OrganizerProfile', matches: ['OrganizerProfile', 'OrganizerLogout'], icon: 'user' },
+  { label: '\uD648', target: 'Organizer', matches: ['Organizer'], icon: 'home' },
+  { label: '\uC774\uBCA4\uD2B8', target: 'MyEvents', matches: ['MyEvents', 'EventCreate', 'OrganizerEventDetail', 'EventSettings'], icon: 'calendar' },
+  { label: '\uD2F0\uCF13 \uC6B4\uC601', target: 'SalesStatus', matches: ['SalesStatus', 'TicketExplore', 'TicketIssue'], icon: 'ticket' },
+  { label: '\uCCB4\uD06C\uC778', target: 'CheckInHome', matches: ['CheckInHome', 'CheckInEventList', 'CheckInManage', 'CheckInStatus', 'CheckInScan'], icon: 'qr' },
+  { label: '\uB0B4 \uC815\uBCF4', target: 'OrganizerProfile', matches: ['OrganizerProfile', 'OrganizerLogout'], icon: 'user' },
 ];
 
 const userRoutes = new Set(userTabs.flatMap((tab) => tab.matches));
@@ -51,6 +51,8 @@ function tabsForRoute(routeName?: string) {
 }
 
 function NavIcon({ name, color }: { name: TabIcon; color: string }) {
+  if (Platform.OS === 'web') return <WebNavIcon name={name} color={color} />;
+
   const common = {
     fill: 'none',
     stroke: color,
@@ -106,6 +108,110 @@ function NavIcon({ name, color }: { name: TabIcon; color: string }) {
         </>
       ) : null}
     </Svg>
+  );
+}
+
+function webPath(d: string, color: string, key: string) {
+  return React.createElement('path', {
+    key,
+    d,
+    fill: 'none',
+    stroke: color,
+    strokeLinecap: 'round',
+    strokeLinejoin: 'round',
+    strokeWidth: 2,
+  });
+}
+
+function webCircle(props: { cx: number; cy: number; r: number; color: string; key: string }) {
+  return React.createElement('circle', {
+    key: props.key,
+    cx: props.cx,
+    cy: props.cy,
+    r: props.r,
+    fill: 'none',
+    stroke: props.color,
+    strokeLinecap: 'round',
+    strokeLinejoin: 'round',
+    strokeWidth: 2,
+  });
+}
+
+function webRect(props: { x: number; y: number; width: number; height: number; rx?: number; color: string; key: string }) {
+  return React.createElement('rect', {
+    key: props.key,
+    x: props.x,
+    y: props.y,
+    width: props.width,
+    height: props.height,
+    rx: props.rx,
+    fill: 'none',
+    stroke: props.color,
+    strokeLinecap: 'round',
+    strokeLinejoin: 'round',
+    strokeWidth: 2,
+  });
+}
+
+function WebNavIcon({ name, color }: { name: TabIcon; color: string }) {
+  const children: React.ReactNode[] = [];
+
+  if (name === 'home') {
+    children.push(
+      webPath('M3 10.8 12 3l9 7.8', color, 'home-roof'),
+      webPath('M5.5 10v10h13V10', color, 'home-body'),
+      webPath('M9.5 20v-6h5v6', color, 'home-door'),
+    );
+  }
+  if (name === 'calendar') {
+    children.push(
+      webRect({ x: 4, y: 5, width: 16, height: 15, rx: 2.5, color, key: 'calendar-box' }),
+      webPath('M8 3v4m8-4v4M4 10h16', color, 'calendar-head'),
+      webPath('M8 14h3m2 0h3m-8 3h3', color, 'calendar-days'),
+    );
+  }
+  if (name === 'ticket') {
+    children.push(
+      webPath('M4 8a3 3 0 0 1 0 6v3h16v-3a3 3 0 0 1 0-6V5H4v3Z', color, 'ticket-body'),
+      webPath('M9 9h.01M9 13h.01M13 11h5', color, 'ticket-lines'),
+    );
+  }
+  if (name === 'qr') {
+    children.push(
+      webPath('M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4z', color, 'qr-boxes'),
+      webPath('M14 14h2v2h-2zM19 14h1v6h-6v-2h3M14 20h1', color, 'qr-detail'),
+    );
+  }
+  if (name === 'user') {
+    children.push(
+      webCircle({ cx: 12, cy: 8, r: 4, color, key: 'user-head' }),
+      webPath('M4.5 21a7.5 7.5 0 0 1 15 0', color, 'user-body'),
+    );
+  }
+  if (name === 'resale') {
+    children.push(
+      webPath('M7 7h10l3 5-3 5H7l-3-5 3-5Z', color, 'resale-tag'),
+      webPath('M9 12h6m-2-2 2 2-2 2', color, 'resale-arrow'),
+    );
+  }
+  if (name === 'dispute') {
+    children.push(
+      webPath('M5 5h14v11H8l-3 3V5Z', color, 'dispute-box'),
+      webPath('M9 9h6M9 12h4', color, 'dispute-lines'),
+    );
+  }
+
+  return React.createElement(
+    'svg',
+    {
+      width: 22,
+      height: 22,
+      viewBox: '0 0 24 24',
+      style: { display: 'block', flexShrink: 0 },
+      'aria-hidden': true,
+      focusable: false,
+    },
+    children,
   );
 }
 
