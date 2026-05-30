@@ -1,4 +1,4 @@
-﻿import React, { useCallback, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import {
   ActivityIndicator,
@@ -7,10 +7,10 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
-import { TextInput } from '../components/TextInput';
 import { accountStatusMessage, errorMessage } from '../lib/account';
 import { backendApi } from '../lib/backend';
 import { getNextRoundTime } from '../lib/ticketDisplay';
@@ -39,6 +39,33 @@ function isToday(value?: string | null) {
   return date.toDateString() === new Date().toDateString();
 }
 
+function formatDate(dateStr?: string | null): { month: string; day: string } {
+  if (!dateStr) return { month: '—', day: '—' };
+  const d = new Date(dateStr);
+  if (Number.isNaN(d.getTime())) return { month: '—', day: '—' };
+  return {
+    month: d.toLocaleString('en-US', { month: 'short' }).toUpperCase(),
+    day: String(d.getDate()),
+  };
+}
+
+function formatTodayChip(todayCount: number): string {
+  const today = new Date().toLocaleDateString('ko-KR', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
+  if (todayCount === 0) return `오늘 예정 이벤트 없음 · ${today}`;
+  return `오늘 예정 이벤트 ${todayCount}개 · ${today}`;
+}
+
+function getEventBadge(event: EventSummary): { label: string; style: 'live' | 'soon' | 'draft' } {
+  const status = String(event.status ?? '').toUpperCase();
+  if (status === 'DRAFT') return { label: '초안', style: 'draft' };
+  if (status === 'PUBLISHED') return { label: '게시중', style: 'live' };
+  return { label: status, style: 'draft' };
+}
+
 export default function OrganizerDashboardPage({ navigation }: any) {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [applications, setApplications] = useState<OrganizerApplication[]>([]);
@@ -50,23 +77,30 @@ export default function OrganizerDashboardPage({ navigation }: any) {
   const [description, setDescription] = useState('');
   const [feedback, setFeedback] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [ticketMetrics, setTicketMetrics] = useState({
+    checkedInTickets: 0,
+    totalTickets: 0,
+    totalParticipants: 0,
+  });
 
   const isOrganizer = profile?.roles?.includes('ORGANIZER') || profile?.roles?.includes('ADMIN');
   const blockedMessage = accountStatusMessage(profile?.status);
   const latestApplication = applications[0];
   const latestStatus = latestApplication?.status ?? null;
   const canApply = !latestApplication || latestStatus === 'REJECTED';
+
   const totalEvents = events.length;
-  const publishedEvents = events.filter((event) => event.status === 'PUBLISHED').length;
+  const publishedEvents = events.filter((e) => e.status === 'PUBLISHED').length;
   const todayScheduledEvents = events.filter((event) => {
     const status = String(event.status ?? '').toUpperCase();
     if (status === 'CANCELLED') return false;
     const nextRoundTime = getNextRoundTime(event);
     return !Number.isNaN(nextRoundTime) && isToday(new Date(nextRoundTime).toISOString());
   }).length;
-  const [ticketMetrics, setTicketMetrics] = useState({
-    checkedInTickets: 0,
-  });
+
+  const upcomingEvents = events
+    .filter((e) => String(e.status ?? '').toUpperCase() !== 'CANCELLED')
+    .slice(0, 3);
 
   const load = useCallback(async () => {
     try {
@@ -75,7 +109,9 @@ export default function OrganizerDashboardPage({ navigation }: any) {
       setContactEmail((current) => current || me.email || '');
 
       const myApplications = await backendApi.getMyOrganizerApplications().catch(() => []);
-      setApplications([...(myApplications ?? [])].sort((a, b) => applicationTime(b) - applicationTime(a)));
+      setApplications(
+        [...(myApplications ?? [])].sort((a, b) => applicationTime(b) - applicationTime(a)),
+      );
 
       if (me.roles?.includes('ORGANIZER') || me.roles?.includes('ADMIN')) {
         const eventPage = await backendApi.getMyEvents({ page: 0, size: 100 });
@@ -86,14 +122,18 @@ export default function OrganizerDashboardPage({ navigation }: any) {
           myEvents.map((event) => backendApi.getEventTickets(event.id).catch(() => [])),
         );
         const allTickets = ticketLists.flat();
-        const todayCheckedInTickets = allTickets.filter((ticket) => ticket.status === 'USED' && isToday(ticket.usedAt || ticket.updatedAt || ticket.createdAt)).length;
+        const todayCheckedIn = allTickets.filter(
+          (t) => t.status === 'USED' && isToday(t.usedAt || t.updatedAt || t.createdAt),
+        ).length;
 
         setTicketMetrics({
-          checkedInTickets: todayCheckedInTickets,
+          checkedInTickets: todayCheckedIn,
+          totalTickets: allTickets.length,
+          totalParticipants: allTickets.filter((t) => t.status === 'USED').length,
         });
       } else {
         setEvents([]);
-        setTicketMetrics({ checkedInTickets: 0 });
+        setTicketMetrics({ checkedInTickets: 0, totalTickets: 0, totalParticipants: 0 });
       }
     } catch (error: any) {
       Alert.alert('주최자 정보 로드 실패', errorMessage(error, '로그인이 필요합니다.'));
@@ -106,10 +146,7 @@ export default function OrganizerDashboardPage({ navigation }: any) {
   useFocusEffect(
     useCallback(() => {
       void load();
-      const timer = setInterval(() => {
-        void load();
-      }, 7000);
-
+      const timer = setInterval(() => void load(), 7000);
       return () => clearInterval(timer);
     }, [load]),
   );
@@ -132,7 +169,6 @@ export default function OrganizerDashboardPage({ navigation }: any) {
       Alert.alert('입력 필요', message);
       return;
     }
-
     setSubmitting(true);
     setFeedback('');
     try {
@@ -147,7 +183,10 @@ export default function OrganizerDashboardPage({ navigation }: any) {
       await load();
     } catch (error: any) {
       const message = errorMessage(error, '주최자 승인 신청에 실패했습니다.');
-      const visibleMessage = message.includes('businessName') || message.includes('상호') ? '상호명을 입력해주세요.' : message;
+      const visibleMessage =
+        message.includes('businessName') || message.includes('상호')
+          ? '상호명을 입력해주세요.'
+          : message;
       setFeedback(visibleMessage);
       Alert.alert('신청 실패', visibleMessage);
     } finally {
@@ -158,7 +197,7 @@ export default function OrganizerDashboardPage({ navigation }: any) {
   if (loading) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator size="large" color="#2563EB" />
+        <ActivityIndicator size="large" color="#534AB7" />
         <Text style={styles.loadingText}>주최자 정보를 확인하고 있습니다.</Text>
       </View>
     );
@@ -170,40 +209,53 @@ export default function OrganizerDashboardPage({ navigation }: any) {
       contentContainerStyle={styles.content}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}
     >
-      <View style={styles.header}>
-        <View style={styles.headerTop}>
-          <View style={styles.headerCopy}>
-            <Text style={styles.eyebrow}>Organizer</Text>
-            <Text style={styles.title}>주최자 센터</Text>
-          </View>
+      {/* ── 히어로 ── */}
+      <View style={styles.hero}>
+        <Text style={styles.eyebrow}>Organizer</Text>
+        <Text style={styles.heroTitle}>주최자 센터</Text>
+        <Text style={styles.heroSub}>이벤트 등록부터 체크인 운영까지 한 곳에서</Text>
+        <View style={styles.todayChip}>
+          <View style={styles.todayDot} />
+          <Text style={styles.todayChipText}>{formatTodayChip(todayScheduledEvents)}</Text>
         </View>
-        <Text style={styles.subtitle}>이벤트 등록부터 티켓 발행, 체크인 운영까지 한 곳에서 관리합니다.</Text>
       </View>
 
       {blockedMessage ? (
+        /* ── 계정 차단 ── */
         <View style={styles.card}>
           <Text style={styles.cardTitle}>계정 사용 불가</Text>
           <Text style={styles.cardText}>{blockedMessage}</Text>
-          <TouchableOpacity style={styles.secondaryButton} onPress={() => navigation.navigate('OrganizerLogout')}>
+          <TouchableOpacity
+            style={[styles.secondaryButton, { marginHorizontal: 0 }]}
+            onPress={() => navigation.navigate('OrganizerLogout')}
+          >
             <Text style={styles.secondaryButtonText}>로그아웃</Text>
           </TouchableOpacity>
         </View>
       ) : !isOrganizer ? (
+        /* ── 미승인 주최자 신청 폼 ── */
         <View style={styles.card}>
           <Text style={styles.cardTitle}>주최자 승인 신청</Text>
-          <Text style={styles.cardText}>이벤트를 등록하려면 관리자 승인이 필요합니다. 신청 상태는 이 화면에서 확인할 수 있습니다.</Text>
-
+          <Text style={styles.cardText}>
+            이벤트를 등록하려면 관리자 승인이 필요합니다. 신청 상태는 이 화면에서 확인할 수 있습니다.
+          </Text>
           {latestApplication ? (
             <View style={styles.statusBox}>
               <Text style={styles.statusLabel}>최근 신청 상태</Text>
-              <Text style={styles.statusValue}>{APPLICATION_LABEL[latestStatus ?? 'PENDING'] ?? latestStatus}</Text>
+              <Text style={styles.statusValue}>
+                {APPLICATION_LABEL[latestStatus ?? 'PENDING'] ?? latestStatus}
+              </Text>
               <Text style={styles.statusMeta}>{latestApplication.businessName ?? businessName}</Text>
             </View>
           ) : null}
-
           {canApply ? (
             <>
-              <TextInput style={styles.input} value={businessName} onChangeText={setBusinessName} placeholder="상호명" />
+              <TextInput
+                style={styles.input}
+                value={businessName}
+                onChangeText={setBusinessName}
+                placeholder="상호명"
+              />
               <TextInput
                 style={styles.input}
                 value={contactEmail}
@@ -212,83 +264,378 @@ export default function OrganizerDashboardPage({ navigation }: any) {
                 autoCapitalize="none"
                 keyboardType="email-address"
               />
-              <TextInput style={[styles.input, styles.textArea]} value={description} onChangeText={setDescription} placeholder="활동 계획 또는 소개" multiline />
+              <TextInput
+                style={[styles.input, styles.textArea]}
+                value={description}
+                onChangeText={setDescription}
+                placeholder="활동 계획 또는 소개"
+                multiline
+              />
               {feedback ? (
                 <View style={styles.feedbackBox}>
                   <Text style={styles.feedbackText}>{feedback}</Text>
                 </View>
               ) : null}
-              <TouchableOpacity style={[styles.primaryButton, submitting && styles.disabledButton]} disabled={submitting} onPress={submitApplication}>
+              <TouchableOpacity
+                style={[styles.primaryButton, submitting && styles.disabledButton, { marginHorizontal: 0, marginTop: 12 }]}
+                disabled={submitting}
+                onPress={submitApplication}
+              >
                 <Text style={styles.primaryButtonText}>{submitting ? '신청 중...' : '승인 신청하기'}</Text>
               </TouchableOpacity>
             </>
           ) : null}
         </View>
       ) : (
+        /* ── 승인된 주최자 대시보드 ── */
         <>
+          {/* 현황 카드 2×2 */}
           <View style={styles.metricGrid}>
-            <Metric label="전체 이벤트" value={totalEvents} />
-            <Metric label="게시중 이벤트" value={publishedEvents} />
+            <MetricCard iconBg="#EEEDFE" icon="📅" value={totalEvents} label="전체 이벤트" />
+            <MetricCard iconBg="#E1F5EE" icon="📡" value={publishedEvents} label="게시중 이벤트" />
           </View>
-          <View style={[styles.metricGrid, { marginTop: 8 }]}> 
-            <Metric label="오늘 예정 이벤트" value={todayScheduledEvents} />
-            <Metric label="오늘 체크인" value={ticketMetrics.checkedInTickets} />
-          </View>
-
-          <View style={styles.actions}>
-            <TouchableOpacity style={styles.primaryButton} onPress={() => navigation.navigate('EventCreate')}>
-              <Text style={styles.primaryButtonText}>이벤트 등록</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.secondaryButton} onPress={() => navigation.navigate('MyEvents')}>
-              <Text style={styles.secondaryButtonText}>내 이벤트</Text>
-            </TouchableOpacity>
+          <View style={[styles.metricGrid, { marginTop: 10 }]}>
+            <MetricCard iconBg="#FAEEDA" icon="🎟" value={ticketMetrics.totalTickets} label="총 발급 티켓" />
+            <MetricCard iconBg="#E6F1FB" icon="👥" value={ticketMetrics.totalParticipants} label="누적 참가자" />
           </View>
 
+          {/* 빠른 실행 */}
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>빠른 실행</Text>
+          </View>
+          <TouchableOpacity
+            style={styles.primaryButton}
+            onPress={() => navigation.navigate('EventCreate')}
+          >
+            <Text style={styles.primaryButtonText}>+ 새 이벤트 등록</Text>
+          </TouchableOpacity>
+          <View style={styles.quickRow}>
+            <TouchableOpacity style={styles.quickBtn} onPress={() => navigation.navigate('MyEvents')}>
+              <Text style={styles.quickBtnIcon}>📋</Text>
+              <View>
+                <Text style={styles.quickBtnLabel}>내 이벤트</Text>
+                <Text style={styles.quickBtnSub}>전체 목록 보기</Text>
+              </View>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.quickBtn} onPress={() => navigation.navigate('CheckIn')}>
+              <Text style={styles.quickBtnIcon}>📷</Text>
+              <View>
+                <Text style={styles.quickBtnLabel}>체크인 관리</Text>
+                <Text style={styles.quickBtnSub}>QR 스캔</Text>
+              </View>
+            </TouchableOpacity>
+          </View>
+
+          {/* 오늘 체크인 현황 (체크인이 있을 때만) */}
+          {ticketMetrics.checkedInTickets > 0 && (
+            <>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>오늘 체크인 현황</Text>
+              </View>
+              <View style={styles.checkinRow}>
+                <View style={styles.checkinLeft}>
+                  <View style={styles.checkinCircle}>
+                    <Text style={{ fontSize: 16 }}>📍</Text>
+                  </View>
+                  <View>
+                    <Text style={styles.checkinTitle}>오늘 체크인 완료</Text>
+                    <Text style={styles.checkinSub}>{ticketMetrics.checkedInTickets}명</Text>
+                  </View>
+                </View>
+              </View>
+            </>
+          )}
+
+          {/* 다가오는 이벤트 */}
+          {upcomingEvents.length > 0 && (
+            <>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>다가오는 이벤트</Text>
+                <TouchableOpacity onPress={() => navigation.navigate('MyEvents')}>
+                  <Text style={styles.sectionLink}>더 보기</Text>
+                </TouchableOpacity>
+              </View>
+              {upcomingEvents.map((event) => {
+                const nextTime = getNextRoundTime(event);
+                const dateStr = !Number.isNaN(nextTime) ? new Date(nextTime).toISOString() : null;
+                const { month, day } = formatDate(dateStr);
+                const badge = getEventBadge(event);
+                const isDraft = badge.style === 'draft';
+                return (
+                  <View key={event.id} style={styles.eventItem}>
+                    <View style={[styles.eventDateBox, isDraft && styles.eventDateBoxGray]}>
+                      <Text style={[styles.eventMonth, isDraft && styles.eventMonthGray]}>{month}</Text>
+                      <Text style={[styles.eventDay, isDraft && styles.eventDayGray]}>{day}</Text>
+                    </View>
+                    <View style={styles.eventInfo}>
+                      <Text style={styles.eventName} numberOfLines={1}>{eventTitle(event)}</Text>
+                      <Text style={styles.eventMeta}>
+                        {dateStr
+                          ? new Date(dateStr).toLocaleTimeString('ko-KR', {
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })
+                          : '시간 미정'}
+                      </Text>
+                    </View>
+                    <View style={[styles.eventBadge, styles[`badge_${badge.style}` as keyof typeof styles] as any]}>
+                      <Text style={[styles.eventBadgeText, styles[`badgeText_${badge.style}` as keyof typeof styles] as any]}>
+                        {badge.label}
+                      </Text>
+                    </View>
+                  </View>
+                );
+              })}
+            </>
+          )}
         </>
       )}
     </ScrollView>
   );
 }
 
-function Metric({ label, value }: { label: string; value: number }) {
+function MetricCard({
+  iconBg,
+  icon,
+  value,
+  label,
+}: {
+  iconBg: string;
+  icon: string;
+  value: number;
+  label: string;
+}) {
   return (
     <View style={styles.metricCard}>
+      <View style={[styles.metricIconBox, { backgroundColor: iconBg }]}>
+        <Text style={{ fontSize: 15 }}>{icon}</Text>
+      </View>
+      <Text style={styles.metricValue}>{value.toLocaleString()}</Text>
       <Text style={styles.metricLabel}>{label}</Text>
-      <Text style={styles.metricValue}>{value}</Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F4F7FB' },
-  content: { padding: 18, paddingBottom: 96 },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20, backgroundColor: '#F4F7FB' },
-  loadingText: { marginTop: 12, color: '#64748B' },
-  header: { marginBottom: 16 },
-  headerTop: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 },
-  headerCopy: { flex: 1 },
-  eyebrow: { color: '#2563EB', fontWeight: '800', fontSize: 12 },
-  title: { marginTop: 4, fontSize: 28, fontWeight: '900', color: '#0F172A' },
-  subtitle: { marginTop: 8, color: '#64748B', fontSize: 14, lineHeight: 21 },
-  card: { backgroundColor: '#FFFFFF', borderRadius: 18, padding: 16, borderWidth: 1, borderColor: '#E2E8F0', marginTop: 12 },
-  cardTitle: { fontSize: 17, fontWeight: '900', color: '#0F172A' },
-  cardText: { marginTop: 8, color: '#64748B', lineHeight: 21 },
-  statusBox: { marginTop: 14, marginBottom: 12, padding: 12, borderRadius: 14, backgroundColor: '#EFF6FF' },
-  statusLabel: { color: '#2563EB', fontSize: 12, fontWeight: '800' },
-  statusValue: { marginTop: 4, fontSize: 18, fontWeight: '900', color: '#1E40AF' },
-  statusMeta: { marginTop: 3, color: '#475569' },
-  input: { borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 12, padding: 12, marginTop: 10, backgroundColor: '#FFFFFF', color: '#0F172A' },
-  textArea: { minHeight: 96, textAlignVertical: 'top' },
-  feedbackBox: { marginTop: 10, backgroundColor: '#FEF2F2', borderWidth: 1, borderColor: '#FCA5A5', borderRadius: 12, padding: 12 },
-  feedbackText: { color: '#B91C1C', fontWeight: '800', lineHeight: 20 },
-  primaryButton: { backgroundColor: '#2563EB', borderRadius: 14, paddingVertical: 14, alignItems: 'center', marginTop: 12 },
-  primaryButtonText: { color: '#FFFFFF', fontSize: 16, fontWeight: '900' },
-  secondaryButton: { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 14, paddingVertical: 14, alignItems: 'center', marginTop: 10 },
-  secondaryButtonText: { color: '#0F172A', fontSize: 16, fontWeight: '900' },
+  container: { flex: 1, backgroundColor: '#F5F5F5' },
+  content: { paddingBottom: 96 },
+  center: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+    backgroundColor: '#F5F5F5',
+  },
+  loadingText: { marginTop: 12, color: '#9ca3af', fontSize: 14 },
+
+  /* 히어로 */
+  hero: {
+    backgroundColor: '#1a1a2e',
+    paddingHorizontal: 20,
+    paddingTop: 24,
+    paddingBottom: 36,
+  },
+  eyebrow: {
+    color: '#a89cf7',
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+  },
+  heroTitle: { color: '#FFFFFF', fontSize: 24, fontWeight: '800', marginTop: 4, marginBottom: 4 },
+  heroSub: { color: 'rgba(255,255,255,0.5)', fontSize: 12, marginBottom: 18 },
+  todayChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderWidth: 0.5,
+    borderColor: 'rgba(255,255,255,0.2)',
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+  },
+  todayDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#6ee7b7' },
+  todayChipText: { color: 'rgba(255,255,255,0.85)', fontSize: 11 },
+
+  /* 현황 카드 */
+  metricGrid: {
+    flexDirection: 'row',
+    gap: 10,
+    paddingHorizontal: 16,
+    marginTop: -20,
+  },
+  metricCard: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 14,
+    borderWidth: 0.5,
+    borderColor: '#e5e7eb',
+  },
+  metricIconBox: {
+    width: 30,
+    height: 30,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10,
+  },
+  metricValue: { fontSize: 24, fontWeight: '800', color: '#1a1a2e', lineHeight: 28 },
+  metricLabel: { fontSize: 11, color: '#9ca3af', marginTop: 3 },
+
+  /* 섹션 헤더 */
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    marginTop: 20,
+    marginBottom: 10,
+  },
+  sectionTitle: { fontSize: 13, fontWeight: '700', color: '#1a1a2e' },
+  sectionLink: { fontSize: 11, color: '#534AB7', fontWeight: '600' },
+
+  /* 버튼 */
+  primaryButton: {
+    backgroundColor: '#1a1a2e',
+    borderRadius: 14,
+    paddingVertical: 16,
+    alignItems: 'center',
+    marginHorizontal: 16,
+    marginTop: 4,
+  },
+  primaryButtonText: { color: '#FFFFFF', fontSize: 15, fontWeight: '700' },
   disabledButton: { opacity: 0.55 },
-  metricGrid: { flexDirection: 'row', gap: 8 },
-  metricCard: { flex: 1, backgroundColor: '#FFFFFF', borderRadius: 16, padding: 13, borderWidth: 1, borderColor: '#E2E8F0' },
-  metricLabel: { color: '#64748B', fontSize: 12, fontWeight: '800' },
-  metricValue: { marginTop: 8, color: '#0F172A', fontSize: 24, fontWeight: '900' },
-  actions: { marginTop: 16 },
+  secondaryButton: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    borderRadius: 14,
+    paddingVertical: 14,
+    alignItems: 'center',
+    marginTop: 10,
+    marginHorizontal: 16,
+  },
+  secondaryButtonText: { color: '#0F172A', fontSize: 15, fontWeight: '700' },
+
+  /* 빠른 실행 */
+  quickRow: { flexDirection: 'row', gap: 10, paddingHorizontal: 16, marginTop: 10 },
+  quickBtn: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 0.5,
+    borderColor: '#e5e7eb',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  quickBtnIcon: { fontSize: 20 },
+  quickBtnLabel: { fontSize: 12, fontWeight: '700', color: '#1a1a2e' },
+  quickBtnSub: { fontSize: 10, color: '#9ca3af', marginTop: 1 },
+
+  /* 체크인 */
+  checkinRow: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 0.5,
+    borderColor: '#e5e7eb',
+    marginHorizontal: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  checkinLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  checkinCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#E6F1FB',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkinTitle: { fontSize: 12, fontWeight: '700', color: '#1a1a2e' },
+  checkinSub: { fontSize: 10, color: '#9ca3af', marginTop: 2 },
+
+  /* 이벤트 리스트 */
+  eventItem: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    padding: 12,
+    borderWidth: 0.5,
+    borderColor: '#e5e7eb',
+    marginHorizontal: 16,
+    marginBottom: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  eventDateBox: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    backgroundColor: '#EEEDFE',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  eventDateBoxGray: { backgroundColor: '#f3f4f6' },
+  eventMonth: { fontSize: 8, fontWeight: '700', color: '#534AB7', textTransform: 'uppercase' },
+  eventMonthGray: { color: '#9ca3af' },
+  eventDay: { fontSize: 16, fontWeight: '800', color: '#3C3489', lineHeight: 18 },
+  eventDayGray: { color: '#6b7280' },
+  eventInfo: { flex: 1 },
+  eventName: { fontSize: 12, fontWeight: '700', color: '#1a1a2e' },
+  eventMeta: { fontSize: 10, color: '#9ca3af', marginTop: 2 },
+  eventBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20 },
+  eventBadgeText: { fontSize: 9, fontWeight: '700' },
+  badge_live: { backgroundColor: '#E1F5EE' },
+  badgeText_live: { color: '#0F6E56' },
+  badge_soon: { backgroundColor: '#FAEEDA' },
+  badgeText_soon: { color: '#854F0B' },
+  badge_draft: { backgroundColor: '#f3f4f6' },
+  badgeText_draft: { color: '#9ca3af' },
+
+  /* 미승인 폼 */
+  card: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    margin: 16,
+  },
+  cardTitle: { fontSize: 17, fontWeight: '800', color: '#0F172A' },
+  cardText: { marginTop: 8, color: '#64748B', lineHeight: 21 },
+  statusBox: {
+    marginTop: 14,
+    marginBottom: 12,
+    padding: 12,
+    borderRadius: 14,
+    backgroundColor: '#EFF6FF',
+  },
+  statusLabel: { color: '#534AB7', fontSize: 12, fontWeight: '700' },
+  statusValue: { marginTop: 4, fontSize: 18, fontWeight: '800', color: '#3C3489' },
+  statusMeta: { marginTop: 3, color: '#475569' },
+  input: {
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    borderRadius: 12,
+    padding: 12,
+    marginTop: 10,
+    backgroundColor: '#FFFFFF',
+    color: '#0F172A',
+  },
+  textArea: { minHeight: 96, textAlignVertical: 'top' },
+  feedbackBox: {
+    marginTop: 10,
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FCA5A5',
+    borderRadius: 12,
+    padding: 12,
+  },
+  feedbackText: { color: '#B91C1C', fontWeight: '700', lineHeight: 20 },
 });
