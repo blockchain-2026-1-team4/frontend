@@ -62,13 +62,8 @@ function formatDate(dateStr?: string | null): { month: string; day: string } {
 }
 
 function formatTodayChip(todayCount: number): string {
-  const today = new Date().toLocaleDateString('ko-KR', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  });
-  if (todayCount === 0) return `오늘 예정 이벤트 없음 · ${today}`;
-  return `오늘 예정 이벤트 ${todayCount}개 · ${today}`;
+  const today = new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' });
+  return todayCount === 0 ? `오늘 예정 이벤트 없음 · ${today}` : `오늘 예정 이벤트 ${todayCount}개 · ${today}`;
 }
 
 function eventTimeLabel(dateStr?: string | null) {
@@ -88,7 +83,6 @@ function ticketCountLabel(event: EventSummary) {
 function getEventBadge(event: EventSummary): { label: string; style: 'live' | 'soon' | 'draft' } {
   const status = String(event.status ?? '').toUpperCase();
   if (STATUS_BADGE[status]) return STATUS_BADGE[status];
-
   const nextTime = getNextRoundTime(event);
   if (!Number.isNaN(nextTime) && nextTime - Date.now() < 7 * 24 * 60 * 60 * 1000) {
     return { label: '마감임박', style: 'soon' };
@@ -96,9 +90,44 @@ function getEventBadge(event: EventSummary): { label: string; style: 'live' | 's
   return { label: status || '상태 없음', style: 'draft' };
 }
 
+function monthKey(date: Date) {
+  return `${date.getFullYear()}-${date.getMonth()}`;
+}
+
+function eventMetricDate(event: EventSummary) {
+  const value = event.createdAt || event.updatedAt || event.eventStartAt || event.startsAt || event.eventAt || event.eventDateTime;
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function publishedMonthDelta(events: EventSummary[], now = new Date()) {
+  const currentMonth = monthKey(now);
+  const previous = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const previousMonth = monthKey(previous);
+  let currentCount = 0;
+  let previousCount = 0;
+
+  events.forEach((event) => {
+    if (String(event.status ?? '').toUpperCase() !== 'PUBLISHED') return;
+    const date = eventMetricDate(event);
+    if (!date) return;
+    const key = monthKey(date);
+    if (key === currentMonth) currentCount += 1;
+    if (key === previousMonth) previousCount += 1;
+  });
+
+  return currentCount - previousCount;
+}
+
+function formatDelta(delta: number) {
+  if (delta > 0) return `전월 대비 +${delta}`;
+  if (delta < 0) return `전월 대비 ${delta}`;
+  return '전월 대비 0';
+}
+
 function AppIcon({ name, color = '#534AB7', size = 18 }: { name: IconName; color?: string; size?: number }) {
-  const stroke = color;
-  const common = { fill: 'none', stroke, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const, strokeWidth: 2 };
+  const common = { fill: 'none', stroke: color, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const, strokeWidth: 2 };
 
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24">
@@ -161,11 +190,7 @@ export default function OrganizerDashboardPage({ navigation }: any) {
   const [description, setDescription] = useState('');
   const [feedback, setFeedback] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const [ticketMetrics, setTicketMetrics] = useState({
-    checkedInTickets: 0,
-    totalTickets: 0,
-    totalParticipants: 0,
-  });
+  const [ticketMetrics, setTicketMetrics] = useState({ checkedInTickets: 0, totalTickets: 0, totalParticipants: 0 });
 
   const isOrganizer = profile?.roles?.includes('ORGANIZER') || profile?.roles?.includes('ADMIN');
   const blockedMessage = accountStatusMessage(profile?.status);
@@ -175,9 +200,9 @@ export default function OrganizerDashboardPage({ navigation }: any) {
 
   const totalEvents = events.length;
   const publishedEvents = events.filter((event) => String(event.status ?? '').toUpperCase() === 'PUBLISHED').length;
+  const publishedTrend = formatDelta(publishedMonthDelta(events));
   const todayScheduledEvents = events.filter((event) => {
-    const status = String(event.status ?? '').toUpperCase();
-    if (status === 'CANCELLED') return false;
+    if (String(event.status ?? '').toUpperCase() === 'CANCELLED') return false;
     const nextRoundTime = getNextRoundTime(event);
     return !Number.isNaN(nextRoundTime) && isToday(new Date(nextRoundTime).toISOString());
   }).length;
@@ -208,7 +233,6 @@ export default function OrganizerDashboardPage({ navigation }: any) {
         const ticketLists = await Promise.all(myEvents.map((event) => backendApi.getEventTickets(event.id).catch(() => [])));
         const allTickets = ticketLists.flat();
         const todayCheckedIn = allTickets.filter((ticket) => ticket.status === 'USED' && isToday(ticket.usedAt || ticket.updatedAt || ticket.createdAt)).length;
-
         setTicketMetrics({
           checkedInTickets: todayCheckedIn,
           totalTickets: allTickets.length,
@@ -252,19 +276,13 @@ export default function OrganizerDashboardPage({ navigation }: any) {
       showDialog('알림', blockedMessage);
       return;
     }
-
     if (!isOrganizer) {
       const status = latestStatus ? APPLICATION_LABEL[latestStatus] ?? latestStatus : '신청 이력 없음';
       showDialog('알림', `주최자 승인 상태: ${status}`);
       return;
     }
-
-    const todayText = todayScheduledEvents === 0
-      ? '오늘 예정된 이벤트가 없습니다.'
-      : `오늘 예정된 이벤트가 ${todayScheduledEvents}개 있습니다.`;
-    const checkInText = ticketMetrics.checkedInTickets === 0
-      ? '오늘 체크인된 티켓은 아직 없습니다.'
-      : `오늘 체크인 ${ticketMetrics.checkedInTickets}건이 있습니다.`;
+    const todayText = todayScheduledEvents === 0 ? '오늘 예정된 이벤트가 없습니다.' : `오늘 예정된 이벤트가 ${todayScheduledEvents}개 있습니다.`;
+    const checkInText = ticketMetrics.checkedInTickets === 0 ? '오늘 체크인된 티켓은 아직 없습니다.' : `오늘 체크인 ${ticketMetrics.checkedInTickets}건이 있습니다.`;
     showDialog('알림', `${todayText}\n${checkInText}`);
   };
 
@@ -313,17 +331,8 @@ export default function OrganizerDashboardPage({ navigation }: any) {
   }
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={styles.content}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}
-    >
-      <HeroLinearGradient
-        colors={['#1A1A2E', '#2D2B6B']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={[styles.hero, { paddingTop: Math.max(insets.top + 20, 42) }]}
-      >
+    <ScrollView style={styles.container} contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}>
+      <HeroLinearGradient colors={['#1A1A2E', '#2D2B6B']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.hero, { paddingTop: Math.max(insets.top + 20, 42) }]}>
         <View style={styles.heroTopBar}>
           <TouchableOpacity accessibilityRole="button" accessibilityLabel="뒤로가기" style={styles.backButton} onPress={goBack}>
             <AppIcon name="arrow-left" color="rgba(255,255,255,0.78)" size={22} />
@@ -352,9 +361,7 @@ export default function OrganizerDashboardPage({ navigation }: any) {
       ) : !isOrganizer ? (
         <View style={styles.card}>
           <Text style={styles.cardTitle}>주최자 승인 신청</Text>
-          <Text style={styles.cardText}>
-            이벤트를 등록하려면 관리자 승인이 필요합니다. 신청 상태는 이 화면에서 확인할 수 있습니다.
-          </Text>
+          <Text style={styles.cardText}>이벤트를 등록하려면 관리자 승인이 필요합니다. 신청 상태는 이 화면에서 확인할 수 있습니다.</Text>
           {latestApplication ? (
             <View style={styles.statusBox}>
               <Text style={styles.statusLabel}>최근 신청 상태</Text>
@@ -365,31 +372,14 @@ export default function OrganizerDashboardPage({ navigation }: any) {
           {canApply ? (
             <>
               <TextInput style={styles.input} value={businessName} onChangeText={setBusinessName} placeholder="상호명" />
-              <TextInput
-                style={styles.input}
-                value={contactEmail}
-                onChangeText={setContactEmail}
-                placeholder="연락 이메일"
-                autoCapitalize="none"
-                keyboardType="email-address"
-              />
-              <TextInput
-                style={[styles.input, styles.textArea]}
-                value={description}
-                onChangeText={setDescription}
-                placeholder="활동 계획 또는 소개"
-                multiline
-              />
+              <TextInput style={styles.input} value={contactEmail} onChangeText={setContactEmail} placeholder="연락 이메일" autoCapitalize="none" keyboardType="email-address" />
+              <TextInput style={[styles.input, styles.textArea]} value={description} onChangeText={setDescription} placeholder="활동 계획 또는 소개" multiline />
               {feedback ? (
                 <View style={styles.feedbackBox}>
                   <Text style={styles.feedbackText}>{feedback}</Text>
                 </View>
               ) : null}
-              <TouchableOpacity
-                style={[styles.primaryButton, submitting && styles.disabledButton, { marginHorizontal: 0, marginTop: 12 }]}
-                disabled={submitting}
-                onPress={submitApplication}
-              >
+              <TouchableOpacity style={[styles.primaryButton, submitting && styles.disabledButton, { marginHorizontal: 0, marginTop: 12 }]} disabled={submitting} onPress={submitApplication}>
                 <Text style={styles.primaryButtonText}>{submitting ? '신청 중...' : '승인 신청하기'}</Text>
               </TouchableOpacity>
             </>
@@ -399,7 +389,7 @@ export default function OrganizerDashboardPage({ navigation }: any) {
         <>
           <View style={styles.metricGrid}>
             <MetricCard icon="calendar" iconBg="#EEEDFE" iconColor="#534AB7" value={totalEvents} label="전체 이벤트" />
-            <MetricCard icon="broadcast" iconBg="#E1F5EE" iconColor="#0F6E56" value={publishedEvents} label="게시중 이벤트" trend="전월 대비 +3" />
+            <MetricCard icon="broadcast" iconBg="#E1F5EE" iconColor="#0F6E56" value={publishedEvents} label="게시중 이벤트" trend={publishedTrend} />
             <MetricCard icon="ticket" iconBg="#FAEEDA" iconColor="#854F0B" value={ticketMetrics.totalTickets} label="총 발급 티켓" />
             <MetricCard icon="users" iconBg="#E6F1FB" iconColor="#185FA5" value={ticketMetrics.totalParticipants} label="누적 체크인" />
           </View>
@@ -466,9 +456,7 @@ export default function OrganizerDashboardPage({ navigation }: any) {
                     <Text style={styles.eventMeta}>{eventTimeLabel(dateStr)} · {ticketCountLabel(event)}</Text>
                   </View>
                   <View style={[styles.eventBadge, styles[`badge_${badge.style}` as keyof typeof styles] as any]}>
-                    <Text style={[styles.eventBadgeText, styles[`badgeText_${badge.style}` as keyof typeof styles] as any]}>
-                      {badge.label}
-                    </Text>
+                    <Text style={[styles.eventBadgeText, styles[`badgeText_${badge.style}` as keyof typeof styles] as any]}>{badge.label}</Text>
                   </View>
                 </TouchableOpacity>
               );
@@ -533,7 +521,6 @@ const styles = StyleSheet.create({
   content: { paddingBottom: 96 },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20, backgroundColor: '#F5F5F5' },
   loadingText: { marginTop: 12, color: '#9CA3AF', fontSize: 14 },
-
   hero: { paddingHorizontal: 20, paddingBottom: 28 },
   heroTopBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 },
   backButton: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
@@ -541,51 +528,27 @@ const styles = StyleSheet.create({
   eyebrow: { color: '#A89CF7', fontSize: 10, fontWeight: '700', letterSpacing: 1.2, textTransform: 'uppercase' },
   heroTitle: { color: '#FFFFFF', fontSize: 22, fontWeight: '800', marginTop: 4, marginBottom: 4 },
   heroSub: { color: 'rgba(255,255,255,0.58)', fontSize: 12, lineHeight: 18, marginBottom: 18 },
-  todayChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    alignSelf: 'flex-start',
-    backgroundColor: 'rgba(255,255,255,0.12)',
-    borderWidth: 0.5,
-    borderColor: 'rgba(255,255,255,0.2)',
-    borderRadius: 20,
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-  },
+  todayChip: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', backgroundColor: 'rgba(255,255,255,0.12)', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.2)', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 5 },
   todayDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#6EE7B7' },
   todayChipText: { color: 'rgba(255,255,255,0.85)', fontSize: 11 },
-
   metricGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, paddingHorizontal: 16, marginTop: -20, marginBottom: 16 },
   metricCard: { width: '48.5%', backgroundColor: '#FFFFFF', borderRadius: 16, padding: 14, borderWidth: 0.5, borderColor: '#E5E7EB' },
   metricIconBox: { width: 30, height: 30, borderRadius: 8, alignItems: 'center', justifyContent: 'center', marginBottom: 10 },
   metricValue: { fontSize: 25, fontWeight: '800', color: '#1A1A2E', lineHeight: 29 },
   metricLabel: { fontSize: 11, color: '#9CA3AF', marginTop: 3 },
   metricTrend: { fontSize: 10, color: '#0F6E56', marginTop: 4 },
-
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, marginBottom: 10, marginTop: 2 },
   sectionTitle: { fontSize: 13, fontWeight: '700', color: '#1A1A2E' },
   sectionLink: { fontSize: 11, color: '#534AB7', fontWeight: '700' },
-
   quickActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, paddingHorizontal: 16, marginBottom: 18 },
-  primaryAction: {
-    width: '100%',
-    backgroundColor: '#1A1A2E',
-    borderRadius: 14,
-    padding: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexDirection: 'row',
-    gap: 10,
-  },
+  primaryAction: { width: '100%', backgroundColor: '#1A1A2E', borderRadius: 14, padding: 16, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 10 },
   primaryActionIcon: { width: 32, height: 32, borderRadius: 9, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' },
   primaryActionText: { color: '#FFFFFF', fontSize: 13, fontWeight: '800' },
-  quickBtn: { flex: 1, minWidth: '47%', backgroundColor: '#FFFFFF', borderRadius: 14, padding: 14, borderWidth: 0.5, borderColor: '#E5E7EB', flexDirection: 'row', alignItems: 'center', gap: 10 },
+  quickBtn: { flex: 1, minWidth: 0, backgroundColor: '#FFFFFF', borderRadius: 14, padding: 14, borderWidth: 0.5, borderColor: '#E5E7EB', flexDirection: 'row', alignItems: 'center', gap: 10 },
   quickIconWrap: { width: 32, height: 32, borderRadius: 9, backgroundColor: '#EEEDFE', alignItems: 'center', justifyContent: 'center' },
   quickText: { flex: 1, minWidth: 0 },
   quickBtnLabel: { fontSize: 12, fontWeight: '800', color: '#1A1A2E' },
   quickBtnSub: { fontSize: 10, color: '#9CA3AF', marginTop: 1 },
-
   checkinRow: { backgroundColor: '#FFFFFF', borderRadius: 14, padding: 12, borderWidth: 0.5, borderColor: '#E5E7EB', marginHorizontal: 16, marginBottom: 18, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   checkinLeft: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1, minWidth: 0 },
   checkinCircle: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#E6F1FB', alignItems: 'center', justifyContent: 'center' },
@@ -595,7 +558,6 @@ const styles = StyleSheet.create({
   progressBarBg: { width: 60, height: 5, borderRadius: 99, backgroundColor: '#F3F4F6', overflow: 'hidden' },
   progressBarFill: { height: '100%', borderRadius: 99, backgroundColor: '#534AB7' },
   progressPct: { fontSize: 11, fontWeight: '800', color: '#534AB7', minWidth: 16, textAlign: 'right' },
-
   eventItem: { backgroundColor: '#FFFFFF', borderRadius: 14, padding: 12, borderWidth: 0.5, borderColor: '#E5E7EB', marginHorizontal: 16, marginBottom: 8, flexDirection: 'row', alignItems: 'center', gap: 12 },
   eventDateBox: { width: 38, height: 38, borderRadius: 10, backgroundColor: '#EEEDFE', alignItems: 'center', justifyContent: 'center' },
   eventDateBoxGray: { backgroundColor: '#F3F4F6' },
@@ -614,18 +576,15 @@ const styles = StyleSheet.create({
   badgeText_soon: { color: '#854F0B' },
   badge_draft: { backgroundColor: '#F3F4F6' },
   badgeText_draft: { color: '#9CA3AF' },
-
   emptyBox: { backgroundColor: '#FFFFFF', borderRadius: 14, padding: 18, borderWidth: 0.5, borderColor: '#E5E7EB', marginHorizontal: 16, alignItems: 'center' },
   emptyTitle: { color: '#6B7280', fontSize: 13, fontWeight: '800' },
   emptyButton: { backgroundColor: '#1A1A2E', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, marginTop: 12 },
   emptyButtonText: { color: '#FFFFFF', fontWeight: '800' },
-
   primaryButton: { backgroundColor: '#1A1A2E', borderRadius: 14, paddingVertical: 16, alignItems: 'center', marginHorizontal: 16, marginTop: 4 },
   primaryButtonText: { color: '#FFFFFF', fontSize: 15, fontWeight: '800' },
   disabledButton: { opacity: 0.55 },
   secondaryButton: { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 14, paddingVertical: 14, alignItems: 'center', marginTop: 10, marginHorizontal: 16 },
   secondaryButtonText: { color: '#0F172A', fontSize: 15, fontWeight: '700' },
-
   card: { backgroundColor: '#FFFFFF', borderRadius: 18, padding: 16, borderWidth: 1, borderColor: '#E2E8F0', margin: 16 },
   cardTitle: { fontSize: 17, fontWeight: '800', color: '#0F172A' },
   cardText: { marginTop: 8, color: '#64748B', lineHeight: 21 },
