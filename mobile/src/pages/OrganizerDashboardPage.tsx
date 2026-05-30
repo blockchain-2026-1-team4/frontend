@@ -246,27 +246,17 @@ export default function OrganizerDashboardPage({ navigation }: any) {
       <View style={[styles.hero, { paddingTop: Math.max(insets.top + 38, 56) }]}>
         <Svg style={StyleSheet.absoluteFill} width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none">
           <Defs>
-            <SvgLinearGradient id="organizerHeroGradient" x1="0" y1="0" x2="0.85" y2="1">
-              <Stop offset="0%" stopColor="#141527" />
-              <Stop offset="24%" stopColor="#1B1A38" />
-              <Stop offset="62%" stopColor="#272454" />
-              <Stop offset="100%" stopColor="#332D70" />
-            </SvgLinearGradient>
-            <SvgLinearGradient id="organizerHeroVioletWash" x1="0" y1="0" x2="1" y2="0.15">
-              <Stop offset="0%" stopColor="#26224E" stopOpacity="0" />
-              <Stop offset="58%" stopColor="#383275" stopOpacity="0.22" />
-              <Stop offset="100%" stopColor="#453E91" stopOpacity="0.36" />
-            </SvgLinearGradient>
-            <SvgLinearGradient id="organizerHeroTopShade" x1="0" y1="0" x2="0" y2="0.38">
-              <Stop offset="0%" stopColor="#0F1020" stopOpacity="0.46" />
-              <Stop offset="58%" stopColor="#121327" stopOpacity="0.18" />
-              <Stop offset="100%" stopColor="#121327" stopOpacity="0" />
+            <SvgLinearGradient id="organizerHeroGradient" x1="0" y1="0" x2="0" y2="1">
+              <Stop offset="0%" stopColor="#171A3D" />
+              <Stop offset="45%" stopColor="#24275F" />
+              <Stop offset="100%" stopColor="#34308A" />
             </SvgLinearGradient>
           </Defs>
           <Rect x="0" y="0" width="100" height="100" fill="url(#organizerHeroGradient)" />
-          <Rect x="0" y="0" width="100" height="100" fill="url(#organizerHeroVioletWash)" />
-          <Rect x="0" y="0" width="100" height="100" fill="url(#organizerHeroTopShade)" />
         </Svg>
+        <View pointerEvents="none" style={styles.heroGlowTitle} />
+        <View pointerEvents="none" style={styles.heroGlowRight} />
+        <View pointerEvents="none" style={styles.heroGlowTopRight} />
         <View style={styles.heroTopBar}>
           <TouchableOpacity
             accessibilityRole="button"
@@ -530,10 +520,50 @@ const styles = StyleSheet.create({
 
   /* 히어로 */
   hero: {
-    backgroundColor: '#302B67',
+    backgroundColor: '#171A3D',
     paddingHorizontal: 20,
     paddingBottom: 36,
     overflow: 'hidden',
+  },
+  heroGlowTitle: {
+    position: 'absolute',
+    left: 18,
+    top: 22,
+    width: 220,
+    height: 220,
+    borderRadius: 110,
+    backgroundColor: '#4F46E5',
+    opacity: 0.12,
+  },
+  heroGlowRight: {
+    position: 'absolute',
+    right: -55,
+    top: 36,
+    width: 260,
+    height: 260,
+    borderRadius: 130,
+    backgroundColor: '#5B4BFF',
+    opacity: 0.35,
+    shadowColor: '#5B4BFF',
+    shadowOpacity: 0.35,
+    shadowRadius: 36,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 10,
+  },
+  heroGlowTopRight: {
+    position: 'absolute',
+    right: -20,
+    top: -8,
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: '#8A7DFF',
+    opacity: 0.22,
+    shadowColor: '#8A7DFF',
+    shadowOpacity: 0.28,
+    shadowRadius: 22,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 8,
   },
   heroTopBar: {
     flexDirection: 'row',
