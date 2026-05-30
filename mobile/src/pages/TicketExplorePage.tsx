@@ -8,11 +8,11 @@ import type { EventDetail, EventRound, TicketDetail } from '../types/api';
 
 const PAGE_SIZE = 20;
 const STATUS_FILTERS = [
-  { value: 'ALL', label: '전체' },
+  { value: 'ALL',       label: '전체' },
   { value: 'AVAILABLE', label: '판매 가능' },
-  { value: 'SOLD', label: '판매 완료' },
-  { value: 'LISTED', label: '리셀 중' },
-  { value: 'USED', label: '사용 완료' },
+  { value: 'SOLD',      label: '구매 완료' },
+  { value: 'LISTED',    label: '리셀 판매중' },
+  { value: 'USED',      label: '체크인 완료' },
   { value: 'CANCELLED', label: '취소' },
 ] as const;
 
@@ -199,7 +199,7 @@ export default function TicketExplorePage({ navigation, route }: any) {
         </>
       )}
       renderItem={({ item }) => {
-        const status = getTicketDisplayStatus(item);
+        const status = getTicketDisplayStatus(item, event as any);
         return (
           <View style={styles.row}>
             <View style={styles.rowInfo}>

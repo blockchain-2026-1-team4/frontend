@@ -184,7 +184,7 @@ export function getEventDisplayStatus(event?: EventSummary | null, now = new Dat
   const saleStartTime = timeOf(saleStart);
   const saleEndTime = timeOf(saleEnd);
   if (!Number.isNaN(saleStartTime) && current < saleStartTime) return { label: '판매 예정', tone: 'yellow' };
-  if (!Number.isNaN(saleEndTime) && current > saleEndTime) return { label: '종료', tone: 'gray' };
+  if (!Number.isNaN(saleEndTime) && current > saleEndTime) return { label: '판매 종료', tone: 'gray' };
   if (!Number.isNaN(saleStartTime) || !Number.isNaN(saleEndTime)) return { label: '판매 중', tone: 'blue' };
 
   if (issued <= 0) return { label: '티켓 미발행', tone: 'gray' };
@@ -250,8 +250,8 @@ export function getUserEventDisplayStatus(event?: EventSummary | null, now = new
   const inSalePeriod = (!Number.isNaN(saleStartTime) ? current >= saleStartTime : true) && (Number.isNaN(saleEndTime) ? true : current <= saleEndTime);
   if (inSalePeriod && remaining > 0) return { label: '예매중', tone: 'blue' };
 
-  // 우선순위 7: 판매 기간 종료 + 공연 전 => 판매 종료
-  if (!Number.isNaN(saleEndTime) && current > saleEndTime && (Number.isNaN(firstStart) || current < firstStart)) return { label: '판매 종료', tone: 'gray' };
+  // 우선순위 7: 판매 기간 종료 + 공연 전 => 예매 종료
+  if (!Number.isNaN(saleEndTime) && current > saleEndTime && (Number.isNaN(firstStart) || current < firstStart)) return { label: '예매 종료', tone: 'gray' };
 
   // 발행(issued) 된 티켓이 하나도 없을 때: 가능한 경우 기본적으로 '오픈 예정'으로 표시
   if (issued <= 0) return { label: '오픈 예정', tone: 'yellow' };
@@ -267,12 +267,12 @@ export function userSortRank(event?: EventSummary | null, now = new Date()): num
   if (userStatus === null) return 99;
   const label = userStatus.label;
   const ranks: Record<string, number> = {
-    '공연중': 0,
-    '예매중': 1,
+    '공연중':    0,
+    '예매중':    1,
     '오픈 예정': 2,
-    '매진': 3,
-    '판매 종료': 4,
-    '종료': 5,
+    '매진':      3,
+    '예매 종료': 4,
+    '종료':      5,
     '예매 정보 없음': 6,
   };
   return ranks[label] ?? 7;
@@ -309,14 +309,60 @@ export function getOrganizerEventDisplayStatus(event?: EventSummary | null, tick
   return { label: '일부 발행', tone: 'yellow' };
 }
 
-export function getTicketDisplayStatus(ticket?: TicketDetail | null): DisplayStatus {
+const CHECK_IN_OPEN_MINUTES = 30;
+
+// event 파라미터가 있으면 이벤트 타이밍을 고려해 상태를 세분화한다.
+// SOLD:      공연 시작 30분 전 ~ 종료 → 입장 가능 / 그 전 → 예매 완료 / 종료 후 → 사용 기간 종료
+// AVAILABLE: 공연 종료 후 → 판매 종료
+// LISTED:    공연 종료 후 → 판매 종료
+export function getTicketDisplayStatus(
+  ticket?: TicketDetail | null,
+  event?: EventSummary | null,
+  now = new Date(),
+): DisplayStatus {
   if (!ticket) return { label: '-', tone: 'gray' };
   const status = normalized(ticket.status);
+
   if (status === 'CANCELLED') return { label: '취소됨', tone: 'red' };
-  if (status === 'USED') return { label: '사용 완료', tone: 'gray' };
-  if (status === 'LISTED') return { label: '리셀 판매중', tone: 'yellow' };
-  if (status === 'SOLD') return { label: '입장 가능', tone: 'green' };
+  if (status === 'USED') return { label: '체크인 완료', tone: 'gray' };
+
+  if (event) {
+    const current = now.getTime();
+    const roundStarts = event.rounds?.map(roundStartAt).filter((v) => !Number.isNaN(v)) ?? [];
+    const roundEnds = event.rounds?.map(roundEndAt).filter((v) => !Number.isNaN(v)) ?? [];
+    const firstStart = roundStarts.length
+      ? Math.min(...roundStarts)
+      : timeOf(event.eventStartAt || event.startsAt || event.eventAt || event.eventDateTime);
+    const lastEnd = roundEnds.length
+      ? Math.max(...roundEnds)
+      : timeOf(event.eventEndAt || event.endsAt || event.eventAt || event.eventDateTime);
+
+    const eventEnded = !Number.isNaN(lastEnd) && current > lastEnd;
+    const checkInOpenAt = Number.isNaN(firstStart) ? NaN : firstStart - CHECK_IN_OPEN_MINUTES * 60_000;
+    const isCheckInOpen = !Number.isNaN(checkInOpenAt) && current >= checkInOpenAt && !eventEnded;
+
+    if (status === 'SOLD') {
+      if (eventEnded) return { label: '사용 기간 종료', tone: 'gray' };
+      if (isCheckInOpen) return { label: '입장 가능', tone: 'green' };
+      return { label: '예매 완료', tone: 'blue' };
+    }
+    if (status === 'AVAILABLE') {
+      return eventEnded
+        ? { label: '판매 종료', tone: 'gray' }
+        : { label: '판매 가능', tone: 'blue' };
+    }
+    if (status === 'LISTED') {
+      return eventEnded
+        ? { label: '판매 종료', tone: 'gray' }
+        : { label: '리셀 판매중', tone: 'yellow' };
+    }
+  }
+
+  // 이벤트 정보 없을 때 fallback
+  if (status === 'SOLD') return { label: '예매 완료', tone: 'blue' };
   if (status === 'AVAILABLE') return { label: '판매 가능', tone: 'blue' };
+  if (status === 'LISTED') return { label: '리셀 판매중', tone: 'yellow' };
+
   return { label: formatTicketStatus(ticket.status), tone: 'neutral' };
 }
 
@@ -344,16 +390,16 @@ export function eventDisplaySortRank(event?: EventSummary | null, now = new Date
 export function operationSortRank(event?: EventSummary | null, now = new Date()) {
   const status = getEventDisplayStatus(event, now).label;
   const ranks: Record<string, number> = {
-    '공연 중': 0,
-    '판매 중': 1,
-    '판매 예정': 2,
-    매진: 3,
-    종료: 4,
-    취소: 5,
-    '티켓 미발행': 6,
-    '판매 종료': 7,
+    '공연 중':    0,
+    '판매 중':    1,
+    '판매 예정':  2,
+    '매진':       3,
+    '종료':       4,
+    '판매 종료':  5,
+    '취소':       6,
+    '티켓 미발행': 7,
   };
-  return ranks[status] ?? 6;
+  return ranks[status] ?? 7;
 }
 
 export function salesSortRank(event?: EventSummary | null, now = new Date()) {

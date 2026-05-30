@@ -5,7 +5,16 @@ import { formatCompactDateTime, getTicketDisplayStatus } from '../lib/ticketDisp
 import type { DisplayStatus } from '../lib/ticketDisplay';
 import type { EventDetail, TicketDetail } from '../types/api';
 
-const STATUS_RANK: Record<string, number> = { SOLD: 0, LISTED: 1, AVAILABLE: 2, USED: 3, CANCELLED: 4 };
+const DISPLAY_RANK: Record<string, number> = {
+  '입장 가능':    0,
+  '예매 완료':    1,
+  '리셀 판매중':  2,
+  '판매 가능':    3,
+  '판매 종료':    4,
+  '사용 기간 종료': 5,
+  '체크인 완료':  6,
+  '취소됨':       7,
+};
 
 const TONE_BADGE: Record<string, { bg: string; text: string }> = {
   green:   { bg: '#ECFDF5', text: '#059669' },
@@ -48,31 +57,34 @@ export default function MyTicketsPage({ navigation }: any) {
   }, []);
 
   const filteredAndSorted = useMemo(() => {
-    const statusKey = String(statusFilter).toUpperCase();
-    const base = statusFilter === 'ALL' ? tickets
-      : statusFilter === 'OWNED'     ? tickets.filter((t) => String(t.status).toUpperCase() === 'SOLD')
-      : statusFilter === 'LISTED'    ? tickets.filter((t) => String(t.status).toUpperCase() === 'LISTED')
-      : statusFilter === 'USED'      ? tickets.filter((t) => String(t.status).toUpperCase() === 'USED')
+    const base = statusFilter === 'ALL'    ? tickets
+      : statusFilter === 'OWNED'           ? tickets.filter((t) => String(t.status).toUpperCase() === 'SOLD')
+      : statusFilter === 'LISTED'          ? tickets.filter((t) => String(t.status).toUpperCase() === 'LISTED')
+      : statusFilter === 'USED'            ? tickets.filter((t) => String(t.status).toUpperCase() === 'USED')
       : tickets;
 
-    const now = Date.now();
+    const displayRankOf = (t: TicketDetail) => {
+      const label = getTicketDisplayStatus(t, eventsById[t.eventId] as any).label;
+      return DISPLAY_RANK[label] ?? 7;
+    };
+
     return [...base].sort((a, b) => {
-      // 1차: 상태 우선순위 (입장 가능 → 리셀 판매중 → 사용 완료 → 취소)
-      const rankA = STATUS_RANK[String(a.status).toUpperCase()] ?? 5;
-      const rankB = STATUS_RANK[String(b.status).toUpperCase()] ?? 5;
+      // 1차: 표시 상태 우선순위
+      const rankA = displayRankOf(a);
+      const rankB = displayRankOf(b);
       if (rankA !== rankB) return rankA - rankB;
-      // 2차: 가장 임박한 이벤트 먼저, 지난 이벤트는 최근 순
+      // 2차: 미래 이벤트는 임박 순, 과거 이벤트는 최근 순
       const timeA = new Date(eventsById[a.eventId]?.eventAt || a.eventDateTime || 0).getTime();
       const timeB = new Date(eventsById[b.eventId]?.eventAt || b.eventDateTime || 0).getTime();
-      const futureA = timeA >= now, futureB = timeB >= now;
-      if (futureA !== futureB) return futureA ? -1 : 1;
+      const now = Date.now();
+      const futureA = timeA >= now;
       return futureA ? timeA - timeB : timeB - timeA;
     });
   }, [statusFilter, tickets, eventsById]);
 
   const renderTicket = ({ item }: { item: TicketDetail }) => {
     const event = eventsById[item.eventId];
-    const status = getTicketDisplayStatus(item);
+    const status = getTicketDisplayStatus(item, eventsById[item.eventId] as any);
     const { bg, text } = badgeStyle(status);
     const section = item.sectionName;
     return (
@@ -106,7 +118,7 @@ export default function MyTicketsPage({ navigation }: any) {
             <View style={styles.filterRow}>
               {[
                 { id: 'ALL',    label: '전체' },
-                { id: 'OWNED',  label: '입장 가능' },
+                { id: 'OWNED',  label: '보유 중' },
                 { id: 'LISTED', label: '리셀 판매중' },
                 { id: 'USED',   label: '사용 완료' },
               ].map((item) => (
