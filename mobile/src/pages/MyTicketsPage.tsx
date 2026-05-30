@@ -1,12 +1,27 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { backendApi } from '../lib/backend';
-import { formatEventDate, getTicketDisplayStatus } from '../lib/ticketDisplay';
+import { formatCompactDateTime, getTicketDisplayStatus } from '../lib/ticketDisplay';
+import type { DisplayStatus } from '../lib/ticketDisplay';
 import type { EventDetail, TicketDetail } from '../types/api';
 
-function eventDate(ticket: TicketDetail, event?: EventDetail) {
-  const value = event?.eventAt || ticket.eventDateTime;
-  return formatEventDate(value);
+const STATUS_RANK: Record<string, number> = { SOLD: 0, LISTED: 1, AVAILABLE: 2, USED: 3, CANCELLED: 4 };
+
+const TONE_BADGE: Record<string, { bg: string; text: string }> = {
+  green:   { bg: '#ECFDF5', text: '#059669' },
+  blue:    { bg: '#EFF6FF', text: '#2563EB' },
+  yellow:  { bg: '#FFF7ED', text: '#D97706' },
+  red:     { bg: '#FEF2F2', text: '#DC2626' },
+  gray:    { bg: '#F1F5F9', text: '#64748B' },
+  neutral: { bg: '#F1F5F9', text: '#334155' },
+};
+
+function badgeStyle(status: DisplayStatus) {
+  return TONE_BADGE[status.tone] ?? TONE_BADGE.neutral;
+}
+
+function eventDateTime(ticket: TicketDetail, event?: EventDetail) {
+  return formatCompactDateTime(event?.eventAt || ticket.eventDateTime);
 }
 
 export default function MyTicketsPage({ navigation }: any) {
@@ -20,7 +35,7 @@ export default function MyTicketsPage({ navigation }: any) {
       try {
         const data = await backendApi.getMyTickets();
         setTickets(data);
-        const eventIds = Array.from(new Set(data.map((ticket) => ticket.eventId).filter(Boolean)));
+        const eventIds = Array.from(new Set(data.map((t) => t.eventId).filter(Boolean)));
         const entries = await Promise.all(eventIds.map(async (id) => [id, await backendApi.getEvent(String(id))] as const));
         setEventsById(Object.fromEntries(entries));
       } catch (error) {
@@ -32,27 +47,46 @@ export default function MyTicketsPage({ navigation }: any) {
     void loadTickets();
   }, []);
 
-  const filteredTickets = useMemo(() => {
-    if (statusFilter === 'ALL') return tickets;
-    if (statusFilter === 'OWNED') return tickets.filter((ticket) => String(ticket.status).toUpperCase() === 'SOLD');
-    if (statusFilter === 'LISTED') return tickets.filter((ticket) => String(ticket.status).toUpperCase() === 'LISTED');
-    if (statusFilter === 'USED') return tickets.filter((ticket) => String(ticket.status).toUpperCase() === 'USED');
-    return tickets;
-  }, [statusFilter, tickets]);
+  const filteredAndSorted = useMemo(() => {
+    const statusKey = String(statusFilter).toUpperCase();
+    const base = statusFilter === 'ALL' ? tickets
+      : statusFilter === 'OWNED'     ? tickets.filter((t) => String(t.status).toUpperCase() === 'SOLD')
+      : statusFilter === 'LISTED'    ? tickets.filter((t) => String(t.status).toUpperCase() === 'LISTED')
+      : statusFilter === 'USED'      ? tickets.filter((t) => String(t.status).toUpperCase() === 'USED')
+      : tickets;
+
+    const now = Date.now();
+    return [...base].sort((a, b) => {
+      // 1차: 상태 우선순위 (입장 가능 → 리셀 판매중 → 사용 완료 → 취소)
+      const rankA = STATUS_RANK[String(a.status).toUpperCase()] ?? 5;
+      const rankB = STATUS_RANK[String(b.status).toUpperCase()] ?? 5;
+      if (rankA !== rankB) return rankA - rankB;
+      // 2차: 가장 임박한 이벤트 먼저, 지난 이벤트는 최근 순
+      const timeA = new Date(eventsById[a.eventId]?.eventAt || a.eventDateTime || 0).getTime();
+      const timeB = new Date(eventsById[b.eventId]?.eventAt || b.eventDateTime || 0).getTime();
+      const futureA = timeA >= now, futureB = timeB >= now;
+      if (futureA !== futureB) return futureA ? -1 : 1;
+      return futureA ? timeA - timeB : timeB - timeA;
+    });
+  }, [statusFilter, tickets, eventsById]);
 
   const renderTicket = ({ item }: { item: TicketDetail }) => {
     const event = eventsById[item.eventId];
-    const status = getTicketDisplayStatus(item).label;
+    const status = getTicketDisplayStatus(item);
+    const { bg, text } = badgeStyle(status);
+    const section = item.sectionName;
     return (
       <TouchableOpacity style={styles.ticketCard} onPress={() => navigation.navigate('TicketDetail', { ticketId: item.id ?? item.ticketId })}>
         <View style={styles.ticketInfo}>
-          <Text style={styles.eventTitle}>{event?.name || item.eventTitle || item.eventName || '이벤트'}</Text>
+          <Text style={styles.eventTitle} numberOfLines={2}>{event?.name || item.eventTitle || item.eventName || '이벤트'}</Text>
           <Text style={styles.ticketMeta}>{event?.venue || item.venue || '-'}</Text>
-          <Text style={styles.ticketMeta}>{eventDate(item, event)}</Text>
-          <Text style={styles.ticketSeat}>좌석 {item.seatInfo || '-'}</Text>
+          <Text style={styles.ticketMeta}>{eventDateTime(item, event)}</Text>
+          <Text style={styles.ticketSeat}>
+            {section ? `${section} · ` : ''}{item.seatInfo || '-'}
+          </Text>
         </View>
-        <View style={styles.statusBadge}>
-          <Text style={styles.statusText}>{status}</Text>
+        <View style={[styles.statusBadge, { backgroundColor: bg }]}>
+          <Text style={[styles.statusText, { color: text }]}>{status.label}</Text>
         </View>
       </TouchableOpacity>
     );
@@ -61,20 +95,20 @@ export default function MyTicketsPage({ navigation }: any) {
   return (
     <View style={styles.container}>
       {loading ? (
-        <View style={styles.center}><ActivityIndicator size="large" color="#007AFF" /></View>
+        <View style={styles.center}><ActivityIndicator size="large" color="#2563EB" /></View>
       ) : (
         <FlatList
-          data={filteredTickets}
+          data={filteredAndSorted}
           keyExtractor={(item) => String(item.id ?? item.ticketId)}
           renderItem={renderTicket}
           contentContainerStyle={styles.list}
           ListHeaderComponent={(
             <View style={styles.filterRow}>
               {[
-                { id: 'ALL', label: '전체' },
-                { id: 'OWNED', label: '소유중' },
-                { id: 'LISTED', label: '판매중' },
-                { id: 'USED', label: '종료' },
+                { id: 'ALL',    label: '전체' },
+                { id: 'OWNED',  label: '입장 가능' },
+                { id: 'LISTED', label: '리셀 판매중' },
+                { id: 'USED',   label: '사용 완료' },
               ].map((item) => (
                 <TouchableOpacity key={item.id} style={[styles.filterChip, statusFilter === item.id && styles.activeFilterChip]} onPress={() => setStatusFilter(item.id)}>
                   <Text style={[styles.filterText, statusFilter === item.id && styles.activeFilterText]}>{item.label}</Text>

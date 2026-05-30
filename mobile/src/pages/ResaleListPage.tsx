@@ -2,7 +2,7 @@
 import { ActivityIndicator, FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { TextInput } from '../components/TextInput';
 import { backendApi } from '../lib/backend';
-import { formatEventCategory, formatEventDate } from '../lib/ticketDisplay';
+import { formatEventCategory, formatCompactDateTime, weiToEth } from '../lib/ticketDisplay';
 import type { EventDetail, ResaleListing, UserProfile } from '../types/api';
 
 type SortMode = 'latest' | 'priceAsc' | 'priceDesc' | 'closingSoon';
@@ -41,7 +41,8 @@ function eventDateOf(item: ResaleListing, eventMap: Record<string, EventDetail>)
 
 function saleEndOf(item: ResaleListing, eventMap: Record<string, EventDetail>) {
   const event = eventMap[String(item.eventId)];
-  return event?.salesEndAt || event?.primarySaleEnd || event?.eventEndAt || event?.endsAt || item.updatedAt || item.createdAt || '';
+  // '마감 임박순' 기준: 이벤트 날짜(공연 일정)가 가장 가까운 것 우선
+  return event?.eventAt || event?.eventDateTime || event?.eventEndAt || item.updatedAt || item.createdAt || '';
 }
 
 function groupDateOf(group: ResaleEventGroup) {
@@ -73,8 +74,7 @@ function minPriceOf(listings: ResaleListing[]) {
   const [first] = [...listings].sort((a, b) => (
     priceValueOf(a) < priceValueOf(b) ? -1 : priceValueOf(a) > priceValueOf(b) ? 1 : 0
   ));
-
-  return first?.priceWei ?? first?.price ?? '-';
+  return weiToEth(first?.priceWei ?? first?.price);
 }
 
 function sortListings(listings: ResaleListing[], sortMode: SortMode) {
@@ -176,9 +176,17 @@ export default function ResaleListPage({ navigation, route }: any) {
     }, {});
 
     const normalizedQuery = eventQuery.trim().toLowerCase();
+    const now = Date.now();
     return Object.values(groups)
       .filter((group) => !normalizedQuery || groupTitleOf(group).toLowerCase().includes(normalizedQuery))
-      .sort((a, b) => groupTitleOf(a).localeCompare(groupTitleOf(b)));
+      .sort((a, b) => {
+        // 공연 임박 순 (미래 이벤트 먼저 → 가장 가까운 날짜 우선, 지난 이벤트는 뒤로)
+        const aTime = new Date(groupDateOf(a)).getTime() || 0;
+        const bTime = new Date(groupDateOf(b)).getTime() || 0;
+        const aFuture = aTime >= now, bFuture = bTime >= now;
+        if (aFuture !== bFuture) return aFuture ? -1 : 1;
+        return aFuture ? aTime - bTime : bTime - aTime;
+      });
   }, [eventMap, eventQuery, scopedListings]);
 
   const visibleListings = useMemo(() => {
@@ -228,10 +236,10 @@ export default function ResaleListPage({ navigation, route }: any) {
               <TouchableOpacity style={styles.card} onPress={() => navigation.navigate('ResaleList', { eventId: item.eventId, scope })}>
                 <View style={styles.cardHeader}>
                   <Text style={styles.status}>{item.listings.length}개 리셀 티켓</Text>
-                  <Text style={styles.price}>최저 {minPriceOf(item.listings)} WEI</Text>
+                  <Text style={styles.price}>최저 {minPriceOf(item.listings)}</Text>
                 </View>
                 <Text style={styles.title}>{groupTitleOf(item)}</Text>
-                <Text style={styles.meta}>{formatEventDate(groupDateOf(item))}</Text>
+                <Text style={styles.meta}>{formatCompactDateTime(groupDateOf(item))}</Text>
                 <Text style={styles.meta}>{[formatEventCategory(event?.category), event?.venue].filter(Boolean).join(' · ') || '이벤트 정보 확인 중'}</Text>
               </TouchableOpacity>
             );
@@ -276,11 +284,11 @@ export default function ResaleListPage({ navigation, route }: any) {
           <TouchableOpacity style={styles.card} onPress={() => navigation.navigate('ResaleDetail', { listingId: item.id ?? item.listingId })}>
             <View style={styles.cardHeader}>
               <Text style={styles.status}>{statusLabelOf(item.status)}</Text>
-              <Text style={styles.price}>{item.priceWei ?? item.price} WEI</Text>
+              <Text style={styles.price}>{weiToEth(item.priceWei ?? item.price)}</Text>
             </View>
             <Text style={styles.title}>{seatLabelOf(item)}</Text>
             <Text style={styles.meta}>{eventTitleOf(item, eventMap)}</Text>
-            <Text style={styles.meta}>{formatEventDate(eventDateOf(item, eventMap))}</Text>
+            <Text style={styles.meta}>{formatCompactDateTime(eventDateOf(item, eventMap))}</Text>
           </TouchableOpacity>
         )}
         ListEmptyComponent={<Text style={styles.empty}>조건에 맞는 리셀 티켓이 없습니다.</Text>}

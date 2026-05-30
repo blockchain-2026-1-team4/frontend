@@ -9,9 +9,10 @@ import type { EventSummary } from '../types/api';
 const CATEGORIES = [
   { id: 'ALL', label: '전체' },
   { id: 'CONCERT', label: '공연' },
+  { id: 'FESTIVAL', label: '페스티벌' },
   { id: 'SPORTS', label: '스포츠' },
   { id: 'EXHIBITION', label: '전시' },
-  { id: 'FESTIVAL', label: '페스티벌' },
+  { id: 'CONFERENCE', label: '컨퍼런스' },
   { id: 'ETC', label: '기타' },
 ];
 
