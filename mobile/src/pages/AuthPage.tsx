@@ -369,10 +369,80 @@ export default function AuthPage({ navigation, route }: any) {
   const [appForegroundedAt, setAppForegroundedAt] = useState(0);
 
   const { open, disconnect } = useAppKit();
-  const { address: appKitAddress, isConnected } = useAccount();
-  const { provider, providerType } = useProvider();
+  // Capture full hook objects so diagnostic effects can log every field.
+  const accountState = useAccount();
+  const { address: appKitAddress, isConnected } = accountState;
+  const providerState = useProvider();
+  const { provider, providerType } = providerState;
 
   const targetLabel = useMemo(() => (initialRole === 'ORGANIZER' ? '주최자' : '사용자'), [initialRole]);
+
+  // ─── Diagnostic: full hook values ─────────────────────────────────────────
+  // Logs useAccount / useProvider on every state change so we can see all fields,
+  // not just the destructured subset used by the login flow.
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+    console.log('[DIAG] useAppKitAccount full', accountState);
+  }, [(accountState as any).status, accountState.address, accountState.isConnected, (accountState as any).caipAddress]);
+
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+    console.log('[DIAG] useAppKitProvider(eip155) full', {
+      providerType: providerState.providerType,
+      hasProvider: Boolean(providerState.provider),
+    });
+  }, [providerState.provider, providerState.providerType]);
+
+  // ─── Diagnostic: WalletConnect session events ──────────────────────────────
+  // Attaches to the underlying Universal Provider / SignClient to capture
+  // session_proposal, session_settle, session_update, session_delete events.
+  // If session_proposal never fires after open() is called, the WC relay itself
+  // is not generating a session — pointing to a project-ID or network config issue.
+  useEffect(() => {
+    if (Platform.OS === 'web' || !provider) return;
+
+    const anyProvider = provider as any;
+    // @walletconnect/universal-provider wraps the SignClient.
+    // Try all known paths to the event-emitting object.
+    const wcProvider: any = anyProvider._provider ?? anyProvider;
+    const signClient: any = wcProvider?.client ?? wcProvider?.signClient;
+
+    const targets = [wcProvider, signClient].filter(Boolean);
+
+    const wcEvents: Record<string, (data: any) => void> = {
+      session_proposal: (d) => console.log('[WC] session_proposal', JSON.stringify(d)),
+      session_settle:   (d) => console.log('[WC] session_settle', JSON.stringify(d)),
+      session_update:   (d) => console.log('[WC] session_update', JSON.stringify(d)),
+      session_delete:   (d) => console.log('[WC] session_delete', JSON.stringify(d)),
+      session_expire:   (d) => console.log('[WC] session_expire', JSON.stringify(d)),
+      display_uri:      (d) => console.log('[WC] display_uri', d),
+      connect:          (d) => console.log('[WC] connect', JSON.stringify(d)),
+      disconnect:       (d) => console.log('[WC] disconnect', JSON.stringify(d)),
+    };
+
+    for (const target of targets) {
+      if (typeof target?.on !== 'function') continue;
+      for (const [event, handler] of Object.entries(wcEvents)) {
+        try { target.on(event, handler); } catch {}
+      }
+    }
+
+    console.log('[DIAG] WC event listeners attached', {
+      hasWcProvider: Boolean(wcProvider),
+      hasSignClient: Boolean(signClient),
+      wcProviderHasOn: typeof wcProvider?.on === 'function',
+      signClientHasOn: typeof signClient?.on === 'function',
+    });
+
+    return () => {
+      for (const target of targets) {
+        if (typeof target?.off !== 'function' && typeof target?.removeListener !== 'function') continue;
+        for (const [event, handler] of Object.entries(wcEvents)) {
+          try { (target.off ?? target.removeListener).call(target, event, handler); } catch {}
+        }
+      }
+    };
+  }, [provider]);
 
   // On mount: restore a recent pending-login flag that survived an app kill.
   // Flags outside the TTL window are treated as stale: the AsyncStorage entry
@@ -586,6 +656,25 @@ export default function AuthPage({ navigation, route }: any) {
       console.log('[WalletLogin] no address found in appKit hook or session accounts');
     }
 
+    // Target-chain validation: warn when session was established for a different
+    // network. ensureWalletNetwork handles the actual switch/add, but this log
+    // makes the mismatch explicit so the cause is clear from logs alone.
+    const targetCaip = `eip155:${config.chainId}`;
+    const sessionChains: string[] = session?.namespaces?.eip155?.chains ?? [];
+    const sessionAccounts: string[] = (session?.namespaces?.eip155?.accounts ?? []) as string[];
+    const sessionHasTargetChain =
+      sessionChains.includes(targetCaip) ||
+      sessionAccounts.some((a) => a.startsWith(`${targetCaip}:`));
+    if (session && !sessionHasTargetChain) {
+      console.warn('[WalletLogin] session missing target chain', {
+        targetCaip,
+        chains: sessionChains,
+        accounts: sessionAccounts,
+      });
+    } else if (sessionHasTargetChain) {
+      console.log('[WalletLogin] session has target chain', targetCaip);
+    }
+
     // provider 없음 또는 session accounts에서도 address를 파싱할 수 없는 경우:
     // WalletConnect 세션이 아직 수립되지 않은 것으로 간주 → Connect modal 오픈.
     // isConnected가 false여도 provider + resolvedAddress가 있으면 통과.
@@ -593,7 +682,9 @@ export default function AuthPage({ navigation, route }: any) {
       console.log('[WalletLogin] No active session — opening Connect modal');
       setPendingWalletLogin(true);
       syncPendingWalletLogin(true);
+      console.log('[DIAG] open() call start', { view: 'Connect', source: 'no-session' });
       open({ view: 'Connect' });
+      console.log('[DIAG] open() call returned', { view: 'Connect', source: 'no-session' });
       setFeedback({ type: 'success', message: '지갑 연결 화면을 열었습니다. 연결 승인 후 자동으로 서명 요청을 이어갑니다.' });
       setWalletStep('idle');
       return null;
@@ -616,9 +707,17 @@ export default function AuthPage({ navigation, route }: any) {
         session: sessionAfterDisconnect,
       });
       await clearWalletSessionStorage();
+      console.log('[WalletLogin] wallet session storage cleared');
+      // Wait for AppKit to process the disconnect before opening a new modal.
+      // Without this delay AppKit reuses the in-memory session and the same
+      // WC topic reappears, which is now treated as a stale-session error.
+      await new Promise((r) => setTimeout(r, 300));
+      console.log('[WalletLogin] manual reconnect delay complete');
       setPendingWalletLogin(true);
       syncPendingWalletLogin(true);
+      console.log('[DIAG] open() call start', { view: 'Connect', source: 'manual-reconnect' });
       open({ view: 'Connect' });
+      console.log('[DIAG] open() call returned', { view: 'Connect', source: 'manual-reconnect' });
       setFeedback({ type: 'success', message: '지갑을 다시 연결합니다. MetaMask에서 연결을 승인해 주세요.' });
       setWalletStep('idle');
       return null;
@@ -763,7 +862,9 @@ export default function AuthPage({ navigation, route }: any) {
     await new Promise((r) => setTimeout(r, 300));
     setPendingWalletLogin(true);
     syncPendingWalletLogin(true);
+    console.log('[DIAG] open() call start', { view: 'Connect', source: 'handleReconnect' });
     open({ view: 'Connect' });
+    console.log('[DIAG] open() call returned', { view: 'Connect', source: 'handleReconnect' });
     setFeedback({ type: 'success', message: '지갑을 재연결합니다. MetaMask에서 연결을 승인해 주세요.' });
   };
 
@@ -785,6 +886,10 @@ export default function AuthPage({ navigation, route }: any) {
     const wcSessionAddress = getAddressFromSession(wcSession);
     const resolvedAddress = appKitAddress || wcSessionAddress;
 
+    // sameTopicBlocked is set when disconnect() failed to destroy the WC session
+    // (old topic === new topic). Auto-login must NOT proceed in this case.
+    let sameTopicBlocked = false;
+
     if (reconnectingRef.current) {
       // Reconnect complete when provider exists AND we can resolve an address
       // — either from AppKit hook or directly from session namespaces.
@@ -795,7 +900,10 @@ export default function AuthPage({ navigation, route }: any) {
           if (isNewSession) {
             console.log('[WalletLogin] Reconnect complete | old topic:', oldTopic, '→ new topic:', currentTopic);
           } else {
-            console.warn('[WalletLogin] Same session topic after reconnect — possible stale reuse | topic:', currentTopic);
+            // disconnect() did not destroy the WC session — same topic reused.
+            // Block auto-login; user must disconnect from MetaMask manually.
+            console.warn('[WalletLogin] same topic reconnect blocked | topic:', currentTopic, '| oldTopic:', oldTopic);
+            sameTopicBlocked = true;
           }
         } else {
           console.log('[WalletLogin] Reconnect: session topic unavailable, allowing trigger');
@@ -818,12 +926,27 @@ export default function AuthPage({ navigation, route }: any) {
       loading,
       autoLoginRunning: autoWalletLoginRef.current,
       reconnecting: reconnectingRef.current,
+      sameTopicBlocked,
     });
 
     if (reconnectingRef.current) {
       console.log('[WalletLogin] wallet-return skipped — reconnect in progress');
       return;
     }
+
+    if (sameTopicBlocked) {
+      console.warn('[WalletLogin] stale session blocked — clearing pending state and notifying user');
+      setPendingWalletLogin(false);
+      syncPendingWalletLogin(false);
+      setLoading(false);
+      setWalletStep('idle');
+      setFeedback({
+        type: 'error',
+        message: '기존 지갑 세션이 완전히 해제되지 않았습니다. MetaMask 연결된 사이트에서 연결을 해제한 뒤 다시 시도해주세요.',
+      });
+      return;
+    }
+
     if (
       !pendingWalletLogin ||
       !provider ||
