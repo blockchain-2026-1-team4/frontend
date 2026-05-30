@@ -11,7 +11,8 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import Svg, { Defs, LinearGradient as SvgLinearGradient, Path, Rect, Stop } from 'react-native-svg';
+import Svg, { Path } from 'react-native-svg';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { accountStatusMessage, errorMessage } from '../lib/account';
 import { backendApi } from '../lib/backend';
@@ -68,6 +69,8 @@ function getEventBadge(event: EventSummary): { label: string; style: 'live' | 's
   if (status === 'PUBLISHED') return { label: '게시중', style: 'live' };
   return { label: status, style: 'draft' };
 }
+
+const HeroLinearGradient = LinearGradient as unknown as React.ComponentType<any>;
 
 export default function OrganizerDashboardPage({ navigation }: any) {
   const insets = useSafeAreaInsets();
@@ -243,20 +246,13 @@ export default function OrganizerDashboardPage({ navigation }: any) {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}
     >
       {/* ── 히어로 ── */}
-      <View style={[styles.hero, { paddingTop: Math.max(insets.top + 38, 56) }]}>
-        <Svg style={StyleSheet.absoluteFill} width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none">
-          <Defs>
-            <SvgLinearGradient id="organizerHeroGradient" x1="0" y1="0" x2="0" y2="1">
-              <Stop offset="0%" stopColor="#171A3D" />
-              <Stop offset="45%" stopColor="#24275F" />
-              <Stop offset="100%" stopColor="#34308A" />
-            </SvgLinearGradient>
-          </Defs>
-          <Rect x="0" y="0" width="100" height="100" fill="url(#organizerHeroGradient)" />
-        </Svg>
-        <View pointerEvents="none" style={styles.heroGlowTitle} />
-        <View pointerEvents="none" style={styles.heroGlowRight} />
-        <View pointerEvents="none" style={styles.heroGlowTopRight} />
+      <HeroLinearGradient
+        colors={['#171A3D', '#24275F', '#2B2F73']}
+        locations={[0, 0.55, 1]}
+        start={{ x: 0.5, y: 0 }}
+        end={{ x: 0.5, y: 1 }}
+        style={[styles.hero, { paddingTop: Math.max(insets.top + 38, 56) }]}
+      >
         <View style={styles.heroTopBar}>
           <TouchableOpacity
             accessibilityRole="button"
@@ -308,7 +304,7 @@ export default function OrganizerDashboardPage({ navigation }: any) {
           <View style={styles.todayDot} />
           <Text style={styles.todayChipText}>{formatTodayChip(todayScheduledEvents)}</Text>
         </View>
-      </View>
+      </HeroLinearGradient>
 
       {blockedMessage ? (
         /* ── 계정 차단 ── */
@@ -537,15 +533,15 @@ const styles = StyleSheet.create({
   },
   heroGlowRight: {
     position: 'absolute',
-    right: -55,
-    top: 36,
+    right: -90,
+    top: 40,
     width: 260,
     height: 260,
     borderRadius: 130,
     backgroundColor: '#5B4BFF',
-    opacity: 0.35,
+    opacity: 0.18,
     shadowColor: '#5B4BFF',
-    shadowOpacity: 0.35,
+    shadowOpacity: 0.18,
     shadowRadius: 36,
     shadowOffset: { width: 0, height: 0 },
     elevation: 10,
@@ -558,9 +554,9 @@ const styles = StyleSheet.create({
     height: 120,
     borderRadius: 60,
     backgroundColor: '#8A7DFF',
-    opacity: 0.22,
+    opacity: 0.12,
     shadowColor: '#8A7DFF',
-    shadowOpacity: 0.28,
+    shadowOpacity: 0.12,
     shadowRadius: 22,
     shadowOffset: { width: 0, height: 0 },
     elevation: 8,
