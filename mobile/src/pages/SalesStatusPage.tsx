@@ -4,6 +4,14 @@ import { ActivityIndicator, Alert, RefreshControl, ScrollView, StyleSheet, Text,
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
+
+function BackIcon() {
+  return (
+    <Svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.78)" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <Path d="M19 12H5m7 7-7-7 7-7" />
+    </Svg>
+  );
+}
 import { TextInput } from '../components/TextInput';
 import { errorMessage } from '../lib/account';
 import { backendApi } from '../lib/backend';
@@ -16,9 +24,9 @@ type SalesFilter = 'all' | 'available' | 'sold' | 'listed' | 'used' | 'cancelled
 
 const FILTERS: { key: SalesFilter; label: string; tone?: 'teal' | 'amber' | 'blue' | 'red' }[] = [
   { key: 'all', label: '전체' },
-  { key: 'available', label: '판매 가능', tone: 'teal' },
-  { key: 'sold', label: '판매됨', tone: 'red' },
-  { key: 'listed', label: '리셀', tone: 'amber' },
+  { key: 'available', label: '판매 중', tone: 'teal' },
+  { key: 'sold', label: '매진', tone: 'red' },
+  { key: 'listed', label: '리셀 중', tone: 'amber' },
   { key: 'used', label: '입장 완료', tone: 'blue' },
   { key: 'cancelled', label: '취소', tone: 'red' },
 ];
@@ -202,7 +210,12 @@ export default function SalesStatusPage({ navigation, route }: any) {
     return (
       <ScrollView style={styles.container} contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} />}>
         <HeroGradient colors={['#1A1A2E', '#2D2B6B']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.hero, { paddingTop: Math.max(insets.top + 18, 40) }]}>
-          <Text style={styles.eyebrow}>Sales Dashboard</Text>
+          <View style={styles.heroTopBar}>
+            <TouchableOpacity style={styles.heroBackBtn} onPress={() => navigation.goBack()}>
+              <BackIcon />
+            </TouchableOpacity>
+            <Text style={styles.eyebrow}>Sales Dashboard</Text>
+          </View>
           <Text style={styles.heroTitle}>티켓 판매 현황</Text>
           <Text style={styles.heroSub} numberOfLines={1}>{eventTitle(event)} · {weiToEth(event.ticketPriceWei)}</Text>
           <View style={styles.heroChip}><View style={styles.heroDotAmber} /><Text style={styles.heroChipText}>판매 {sold}장 · 잔여 {available}장</Text></View>
@@ -245,7 +258,12 @@ export default function SalesStatusPage({ navigation, route }: any) {
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} />}>
       <HeroGradient colors={['#1A1A2E', '#2D2B6B']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.hero, { paddingTop: Math.max(insets.top + 18, 40) }]}>
-        <Text style={styles.eyebrow}>Ticket Operations</Text>
+        <View style={styles.heroTopBar}>
+          <TouchableOpacity style={styles.heroBackBtn} onPress={() => navigation.goBack()}>
+            <BackIcon />
+          </TouchableOpacity>
+          <Text style={styles.eyebrow}>Ticket Operations</Text>
+        </View>
         <Text style={styles.heroTitle}>티켓 판매 현황</Text>
         <Text style={styles.heroSub}>이벤트별 판매 상태와 좌석 현황을 관리합니다.</Text>
         <View style={styles.heroChip}><View style={styles.heroDotAmber} /><Text style={styles.heroChipText}>운영중 이벤트 {items.length}개</Text></View>
@@ -345,7 +363,9 @@ const styles = StyleSheet.create({
   content: { paddingBottom: 96 },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F5F5F5' },
   hero: { paddingHorizontal: 18, paddingBottom: 30 },
-  eyebrow: { color: '#A89CF7', fontSize: 10, fontWeight: '800', letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 12 },
+  heroTopBar: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 },
+  heroBackBtn: { width: 28, height: 28, borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.1)', alignItems: 'center', justifyContent: 'center' },
+  eyebrow: { color: '#A89CF7', fontSize: 10, fontWeight: '800', letterSpacing: 1.2, textTransform: 'uppercase' },
   heroTitle: { color: '#FFFFFF', fontSize: 21, fontWeight: '900', lineHeight: 26 },
   heroSub: { color: 'rgba(255,255,255,0.48)', fontSize: 11, marginTop: 4 },
   heroChip: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: 'rgba(255,255,255,0.1)', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.2)', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4, marginTop: 12 },

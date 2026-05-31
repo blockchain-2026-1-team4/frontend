@@ -570,16 +570,6 @@ export default function EventCreatePage({ navigation }: any) {
 
                   {expanded ? (
                     <View style={styles.roundBody}>
-                      <View style={styles.fieldRow}>
-                        <View style={styles.fieldBox}>
-                          <Text style={styles.fieldLbl}>시작 시간</Text>
-                          <TimeWheelPicker label="공연 시작 시간" value={round.startTime} onChange={(value) => updateRound(round.id, { startTime: value })} />
-                        </View>
-                        <View style={styles.fieldBox}>
-                          <Text style={styles.fieldLbl}>종료 시간</Text>
-                          <TimeWheelPicker label="공연 종료 시간" value={round.endTime} onChange={(value) => updateRound(round.id, { endTime: value })} />
-                        </View>
-                      </View>
                       <View style={styles.flatField}>
                         <Text style={styles.fieldLbl}>이벤트 날짜</Text>
                         <SingleDatePicker
@@ -587,6 +577,16 @@ export default function EventCreatePage({ navigation }: any) {
                           onChange={(value) => updateRound(round.id, { eventDate: value })}
                           markedRounds={rounds.map((item, itemIndex) => ({ date: item.eventDate, label: `${itemIndex + 1}회차` }))}
                         />
+                      </View>
+                      <View style={[styles.fieldRow, { marginTop: 8 }]}>
+                        <View style={styles.fieldBox}>
+                          <Text style={styles.fieldLbl}>시작 시간</Text>
+                          <TimeWheelPicker label="이벤트 시작 시간" value={round.startTime} onChange={(value) => updateRound(round.id, { startTime: value })} />
+                        </View>
+                        <View style={styles.fieldBox}>
+                          <Text style={styles.fieldLbl}>종료 시간</Text>
+                          <TimeWheelPicker label="이벤트 종료 시간" value={round.endTime} onChange={(value) => updateRound(round.id, { endTime: value })} />
+                        </View>
                       </View>
                       <View style={styles.flatField}>
                         <Text style={styles.fieldLbl}>회차 제목 (선택)</Text>

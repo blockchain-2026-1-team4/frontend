@@ -168,12 +168,9 @@ export default function TicketExplorePage({ navigation, route }: any) {
             </View>
             <Text style={styles.title}>전체 티켓 탐색</Text>
             <Text style={styles.subtitle}>{event?.name || event?.title || '이벤트'}</Text>
-            <View style={styles.eventContext}>
-              <View style={styles.eventContextIcon} />
-              <View>
-                <Text style={styles.eventContextName}>개별 티켓 상태 확인</Text>
-                <Text style={styles.eventContextMeta}>회차 · 좌석 · 판매 상태 기준</Text>
-              </View>
+            <View style={styles.heroChip}>
+              <View style={styles.heroDot} />
+              <Text style={styles.heroChipText}>개별 티켓 상태 확인 · 회차 · 좌석 · 판매</Text>
             </View>
           </View>
           <View style={styles.statStrip}>
@@ -328,6 +325,9 @@ const styles = StyleSheet.create({
   eventContextIcon: { width: 26, height: 26, borderRadius: 7, backgroundColor: 'rgba(255,255,255,0.1)' },
   eventContextName: { color: '#FFFFFF', fontSize: 11, fontWeight: '800' },
   eventContextMeta: { marginTop: 1, color: 'rgba(255,255,255,0.45)', fontSize: 10 },
+  heroChip: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: 'rgba(255,255,255,0.1)', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.2)', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4, marginTop: 10 },
+  heroDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#A89CF7' },
+  heroChipText: { color: 'rgba(255,255,255,0.85)', fontSize: 10 },
   statStrip: { flexDirection: 'row', gap: 7, paddingHorizontal: 14, marginTop: -14, marginBottom: 10 },
   metricCard: { flex: 1, backgroundColor: '#FFFFFF', borderRadius: 10, paddingVertical: 10, paddingHorizontal: 8, alignItems: 'center', borderWidth: 0.5, borderColor: '#E5E7EB' },
   metricLabel: { color: '#9CA3AF', fontSize: 9, fontWeight: '800', marginTop: 2 },

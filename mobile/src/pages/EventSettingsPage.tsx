@@ -413,7 +413,6 @@ export default function EventSettingsPage({ navigation, route }: any) {
               <BackIcon />
             </TouchableOpacity>
             <Text style={styles.heroEyebrow}>Event Settings</Text>
-            <View style={styles.heroBackButton} />
           </View>
           <Text style={styles.heroTitle}>이벤트 수정</Text>
           <Text style={styles.heroSub}>이벤트 정보를 수정한 후 티켓과 좌석 설정을 이어서 관리할 수 있습니다.</Text>
@@ -532,19 +531,16 @@ export default function EventSettingsPage({ navigation, route }: any) {
                   </TouchableOpacity>
                   {expanded ? (
                     <View style={styles.roundBody}>
-                      <TouchableOpacity style={styles.fieldFull} disabled={scheduleLocked} onPress={() => {}}>
-                        <Text style={styles.fieldVal}>{formatDotDate(round.eventDate)}</Text>
-                        <Text style={styles.fieldUnit}>공연일</Text>
-                      </TouchableOpacity>
+                      <Text style={styles.fieldLbl}>이벤트 날짜</Text>
                       <SingleDatePicker value={round.eventDate} onChange={(value) => updateRound(round.id, { eventDate: value })} markedRounds={markedRounds} disabled={scheduleLocked} />
-                      <View style={styles.fieldRow}>
+                      <View style={[styles.fieldRow, { marginTop: 8 }]}>
                         <View style={styles.fieldBox}>
                           <Text style={styles.fieldLbl}>시작 시간</Text>
-                          <TimeWheelPicker label="공연 시작 시간" value={round.startTime} onChange={(value) => updateRound(round.id, { startTime: value })} disabled={scheduleLocked} />
+                          <TimeWheelPicker label="이벤트 시작 시간" value={round.startTime} onChange={(value) => updateRound(round.id, { startTime: value })} disabled={scheduleLocked} />
                         </View>
                         <View style={styles.fieldBox}>
                           <Text style={styles.fieldLbl}>종료 시간</Text>
-                          <TimeWheelPicker label="공연 종료 시간" value={round.endTime} onChange={(value) => updateRound(round.id, { endTime: value })} disabled={scheduleLocked} />
+                          <TimeWheelPicker label="이벤트 종료 시간" value={round.endTime} onChange={(value) => updateRound(round.id, { endTime: value })} disabled={scheduleLocked} />
                         </View>
                       </View>
                       <TouchableOpacity style={styles.roundSaveBtn} onPress={() => setExpandedRoundIds((current) => current.filter((item) => item !== round.id))}>
@@ -736,7 +732,7 @@ const styles = StyleSheet.create({
   emptyTitle: { color: '#0F172A', fontSize: 18, fontWeight: '900', textAlign: 'center' },
   emptyText: { marginTop: 8, color: '#64748B', fontSize: 13, textAlign: 'center', lineHeight: 19 },
   hero: { paddingHorizontal: 18, paddingBottom: 28 },
-  heroTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
+  heroTop: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 },
   heroBackButton: { width: 30, height: 30, borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.1)', alignItems: 'center', justifyContent: 'center' },
   heroEyebrow: { color: '#A89CF7', fontSize: 10, fontWeight: '800', letterSpacing: 1, textTransform: 'uppercase' },
   heroTitle: { color: '#FFFFFF', fontSize: 20, fontWeight: '900', lineHeight: 25 },

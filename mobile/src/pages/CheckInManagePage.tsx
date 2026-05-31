@@ -372,8 +372,7 @@ export default function CheckInManagePage({ navigation, route }: any) {
           <View style={styles.mcBody}>
             <Text style={styles.mcHint}>이 이벤트의 체크인을 처리할 수 있는 검증자를 등록하세요.</Text>
             {validators.map((validator, index) => {
-              const nickname = String(validator.validatorNickname ?? validator.nickname ?? validator.validatorDisplayName ?? validator.displayName ?? '').trim();
-              const nameLabel = nickname || '-';
+              const nameLabel = String(validator.validatorDisplayName ?? validator.displayName ?? validator.email ?? validator.validatorEmail ?? '').trim() || '-';
               const walletRaw = String(validator.walletAddress ?? validator.validatorWalletAddress ?? '').trim();
               const walletShort = walletRaw.length > 10 ? `${walletRaw.slice(0, 6)}...${walletRaw.slice(-4)}` : walletRaw;
               return (
@@ -402,7 +401,7 @@ export default function CheckInManagePage({ navigation, route }: any) {
               {validatorResults.length > 0 ? (
                 <View style={styles.searchResultList}>
                   {validatorResults.map((user) => {
-                    const nick = (user as any).nickname || user.displayName || user.email || String(user.id);
+                    const nick = user.displayName || user.email || String(user.id);
                     return (
                       <TouchableOpacity
                         key={String(user.id)}

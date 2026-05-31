@@ -26,8 +26,8 @@ type IconName = 'plus' | 'search' | 'calendar' | 'broadcast' | 'sliders';
 
 const STATUS_FILTERS: { key: StatusFilter; label: string; tone?: 'green' | 'purple' | 'red' }[] = [
   { key: 'all', label: '전체' },
-  { key: 'operating', label: '게시중', tone: 'green' },
-  { key: 'inactive', label: '비공개', tone: 'purple' },
+  { key: 'operating', label: '운영 중', tone: 'green' },
+  { key: 'inactive', label: '준비 중', tone: 'purple' },
   { key: 'ended', label: '종료' },
   { key: 'cancelled', label: '취소', tone: 'red' },
 ];
@@ -88,9 +88,9 @@ function eventBadge(event: EventSummary) {
   const status = String(event.status ?? '').toUpperCase();
   if (isCancelled(event)) return { label: '취소', bg: '#FCEBEB', text: '#A32D2D', grayDate: true };
   if (isEnded(event)) return { label: '종료', bg: '#F3F4F6', text: '#6B7280', grayDate: true };
-  if (status === 'PUBLISHED') return { label: '게시중', bg: '#E1F5EE', text: '#0F6E56', grayDate: false };
+  if (status === 'PUBLISHED') return { label: '운영 중', bg: '#E1F5EE', text: '#0F6E56', grayDate: false };
   if (status === 'DRAFT') return { label: '초안', bg: '#F3F4F6', text: '#9CA3AF', grayDate: true };
-  if (status === 'INACTIVE') return { label: '비공개', bg: '#EEEDFE', text: '#534AB7', grayDate: true };
+  if (status === 'INACTIVE') return { label: '준비 중', bg: '#EEEDFE', text: '#534AB7', grayDate: true };
   return { label: status || '상태 없음', bg: '#FAEEDA', text: '#854F0B', grayDate: true };
 }
 
