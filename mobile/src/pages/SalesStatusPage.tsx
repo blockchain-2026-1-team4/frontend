@@ -1,10 +1,23 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import { ActivityIndicator, Alert, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Svg, { Path } from 'react-native-svg';
 import { errorMessage } from '../lib/account';
 import { backendApi } from '../lib/backend';
 import { formatNextRoundLabel, getSalesDisplayStatus, getNextRoundTime, salesSortRank, weiToEth } from '../lib/ticketDisplay';
 import type { EventDetail, EventSummary, TicketDetail } from '../types/api';
+
+const HeroGradient = LinearGradient as unknown as React.ComponentType<any>;
+
+function BackIcon() {
+  return (
+    <Svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.78)" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <Path d="M19 12H5m7 7-7-7 7-7" />
+    </Svg>
+  );
+}
 
 function eventTitle(event: EventSummary | EventDetail) {
   return event.name || event.title || '이벤트';
@@ -27,6 +40,7 @@ function sectionStats(tickets: TicketDetail[]) {
 }
 
 export default function SalesStatusPage({ navigation, route }: any) {
+  const insets = useSafeAreaInsets();
   const eventId = route?.params?.eventId as string | undefined;
   const [event, setEvent] = useState<EventDetail | null>(null);
   const [events, setEvents] = useState<EventSummary[]>([]);
@@ -75,8 +89,17 @@ export default function SalesStatusPage({ navigation, route }: any) {
   const listed = tickets.filter((ticket) => String(ticket.status).toUpperCase() === 'LISTED').length;
   const stats = useMemo(() => sectionStats(tickets), [tickets]);
 
+  const goBack = () => {
+    if (navigation.canGoBack?.()) navigation.goBack();
+    else navigation.navigate('OrganizerDashboard');
+  };
+
   if (loading) {
-    return <View style={styles.center}><ActivityIndicator size="large" color="#2563EB" /></View>;
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator size="large" color="#534AB7" />
+      </View>
+    );
   }
 
   if (!eventId) {
@@ -86,30 +109,46 @@ export default function SalesStatusPage({ navigation, route }: any) {
         contentContainerStyle={styles.content}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} />}
       >
-        <Text style={styles.eyebrow}>Ticket Operations</Text>
-        <Text style={styles.title}>티켓 판매 현황</Text>
-        <Text style={styles.subtitle}>이벤트별 판매 상태와 좌석 현황을 관리합니다.</Text>
+        <HeroGradient colors={['#1A1A2E', '#2D2B6B']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.hero, { paddingTop: Math.max(insets.top + 20, 42) }]}>
+          <View style={styles.heroTopBar}>
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel="뒤로가기" style={styles.backButton} onPress={goBack}>
+              <BackIcon />
+            </TouchableOpacity>
+          </View>
+          <Text style={styles.eyebrow}>TICKET OPERATIONS</Text>
+          <Text style={styles.heroTitle}>티켓 판매 현황</Text>
+          <Text style={styles.heroSub}>이벤트별 판매 상태와 좌석 현황을 관리합니다.</Text>
+          <View style={styles.heroChip}>
+            <View style={styles.heroDot} />
+            <Text style={styles.heroChipText}>운영중 이벤트 {events.length}개</Text>
+          </View>
+        </HeroGradient>
 
-        <View style={styles.card}>
+        <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>운영중 판매 이벤트</Text>
-          {events.length === 0 ? (
-            <Text style={styles.emptyText}>운영할 판매 이벤트가 없습니다.</Text>
-          ) : (
-            events.map((item) => {
-              const status = getSalesDisplayStatus(item);
-              return (
-                <TouchableOpacity key={item.id} style={styles.selectionCard} onPress={() => navigation.navigate('SalesStatus', { eventId: item.id })}>
-                  <View style={styles.selectionHeader}>
-                    <Text style={styles.rowTitle}>{eventTitle(item)}</Text>
-                    <Text style={[styles.badge, styles[`tone_${status.tone}`]]}>{status.label}</Text>
-                  </View>
-                  <Text style={styles.rowMeta}>{formatNextRoundLabel(item)}</Text>
-                  <Text style={styles.rowMeta}>남은 좌석 {item.remainingTicketCount ?? 0}장</Text>
-                </TouchableOpacity>
-              );
-            })
-          )}
         </View>
+
+        {events.length === 0 ? (
+          <View style={styles.emptyBox}>
+            <Text style={styles.emptyTitle}>운영할 판매 이벤트가 없습니다.</Text>
+          </View>
+        ) : (
+          events.map((item) => {
+            const status = getSalesDisplayStatus(item);
+            return (
+              <TouchableOpacity key={item.id} style={styles.eventItem} onPress={() => navigation.navigate('SalesStatus', { eventId: item.id })}>
+                <View style={styles.eventInfo}>
+                  <Text style={styles.eventName} numberOfLines={1}>{eventTitle(item)}</Text>
+                  <Text style={styles.eventMeta}>{formatNextRoundLabel(item)}</Text>
+                  <Text style={styles.eventMeta}>남은 좌석 {item.remainingTicketCount ?? 0}장</Text>
+                </View>
+                <View style={[styles.statusBadge, styles[`tone_${status.tone}` as keyof typeof styles] as any]}>
+                  <Text style={[styles.statusBadgeText, styles[`toneText_${status.tone}` as keyof typeof styles] as any]}>{status.label}</Text>
+                </View>
+              </TouchableOpacity>
+            );
+          })
+        )}
       </ScrollView>
     );
   }
@@ -120,76 +159,118 @@ export default function SalesStatusPage({ navigation, route }: any) {
       contentContainerStyle={styles.content}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} />}
     >
-      <Text style={styles.eyebrow}>Sales Dashboard</Text>
-      <Text style={styles.title}>티켓 판매 현황</Text>
-      <Text style={styles.subtitle}>{event?.name || event?.title || '이벤트'} · {weiToEth(event?.ticketPriceWei)}</Text>
+      <HeroGradient colors={['#1A1A2E', '#2D2B6B']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.hero, { paddingTop: Math.max(insets.top + 20, 42) }]}>
+        <View style={styles.heroTopBar}>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel="뒤로가기" style={styles.backButton} onPress={goBack}>
+            <BackIcon />
+          </TouchableOpacity>
+        </View>
+        <Text style={styles.eyebrow}>SALES DASHBOARD</Text>
+        <Text style={styles.heroTitle}>티켓 판매 현황</Text>
+        <Text style={styles.heroSub} numberOfLines={1}>{event?.name || event?.title || '이벤트'} · {weiToEth(event?.ticketPriceWei)}</Text>
+        <View style={styles.heroChip}>
+          <View style={styles.heroDot} />
+          <Text style={styles.heroChipText}>판매 {sold}장 · 남은 좌석 {available}장</Text>
+        </View>
+      </HeroGradient>
+
       <View style={styles.metricGrid}>
-        <Metric label="판매" value={sold} />
-        <Metric label="남은 좌석" value={available} />
-        <Metric label="리셀 중" value={listed} />
-        <Metric label="체크인" value={used} />
+        <MetricCard label="판매" value={sold} bg="#E1F5EE" color="#0F6E56" />
+        <MetricCard label="남은 좌석" value={available} bg="#EEEDFE" color="#534AB7" />
+        <MetricCard label="리셀 중" value={listed} bg="#FAEEDA" color="#854F0B" />
+        <MetricCard label="체크인" value={used} bg="#E6F1FB" color="#185FA5" />
+      </View>
+
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionTitle}>구역별 판매 현황</Text>
+        <TouchableOpacity onPress={() => navigation?.navigate?.('TicketExplore', { eventId })}>
+          <Text style={styles.sectionLink}>전체 티켓</Text>
+        </TouchableOpacity>
       </View>
 
       <View style={styles.card}>
-        <View style={styles.sectionHead}>
-          <Text style={styles.sectionTitle}>좌석 구역별 판매 현황</Text>
-          <TouchableOpacity onPress={() => navigation?.navigate?.('TicketExplore', { eventId })}>
-            <Text style={styles.linkText}>전체 티켓 탐색</Text>
-          </TouchableOpacity>
-        </View>
         {stats.length === 0 ? (
           <Text style={styles.emptyText}>발행된 티켓이 없습니다.</Text>
         ) : (
-          stats.map(([section, item]) => (
-            <View key={section} style={styles.sectionRow}>
-              <View style={styles.sectionInfo}>
-                <Text style={styles.rowTitle}>{section}</Text>
-                <Text style={styles.rowMeta}>판매 {item.sold} / {item.total}</Text>
+          stats.map(([section, item]) => {
+            const pct = item.total > 0 ? Math.round((item.sold / item.total) * 100) : 0;
+            return (
+              <View key={section} style={styles.sectionRow}>
+                <View style={styles.sectionInfo}>
+                  <Text style={styles.rowTitle}>{section}</Text>
+                  <Text style={styles.rowMeta}>판매 {item.sold} / {item.total} ({pct}%)</Text>
+                </View>
+                <View style={styles.progressTrack}>
+                  <View style={[styles.progressFill, { width: `${pct}%` }]} />
+                </View>
               </View>
-              <View style={styles.progressTrack}>
-                <View style={[styles.progressFill, { width: `${item.total > 0 ? Math.round((item.sold / item.total) * 100) : 0}%` }]} />
-              </View>
-            </View>
-          ))
+            );
+          })
         )}
       </View>
     </ScrollView>
   );
 }
 
-function Metric({ label, value }: { label: string; value: number }) {
-  return <View style={styles.metricCard}><Text style={styles.metricLabel}>{label}</Text><Text style={styles.metricValue}>{value}</Text></View>;
+function MetricCard({ label, value, bg, color }: { label: string; value: number; bg: string; color: string }) {
+  return (
+    <View style={styles.metricCard}>
+      <View style={[styles.metricIconBox, { backgroundColor: bg }]}>
+        <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: color }} />
+      </View>
+      <Text style={styles.metricValue}>{value.toLocaleString()}</Text>
+      <Text style={styles.metricLabel}>{label}</Text>
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F4F7FB' },
-  content: { padding: 18, paddingBottom: 96 },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F4F7FB' },
-  eyebrow: { color: '#2563EB', fontWeight: '800', fontSize: 12 },
-  title: { marginTop: 4, fontSize: 28, fontWeight: '900', color: '#0F172A' },
-  subtitle: { marginTop: 8, color: '#64748B', fontSize: 14, lineHeight: 21 },
-  metricGrid: { flexDirection: 'row', gap: 8, marginTop: 16 },
-  metricCard: { flex: 1, backgroundColor: '#FFFFFF', borderRadius: 12, padding: 12, borderWidth: 1, borderColor: '#E2E8F0' },
-  metricLabel: { color: '#64748B', fontSize: 11, fontWeight: '800' },
-  metricValue: { marginTop: 8, color: '#0F172A', fontSize: 22, fontWeight: '900' },
-  card: { marginTop: 16, backgroundColor: '#FFFFFF', borderRadius: 14, padding: 16, borderWidth: 1, borderColor: '#E2E8F0' },
-  sectionHead: { marginBottom: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  sectionTitle: { color: '#0F172A', fontSize: 17, fontWeight: '900' },
-  linkText: { color: '#2563EB', fontWeight: '900', fontSize: 12 },
-  selectionCard: { borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 12, padding: 13, backgroundColor: '#FFFFFF', marginTop: 10 },
-  selectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
-  rowTitle: { color: '#0F172A', fontWeight: '900' },
-  rowMeta: { marginTop: 5, color: '#64748B', fontSize: 12 },
-  badge: { overflow: 'hidden', borderRadius: 999, paddingHorizontal: 9, paddingVertical: 5, minWidth: 62, textAlign: 'center', fontSize: 11, fontWeight: '900' },
-  emptyText: { color: '#94A3B8', paddingVertical: 24, textAlign: 'center' },
-  sectionRow: { paddingVertical: 13, borderTopWidth: 1, borderTopColor: '#F1F5F9' },
+  container: { flex: 1, backgroundColor: '#F5F5F5' },
+  content: { paddingBottom: 96 },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F5F5F5' },
+  hero: { paddingHorizontal: 20, paddingBottom: 28 },
+  heroTopBar: { flexDirection: 'row', alignItems: 'center', marginBottom: 18 },
+  backButton: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
+  eyebrow: { color: '#A89CF7', fontSize: 10, fontWeight: '700', letterSpacing: 1.2, textTransform: 'uppercase' },
+  heroTitle: { color: '#FFFFFF', fontSize: 22, fontWeight: '800', marginTop: 4, marginBottom: 4 },
+  heroSub: { color: 'rgba(255,255,255,0.58)', fontSize: 12, lineHeight: 18, marginBottom: 18 },
+  heroChip: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', backgroundColor: 'rgba(255,255,255,0.12)', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.2)', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 5 },
+  heroDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#6EE7B7' },
+  heroChipText: { color: 'rgba(255,255,255,0.85)', fontSize: 11 },
+  metricGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, paddingHorizontal: 16, marginTop: -20, marginBottom: 16 },
+  metricCard: { width: '48.5%', backgroundColor: '#FFFFFF', borderRadius: 14, padding: 13, borderWidth: 0.5, borderColor: '#E5E7EB' },
+  metricIconBox: { width: 26, height: 26, borderRadius: 7, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
+  metricValue: { fontSize: 22, fontWeight: '800', color: '#1A1A2E' },
+  metricLabel: { fontSize: 11, color: '#9CA3AF', marginTop: 2 },
+  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, marginBottom: 10, marginTop: 2 },
+  sectionTitle: { fontSize: 13, fontWeight: '700', color: '#1A1A2E' },
+  sectionLink: { fontSize: 11, color: '#534AB7', fontWeight: '700' },
+  card: { marginHorizontal: 16, marginBottom: 16, backgroundColor: '#FFFFFF', borderRadius: 14, padding: 14, borderWidth: 0.5, borderColor: '#E5E7EB' },
+  sectionRow: { paddingVertical: 12, borderTopWidth: 0.5, borderTopColor: '#E5E7EB' },
   sectionInfo: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  progressTrack: { marginTop: 9, height: 8, borderRadius: 999, backgroundColor: '#E2E8F0', overflow: 'hidden' },
-  progressFill: { height: 8, borderRadius: 999, backgroundColor: '#2563EB' },
-  tone_neutral: { backgroundColor: '#F1F5F9', color: '#475569' },
-  tone_blue: { backgroundColor: '#DBEAFE', color: '#1D4ED8' },
-  tone_green: { backgroundColor: '#DCFCE7', color: '#15803D' },
-  tone_yellow: { backgroundColor: '#FEF3C7', color: '#A16207' },
-  tone_red: { backgroundColor: '#FEE2E2', color: '#B91C1C' },
-  tone_gray: { backgroundColor: '#E2E8F0', color: '#475569' },
+  rowTitle: { color: '#1A1A2E', fontWeight: '800', fontSize: 13 },
+  rowMeta: { color: '#9CA3AF', fontSize: 11 },
+  progressTrack: { marginTop: 8, height: 6, borderRadius: 999, backgroundColor: '#F3F4F6', overflow: 'hidden' },
+  progressFill: { height: 6, borderRadius: 999, backgroundColor: '#534AB7' },
+  eventItem: { backgroundColor: '#FFFFFF', borderRadius: 14, padding: 12, borderWidth: 0.5, borderColor: '#E5E7EB', marginHorizontal: 16, marginBottom: 8, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  eventInfo: { flex: 1, minWidth: 0 },
+  eventName: { fontSize: 13, fontWeight: '800', color: '#1A1A2E' },
+  eventMeta: { fontSize: 11, color: '#9CA3AF', marginTop: 2 },
+  statusBadge: { paddingHorizontal: 9, paddingVertical: 4, borderRadius: 20 },
+  statusBadgeText: { fontSize: 10, fontWeight: '800' },
+  emptyBox: { backgroundColor: '#FFFFFF', borderRadius: 14, padding: 24, borderWidth: 0.5, borderColor: '#E5E7EB', marginHorizontal: 16, alignItems: 'center' },
+  emptyTitle: { color: '#6B7280', fontSize: 13, fontWeight: '800' },
+  emptyText: { color: '#9CA3AF', paddingVertical: 16, textAlign: 'center', fontSize: 13 },
+  tone_neutral: { backgroundColor: '#F1F5F9' },
+  toneText_neutral: { color: '#475569' },
+  tone_blue: { backgroundColor: '#EEEDFE' },
+  toneText_blue: { color: '#534AB7' },
+  tone_green: { backgroundColor: '#E1F5EE' },
+  toneText_green: { color: '#0F6E56' },
+  tone_yellow: { backgroundColor: '#FAEEDA' },
+  toneText_yellow: { color: '#854F0B' },
+  tone_red: { backgroundColor: '#FEE2E2' },
+  toneText_red: { color: '#B91C1C' },
+  tone_gray: { backgroundColor: '#E5E7EB' },
+  toneText_gray: { color: '#6B7280' },
 });

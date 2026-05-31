@@ -12,11 +12,24 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Svg, { Path } from 'react-native-svg';
 import { errorMessage } from '../lib/account';
 import { backendApi } from '../lib/backend';
 import { resolveImageUrl } from '../lib/config';
 import { formatEventCategory, formatEventRange, formatEventStatus, getEventDisplayStatus } from '../lib/ticketDisplay';
 import type { EventDetail, TicketDetail } from '../types/api';
+
+const HeroGradient = LinearGradient as unknown as React.ComponentType<any>;
+
+function BackIcon() {
+  return (
+    <Svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.78)" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <Path d="M19 12H5m7 7-7-7 7-7" />
+    </Svg>
+  );
+}
 
 function eventTitle(event: EventDetail) {
   return event.name || event.title || '이벤트';
@@ -38,7 +51,17 @@ function roundSummary(event: EventDetail) {
   return rounds.length === 1 ? firstText : `${firstText} 외 ${rounds.length - 1}개 회차`;
 }
 
+const STATUS_TONE: Record<string, { bg: string; text: string }> = {
+  neutral: { bg: '#F3F4F6', text: '#6B7280' },
+  blue: { bg: '#EEEDFE', text: '#534AB7' },
+  green: { bg: '#E1F5EE', text: '#0F6E56' },
+  yellow: { bg: '#FAEEDA', text: '#854F0B' },
+  red: { bg: '#FEE2E2', text: '#B91C1C' },
+  gray: { bg: '#E5E7EB', text: '#6B7280' },
+};
+
 export default function OrganizerEventDetailPage({ navigation, route }: any) {
+  const insets = useSafeAreaInsets();
   const eventId = route?.params?.eventId as string;
   const [event, setEvent] = useState<EventDetail | null>(null);
   const [tickets, setTickets] = useState<TicketDetail[]>([]);
@@ -76,11 +99,6 @@ export default function OrganizerEventDetailPage({ navigation, route }: any) {
 
   useFocusEffect(useCallback(() => { void load(); }, [load]));
 
-  const refresh = () => {
-    setRefreshing(true);
-    void load();
-  };
-
   const uploadPoster = async () => {
     if (!event) return;
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -105,7 +123,7 @@ export default function OrganizerEventDetailPage({ navigation, route }: any) {
       Alert.alert('업로드 완료', '포스터가 저장되었습니다.');
       await load();
     } catch (err: any) {
-      Alert.alert('업로드 실패', errorMessage(err, '포스터 업로드에 실패했습니다.\n\n' + (err?.response?.data?.message ?? err?.message ?? '')));
+      Alert.alert('업로드 실패', errorMessage(err, '포스터 업로드에 실패했습니다.'));
     } finally {
       setPosterUploading(false);
     }
@@ -117,7 +135,6 @@ export default function OrganizerEventDetailPage({ navigation, route }: any) {
       Alert.alert('변경 불가', '관리자가 취소한 이벤트는 주최자가 복구할 수 없습니다.');
       return;
     }
-
     setStatusSaving(true);
     try {
       await backendApi.updateEventStatus(event.id, { status: statusDraft });
@@ -130,10 +147,15 @@ export default function OrganizerEventDetailPage({ navigation, route }: any) {
     }
   };
 
+  const goBack = () => {
+    if (navigation.canGoBack?.()) navigation.goBack();
+    else navigation.navigate('MyEvents');
+  };
+
   if (loading) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator size="large" color="#2563EB" />
+        <ActivityIndicator size="large" color="#534AB7" />
         <Text style={styles.loadingText}>이벤트 상세 정보를 불러오고 있습니다.</Text>
       </View>
     );
@@ -143,157 +165,173 @@ export default function OrganizerEventDetailPage({ navigation, route }: any) {
     return (
       <View style={styles.center}>
         <Text style={styles.emptyTitle}>이벤트를 찾을 수 없습니다.</Text>
+        <TouchableOpacity style={styles.primaryButton} onPress={goBack}>
+          <Text style={styles.primaryButtonText}>돌아가기</Text>
+        </TouchableOpacity>
       </View>
     );
   }
+
+  const tone = STATUS_TONE[displayStatus.tone] ?? STATUS_TONE.neutral;
 
   return (
     <ScrollView
       style={styles.container}
       contentContainerStyle={styles.content}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} />}
     >
-      <View style={styles.hero}>
-        {resolveImageUrl(event.imageUrl) ? (
-          <Image
-            source={{ uri: resolveImageUrl(event.imageUrl)! }}
-            style={styles.poster}
-            resizeMode="cover"
-          />
-        ) : (
-          <View style={styles.posterEmpty}><Text style={styles.posterEmptyText}>포스터 없음</Text></View>
-        )}
-        <View style={styles.heroCopy}>
-          <View style={styles.heroTopRow}>
-            <Text style={styles.category}>{formatEventCategory(event.category)}</Text>
-            <Text style={[styles.statusBadge, styles[`tone_${displayStatus.tone}`]]}>{displayStatus.label}</Text>
+      <HeroGradient colors={['#1A1A2E', '#2D2B6B']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.hero, { paddingTop: Math.max(insets.top + 20, 42) }]}>
+        <View style={styles.heroTopBar}>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel="뒤로가기" style={styles.backButton} onPress={goBack}>
+            <BackIcon />
+          </TouchableOpacity>
+          <View style={[styles.statusChipHero, { backgroundColor: tone.bg }]}>
+            <Text style={[styles.statusChipHeroText, { color: tone.text }]}>{displayStatus.label}</Text>
           </View>
-          <Text style={styles.title}>{eventTitle(event)}</Text>
-          <Text style={styles.meta}>장소 {event.venue || '-'}</Text>
-          <Text style={styles.meta}>회차 {roundSummary(event)}</Text>
-          <Text style={styles.statusText}>현재 상태: {formatEventStatus(event.status)}</Text>
         </View>
-      </View>
+        <Text style={styles.eyebrow}>{formatEventCategory(event.category).toUpperCase()}</Text>
+        <Text style={styles.heroTitle} numberOfLines={2}>{eventTitle(event)}</Text>
+        <Text style={styles.heroSub} numberOfLines={1}>장소 {event.venue || '-'}</Text>
+        <View style={styles.heroChip}>
+          <View style={styles.heroDot} />
+          <Text style={styles.heroChipText}>{roundSummary(event)}</Text>
+        </View>
+      </HeroGradient>
+
+      {resolveImageUrl(event.imageUrl) ? (
+        <View style={styles.posterCard}>
+          <Image source={{ uri: resolveImageUrl(event.imageUrl)! }} style={styles.poster} resizeMode="cover" />
+        </View>
+      ) : null}
 
       <View style={styles.metricGrid}>
-        <Metric label="총 티켓" value={totalTickets} />
-        <Metric label="발행" value={tickets.length} />
-        <Metric label="판매" value={soldTickets} />
-        <Metric label="체크인" value={usedTickets} />
+        <MetricCard label="총 티켓" value={totalTickets} bg="#EEEDFE" color="#534AB7" />
+        <MetricCard label="발행" value={tickets.length} bg="#F3F4F6" color="#6B7280" />
+        <MetricCard label="판매" value={soldTickets} bg="#E1F5EE" color="#0F6E56" />
+        <MetricCard label="체크인" value={usedTickets} bg="#E6F1FB" color="#185FA5" />
       </View>
 
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>티켓 운영</Text>
-        <View style={styles.actionList}>
-          <TouchableOpacity style={styles.primaryButton} onPress={() => navigation.navigate('TicketIssue', { eventId: event.id, returnTo: 'detail' })}>
-            <Text style={styles.primaryButtonText}>티켓 발행</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.secondaryButton} onPress={() => navigation.navigate('SalesStatus', { eventId: event.id })}>
-            <Text style={styles.secondaryButtonText}>티켓 판매 현황</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.secondaryButton} onPress={() => navigation.navigate('CheckInStatus', { eventId: event.id })}>
-            <Text style={styles.secondaryButtonText}>체크인 현황</Text>
-          </TouchableOpacity>
-        </View>
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionTitle}>티켓 운영</Text>
+      </View>
+      <TouchableOpacity style={styles.primaryAction} onPress={() => navigation.navigate('TicketIssue', { eventId: event.id, returnTo: 'detail' })}>
+        <Text style={styles.primaryActionText}>티켓 발행</Text>
+      </TouchableOpacity>
+      <View style={styles.actionRow}>
+        <TouchableOpacity style={styles.actionBtn} onPress={() => navigation.navigate('SalesStatus', { eventId: event.id })}>
+          <Text style={styles.actionBtnText}>판매 현황</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.actionBtn} onPress={() => navigation.navigate('CheckInStatus', { eventId: event.id })}>
+          <Text style={styles.actionBtnText}>체크인 현황</Text>
+        </TouchableOpacity>
       </View>
 
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionTitle}>이벤트 관리</Text>
+      </View>
       <View style={styles.card}>
-        <Text style={styles.cardTitle}>이벤트 관리</Text>
-        <View style={styles.actionList}>
-          <TouchableOpacity style={styles.secondaryButton} onPress={() => navigation.navigate('EventSettings', { eventId: event.id })}>
-            <Text style={styles.secondaryButtonText}>이벤트 수정</Text>
+        <View style={styles.manageRow}>
+          <TouchableOpacity style={styles.manageBtn} onPress={() => navigation.navigate('EventSettings', { eventId: event.id })}>
+            <Text style={styles.manageBtnText}>이벤트 수정</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.secondaryButton, posterUploading && styles.disabledButton]}
+            style={[styles.manageBtn, posterUploading && styles.disabledButton]}
             disabled={posterUploading}
             onPress={() => void uploadPoster()}
           >
-            <Text style={styles.secondaryButtonText}>{posterUploading ? '업로드 중...' : event.imageUrl ? '포스터 교체' : '포스터 등록'}</Text>
+            <Text style={styles.manageBtnText}>{posterUploading ? '업로드 중...' : event.imageUrl ? '포스터 교체' : '포스터 등록'}</Text>
           </TouchableOpacity>
         </View>
 
-        <View style={styles.statusPanel}>
-          <Text style={styles.subTitle}>이벤트 상태 변경</Text>
-          <Text style={styles.statusDescription}>게시 여부와 취소 여부만 관리합니다. 판매 상태와 공연 상태는 일정과 티켓 수량으로 자동 계산됩니다.</Text>
-          {event.adminCanceled ? <Text style={styles.warningText}>관리자가 취소한 이벤트는 주최자가 복구할 수 없습니다.</Text> : null}
-          <View style={styles.statusGrid}>
-            {[
-              { value: 'PUBLISHED', label: '게시중' },
-              { value: 'INACTIVE', label: '비공개' },
-              { value: 'CANCELLED', label: '이벤트 취소' },
-            ].map((item) => (
-              <TouchableOpacity
-                key={item.value}
-                style={[styles.statusChip, statusDraft === item.value && styles.activeStatusChip]}
-                disabled={statusSaving || (event.adminCanceled === true && item.value !== 'CANCELLED')}
-                onPress={() => setStatusDraft(item.value)}
-              >
-                <Text style={[styles.statusChipText, statusDraft === item.value && styles.activeStatusChipText]}>{item.label}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-          <TouchableOpacity style={[styles.statusSaveButton, statusSaving && styles.disabledButton]} disabled={statusSaving} onPress={() => void saveStatus()}>
-            <Text style={styles.statusSaveButtonText}>{statusSaving ? '저장 중...' : '상태 저장'}</Text>
-          </TouchableOpacity>
+        <View style={styles.divider} />
+
+        <Text style={styles.subTitle}>이벤트 상태 변경</Text>
+        <Text style={styles.descriptionText}>게시 여부와 취소 여부를 관리합니다. 판매·공연 상태는 일정과 티켓 수량으로 자동 계산됩니다.</Text>
+        {event.adminCanceled ? <Text style={styles.warningText}>관리자가 취소한 이벤트는 주최자가 복구할 수 없습니다.</Text> : null}
+
+        <View style={styles.statusGrid}>
+          {[
+            { value: 'PUBLISHED', label: '게시중' },
+            { value: 'INACTIVE', label: '비공개' },
+            { value: 'CANCELLED', label: '이벤트 취소' },
+          ].map((item) => (
+            <TouchableOpacity
+              key={item.value}
+              style={[styles.statusChip, statusDraft === item.value && styles.activeStatusChip]}
+              disabled={statusSaving || (event.adminCanceled === true && item.value !== 'CANCELLED')}
+              onPress={() => setStatusDraft(item.value)}
+            >
+              <Text style={[styles.statusChipText, statusDraft === item.value && styles.activeStatusChipText]}>{item.label}</Text>
+            </TouchableOpacity>
+          ))}
         </View>
+        <TouchableOpacity style={[styles.statusSaveBtn, statusSaving && styles.disabledButton]} disabled={statusSaving} onPress={() => void saveStatus()}>
+          <Text style={styles.statusSaveBtnText}>{statusSaving ? '저장 중...' : '상태 저장'}</Text>
+        </TouchableOpacity>
       </View>
     </ScrollView>
   );
 }
 
-function Metric({ label, value }: { label: string; value: number }) {
+function MetricCard({ label, value, bg, color }: { label: string; value: number; bg: string; color: string }) {
   return (
     <View style={styles.metricCard}>
+      <View style={[styles.metricIconBox, { backgroundColor: bg }]}>
+        <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: color }} />
+      </View>
+      <Text style={styles.metricValue}>{value.toLocaleString()}</Text>
       <Text style={styles.metricLabel}>{label}</Text>
-      <Text style={styles.metricValue}>{value}</Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F4F7FB' },
-  content: { padding: 16, paddingBottom: 96 },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20, backgroundColor: '#F4F7FB' },
-  loadingText: { marginTop: 12, color: '#64748B' },
-  emptyTitle: { color: '#0F172A', fontSize: 18, fontWeight: '900' },
-  hero: { backgroundColor: '#FFFFFF', borderRadius: 12, overflow: 'hidden', borderWidth: 1, borderColor: '#E2E8F0' },
-  poster: { width: '100%', aspectRatio: 16 / 9, backgroundColor: '#E2E8F0' },
-  posterEmpty: { width: '100%', aspectRatio: 16 / 9, backgroundColor: '#E2E8F0', alignItems: 'center', justifyContent: 'center' },
-  posterEmptyText: { color: '#64748B', fontWeight: '900' },
-  heroCopy: { padding: 16 },
-  heroTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 8 },
-  category: { color: '#2563EB', fontWeight: '900', fontSize: 12 },
-  title: { fontSize: 24, fontWeight: '900', color: '#0F172A', lineHeight: 31 },
-  meta: { marginTop: 7, color: '#64748B', fontSize: 13, lineHeight: 19 },
-  statusText: { marginTop: 10, color: '#334155', fontSize: 12, fontWeight: '900' },
-  statusBadge: { overflow: 'hidden', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5, minWidth: 62, textAlign: 'center', fontSize: 11, fontWeight: '900' },
-  metricGrid: { flexDirection: 'row', gap: 8, marginTop: 14 },
-  metricCard: { flex: 1, backgroundColor: '#FFFFFF', borderRadius: 8, padding: 12, borderWidth: 1, borderColor: '#E2E8F0' },
-  metricLabel: { color: '#64748B', fontSize: 11, fontWeight: '800' },
-  metricValue: { marginTop: 7, color: '#0F172A', fontSize: 22, fontWeight: '900' },
-  card: { marginTop: 14, backgroundColor: '#FFFFFF', borderRadius: 12, padding: 15, borderWidth: 1, borderColor: '#E2E8F0' },
-  cardTitle: { color: '#0F172A', fontSize: 17, fontWeight: '900' },
-  subTitle: { color: '#0F172A', fontSize: 15, fontWeight: '900' },
-  actionList: { marginTop: 12, gap: 8 },
-  primaryButton: { backgroundColor: '#2563EB', borderRadius: 10, paddingVertical: 14, alignItems: 'center' },
-  primaryButtonText: { color: '#FFFFFF', fontSize: 15, fontWeight: '900' },
-  secondaryButton: { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 10, paddingVertical: 13, alignItems: 'center' },
-  secondaryButtonText: { color: '#0F172A', fontSize: 15, fontWeight: '900' },
-  statusPanel: { marginTop: 16, paddingTop: 14, borderTopWidth: 1, borderTopColor: '#E2E8F0' },
-  statusDescription: { marginTop: 8, color: '#475569', fontSize: 13, lineHeight: 19 },
-  warningText: { marginTop: 10, color: '#B91C1C', fontSize: 13, fontWeight: '800', lineHeight: 19 },
-  statusGrid: { flexDirection: 'row', gap: 8, marginTop: 12 },
-  statusChip: { flex: 1, borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 9, paddingVertical: 11, alignItems: 'center', backgroundColor: '#FFFFFF' },
-  activeStatusChip: { borderColor: '#2563EB', backgroundColor: '#EFF6FF' },
-  statusChipText: { color: '#475569', fontWeight: '900', fontSize: 12 },
-  activeStatusChipText: { color: '#2563EB' },
-  statusSaveButton: { marginTop: 10, borderWidth: 1, borderColor: '#2563EB', borderRadius: 10, paddingVertical: 12, alignItems: 'center', backgroundColor: '#EFF6FF' },
-  statusSaveButtonText: { color: '#2563EB', fontSize: 14, fontWeight: '900' },
+  container: { flex: 1, backgroundColor: '#F5F5F5' },
+  content: { paddingBottom: 96 },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20, backgroundColor: '#F5F5F5' },
+  loadingText: { marginTop: 12, color: '#9CA3AF', fontSize: 14 },
+  emptyTitle: { color: '#1A1A2E', fontSize: 16, fontWeight: '800', marginBottom: 16 },
+  hero: { paddingHorizontal: 20, paddingBottom: 28 },
+  heroTopBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 },
+  backButton: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
+  statusChipHero: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
+  statusChipHeroText: { fontSize: 11, fontWeight: '800' },
+  eyebrow: { color: '#A89CF7', fontSize: 10, fontWeight: '700', letterSpacing: 1.2, textTransform: 'uppercase' },
+  heroTitle: { color: '#FFFFFF', fontSize: 20, fontWeight: '800', marginTop: 4, marginBottom: 4 },
+  heroSub: { color: 'rgba(255,255,255,0.58)', fontSize: 12, lineHeight: 18, marginBottom: 14 },
+  heroChip: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', backgroundColor: 'rgba(255,255,255,0.12)', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.2)', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 5 },
+  heroDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#6EE7B7' },
+  heroChipText: { color: 'rgba(255,255,255,0.85)', fontSize: 11 },
+  posterCard: { marginHorizontal: 16, marginTop: 14, borderRadius: 14, overflow: 'hidden', borderWidth: 0.5, borderColor: '#E5E7EB' },
+  poster: { width: '100%', aspectRatio: 16 / 9, backgroundColor: '#E5E7EB' },
+  metricGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, paddingHorizontal: 16, marginTop: 14, marginBottom: 16 },
+  metricCard: { width: '48.5%', backgroundColor: '#FFFFFF', borderRadius: 14, padding: 13, borderWidth: 0.5, borderColor: '#E5E7EB' },
+  metricIconBox: { width: 26, height: 26, borderRadius: 7, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
+  metricValue: { fontSize: 22, fontWeight: '800', color: '#1A1A2E' },
+  metricLabel: { fontSize: 11, color: '#9CA3AF', marginTop: 2 },
+  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, marginBottom: 10, marginTop: 2 },
+  sectionTitle: { fontSize: 13, fontWeight: '700', color: '#1A1A2E' },
+  primaryAction: { marginHorizontal: 16, backgroundColor: '#1A1A2E', borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginBottom: 8 },
+  primaryActionText: { color: '#FFFFFF', fontSize: 14, fontWeight: '800' },
+  actionRow: { flexDirection: 'row', gap: 8, paddingHorizontal: 16, marginBottom: 18 },
+  actionBtn: { flex: 1, backgroundColor: '#FFFFFF', borderRadius: 12, paddingVertical: 13, alignItems: 'center', borderWidth: 0.5, borderColor: '#E5E7EB' },
+  actionBtnText: { color: '#1A1A2E', fontSize: 13, fontWeight: '700' },
+  card: { marginHorizontal: 16, marginBottom: 16, backgroundColor: '#FFFFFF', borderRadius: 14, padding: 14, borderWidth: 0.5, borderColor: '#E5E7EB' },
+  manageRow: { flexDirection: 'row', gap: 8 },
+  manageBtn: { flex: 1, backgroundColor: '#F5F5F5', borderRadius: 10, paddingVertical: 11, alignItems: 'center', borderWidth: 0.5, borderColor: '#E5E7EB' },
+  manageBtnText: { color: '#1A1A2E', fontSize: 13, fontWeight: '700' },
+  divider: { height: 0.5, backgroundColor: '#E5E7EB', marginVertical: 14 },
+  subTitle: { color: '#1A1A2E', fontSize: 14, fontWeight: '800', marginBottom: 6 },
+  descriptionText: { color: '#6B7280', fontSize: 12, lineHeight: 18, marginBottom: 10 },
+  warningText: { color: '#B91C1C', fontSize: 12, fontWeight: '700', lineHeight: 18, marginBottom: 10 },
+  statusGrid: { flexDirection: 'row', gap: 8, marginBottom: 12 },
+  statusChip: { flex: 1, borderWidth: 0.5, borderColor: '#E5E7EB', borderRadius: 10, paddingVertical: 10, alignItems: 'center', backgroundColor: '#F5F5F5' },
+  activeStatusChip: { borderColor: '#534AB7', backgroundColor: '#EEEDFE' },
+  statusChipText: { color: '#6B7280', fontWeight: '700', fontSize: 12 },
+  activeStatusChipText: { color: '#534AB7' },
+  statusSaveBtn: { borderWidth: 0.5, borderColor: '#534AB7', borderRadius: 10, paddingVertical: 11, alignItems: 'center', backgroundColor: '#EEEDFE' },
+  statusSaveBtnText: { color: '#534AB7', fontSize: 13, fontWeight: '800' },
+  primaryButton: { backgroundColor: '#1A1A2E', borderRadius: 12, paddingVertical: 14, paddingHorizontal: 20, alignItems: 'center', marginTop: 12 },
+  primaryButtonText: { color: '#FFFFFF', fontSize: 14, fontWeight: '800' },
   disabledButton: { opacity: 0.55 },
-  tone_neutral: { backgroundColor: '#F1F5F9', color: '#475569' },
-  tone_blue: { backgroundColor: '#DBEAFE', color: '#1D4ED8' },
-  tone_green: { backgroundColor: '#DCFCE7', color: '#15803D' },
-  tone_yellow: { backgroundColor: '#FEF3C7', color: '#A16207' },
-  tone_red: { backgroundColor: '#FEE2E2', color: '#B91C1C' },
-  tone_gray: { backgroundColor: '#E2E8F0', color: '#475569' },
 });

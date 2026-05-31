@@ -3,23 +3,32 @@ import { useFocusEffect } from '@react-navigation/native';
 import {
   ActivityIndicator,
   Alert,
-  FlatList,
   RefreshControl,
+  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Svg, { Path } from 'react-native-svg';
 import { errorMessage } from '../lib/account';
 import { backendApi } from '../lib/backend';
 import { getNextRoundTime } from '../lib/ticketDisplay';
 import type { EventSummary, TicketDetail } from '../types/api';
 
-type CheckInEvent = {
-  event: EventSummary;
-  tickets: TicketDetail[];
-};
+const HeroGradient = LinearGradient as unknown as React.ComponentType<any>;
 
+function BackIcon() {
+  return (
+    <Svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.78)" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <Path d="M19 12H5m7 7-7-7 7-7" />
+    </Svg>
+  );
+}
+
+type CheckInEvent = { event: EventSummary; tickets: TicketDetail[] };
 type CheckInSection = '오늘 일정' | '향후 일정' | '종료된 이벤트';
 
 type CheckInState = {
@@ -29,10 +38,8 @@ type CheckInState = {
   actionable: boolean;
   ticketCount: number;
   usedCount: number;
-  startTime?: number;
   startSummary: string;
   buttonLabel: string;
-  buttonDanger: boolean;
 };
 
 const PAGE_SIZE = 8;
@@ -46,8 +53,7 @@ function formatStartSummary(startTime: number, now = new Date()) {
   const start = new Date(startTime);
   const pad = (value: number) => String(value).padStart(2, '0');
   const timeText = `${pad(start.getHours())}:${pad(start.getMinutes())}`;
-  const today = now.toDateString() === start.toDateString();
-  if (today) return `오늘 ${timeText} 시작`;
+  if (now.toDateString() === start.toDateString()) return `오늘 ${timeText} 시작`;
   const tomorrow = new Date(now);
   tomorrow.setDate(tomorrow.getDate() + 1);
   if (tomorrow.toDateString() === start.toDateString()) return `내일 ${timeText} 시작`;
@@ -55,134 +61,44 @@ function formatStartSummary(startTime: number, now = new Date()) {
 }
 
 function checkInStatus(item: CheckInEvent, now = new Date()): CheckInState {
-  // cancelled events should show cancelled label first
   const eventStatus = String(item.event.status ?? '').toUpperCase();
   if (eventStatus === 'CANCELLED') {
-    return {
-      label: '이벤트 취소',
-      rank: 0,
-      section: '종료된 이벤트',
-      actionable: false,
-      ticketCount: 0,
-      usedCount: 0,
-      startSummary: '-',
-      buttonLabel: '체크인 하기',
-      buttonDanger: true,
-    };
+    return { label: '이벤트 취소', rank: 0, section: '종료된 이벤트', actionable: false, ticketCount: 0, usedCount: 0, startSummary: '-', buttonLabel: '체크인 하기' };
   }
-
   const ticketCount = item.event.totalTicketCount && item.event.totalTicketCount > 0 ? item.event.totalTicketCount : item.tickets.length;
   const usedCount = item.tickets.filter((ticket) => ticket.status === 'USED').length;
   const startTime = getNextRoundTime(item.event, now);
   const startSummary = formatStartSummary(startTime, now);
-
   if (ticketCount === 0) {
     const isToday = !Number.isNaN(startTime) && new Date(startTime).toDateString() === now.toDateString();
-    return {
-      label: '티켓 미발행',
-      rank: 2,
-      section: isToday ? '오늘 일정' : '향후 일정',
-      actionable: false,
-      ticketCount,
-      usedCount,
-      startSummary,
-      buttonLabel: '티켓 미발행',
-      buttonDanger: true,
-    };
+    return { label: '티켓 미발행', rank: 2, section: isToday ? '오늘 일정' : '향후 일정', actionable: false, ticketCount, usedCount, startSummary, buttonLabel: '티켓 미발행' };
   }
-
   const end = new Date(item.event.eventEndAt || item.event.endsAt || '').getTime();
-  const current = now.getTime();
-
-  if (!Number.isNaN(end) && current > end) {
-    return {
-      label: '종료',
-      rank: 4,
-      section: '종료된 이벤트',
-      actionable: false,
-      ticketCount,
-      usedCount,
-      startSummary,
-      buttonLabel: '종료',
-      buttonDanger: true,
-    };
+  if (!Number.isNaN(end) && now.getTime() > end) {
+    return { label: '종료', rank: 4, section: '종료된 이벤트', actionable: false, ticketCount, usedCount, startSummary, buttonLabel: '종료' };
   }
-
   if (!Number.isNaN(startTime)) {
-    const diff = startTime - current;
-    const startDate = new Date(startTime);
-    const isToday = startDate.toDateString() === now.toDateString();
+    const diff = startTime - now.getTime();
+    const isToday = new Date(startTime).toDateString() === now.toDateString();
     const isSoon = diff > 0 && diff <= 3 * 60 * 60 * 1000;
-
-    if (current >= startTime) {
-      const elapsed = current - startTime;
-      if (elapsed <= 30 * 60 * 1000) {
-        return {
-          label: '입장 진행중',
-          rank: 0,
-          section: '오늘 일정',
-          actionable: true,
-          ticketCount,
-          usedCount,
-          startSummary,
-          buttonLabel: '입장 처리',
-          buttonDanger: false,
-        };
-      }
-      return {
-        label: '지연 입장',
-        rank: 1,
-        section: '오늘 일정',
-        actionable: true,
-        ticketCount,
-        usedCount,
-        startSummary,
-        buttonLabel: '입장 처리',
-        buttonDanger: false,
-      };
+    if (now.getTime() >= startTime) {
+      const elapsed = now.getTime() - startTime;
+      if (elapsed <= 30 * 60 * 1000) return { label: '입장 진행중', rank: 0, section: '오늘 일정', actionable: true, ticketCount, usedCount, startSummary, buttonLabel: '입장 처리' };
+      return { label: '지연 입장', rank: 1, section: '오늘 일정', actionable: true, ticketCount, usedCount, startSummary, buttonLabel: '입장 처리' };
     }
-
-    if (isSoon || isToday) {
-      return {
-        label: '체크인 예정',
-        rank: 2,
-        section: '오늘 일정',
-        actionable: true,
-        ticketCount,
-        usedCount,
-        startSummary,
-        buttonLabel: '체크인 하기',
-        buttonDanger: false,
-      };
-    }
-
-    return {
-      label: '체크인 예정',
-      rank: 3,
-      section: '향후 일정',
-      actionable: false,
-      ticketCount,
-      usedCount,
-      startSummary,
-      buttonLabel: '체크인 예정',
-      buttonDanger: true,
-    };
+    if (isSoon || isToday) return { label: '체크인 예정', rank: 2, section: '오늘 일정', actionable: true, ticketCount, usedCount, startSummary, buttonLabel: '체크인 하기' };
   }
-
-  return {
-    label: '체크인 예정',
-    rank: 3,
-    section: '향후 일정',
-    actionable: false,
-    ticketCount,
-    usedCount,
-    startSummary,
-    buttonLabel: '체크인 예정',
-    buttonDanger: true,
-  };
+  return { label: '체크인 예정', rank: 3, section: '향후 일정', actionable: false, ticketCount, usedCount, startSummary, buttonLabel: '체크인 예정' };
 }
 
+const SECTION_SUBTITLE: Record<CheckInSection, string> = {
+  '오늘 일정': '오늘 체크인 예정 이벤트를 확인합니다.',
+  '향후 일정': '예정된 체크인 이벤트를 확인합니다.',
+  '종료된 이벤트': '종료된 체크인 이벤트를 확인합니다.',
+};
+
 export default function CheckInEventListPage({ navigation, route }: any) {
+  const insets = useSafeAreaInsets();
   const section = (route?.params?.section as CheckInSection | undefined) || '오늘 일정';
   const [items, setItems] = useState<CheckInEvent[]>([]);
   const [loading, setLoading] = useState(true);
@@ -220,116 +136,141 @@ export default function CheckInEventListPage({ navigation, route }: any) {
         const aTime = getNextRoundTime(a.item.event);
         const bTime = getNextRoundTime(b.item.event);
         return (Number.isNaN(aTime) ? Number.MAX_SAFE_INTEGER : aTime) - (Number.isNaN(bTime) ? Number.MAX_SAFE_INTEGER : bTime);
-      })
-      .map(({ item, status }) => ({ item, status }));
+      });
   }, [items, section]);
 
   const totalPages = Math.max(1, Math.ceil(filteredEvents.length / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
   const pagedEvents = filteredEvents.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
+  const STATUS_BADGE: Record<string, { bg: string; text: string }> = {
+    '입장 진행중': { bg: '#E1F5EE', text: '#0F6E56' },
+    '지연 입장': { bg: '#FAEEDA', text: '#854F0B' },
+    '체크인 예정': { bg: '#EEEDFE', text: '#534AB7' },
+    '티켓 미발행': { bg: '#FEE2E2', text: '#B91C1C' },
+    '종료': { bg: '#F3F4F6', text: '#6B7280' },
+    '이벤트 취소': { bg: '#F3F4F6', text: '#6B7280' },
+  };
+
   if (loading && items.length === 0) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator size="large" color="#2563EB" />
+        <ActivityIndicator size="large" color="#534AB7" />
         <Text style={styles.loadingText}>체크인 이벤트 목록을 불러오고 있습니다.</Text>
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <View style={styles.headerCopy}>
-          <Text style={styles.eyebrow}>Check-in Events</Text>
-          <Text style={styles.title}>{section}</Text>
-          <Text style={styles.subtitle}>{section === '오늘 일정' ? '오늘 체크인 예정 이벤트를 확인합니다.' : section === '향후 일정' ? '예정된 체크인 이벤트를 확인합니다.' : '종료된 체크인 이벤트를 확인합니다.'}</Text>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.content}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} />}
+    >
+      <HeroGradient colors={['#1A1A2E', '#2D2B6B']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.hero, { paddingTop: Math.max(insets.top + 20, 42) }]}>
+        <View style={styles.heroTopBar}>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel="뒤로가기" style={styles.backButton} onPress={() => navigation.goBack()}>
+            <BackIcon />
+          </TouchableOpacity>
         </View>
-        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-          <Text style={styles.backButtonText}>뒤로</Text>
-        </TouchableOpacity>
+        <Text style={styles.eyebrow}>CHECK-IN EVENTS</Text>
+        <Text style={styles.heroTitle}>{section}</Text>
+        <Text style={styles.heroSub}>{SECTION_SUBTITLE[section]}</Text>
+        <View style={styles.heroChip}>
+          <View style={styles.heroDot} />
+          <Text style={styles.heroChipText}>{filteredEvents.length}개 이벤트</Text>
+        </View>
+      </HeroGradient>
+
+      <View style={styles.resultRow}>
+        <Text style={styles.resultHint}>결과 {filteredEvents.length}건</Text>
+        {filteredEvents.length > PAGE_SIZE && (
+          <Text style={styles.resultHint}>{currentPage} / {totalPages} 페이지</Text>
+        )}
       </View>
 
-      <FlatList
-        data={pagedEvents}
-        keyExtractor={(entry) => entry.item.event.id}
-        contentContainerStyle={styles.list}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} />}
-        renderItem={({ item }) => {
-          const { item: event, status } = item;
+      {pagedEvents.length === 0 ? (
+        <View style={styles.emptyBox}>
+          <Text style={styles.emptyTitle}>표시할 이벤트가 없습니다.</Text>
+        </View>
+      ) : (
+        pagedEvents.map(({ item, status }) => {
+          const badge = STATUS_BADGE[status.label] ?? { bg: '#F3F4F6', text: '#6B7280' };
           return (
-            <TouchableOpacity style={styles.card} onPress={() => navigation.navigate('CheckInManage', { eventId: event.event.id })}>
-              <View style={styles.cardHead}>
-                <Text style={styles.eventTitle}>{eventTitle(event.event)}</Text>
-                <Text style={[styles.salesBadge, !status.actionable && styles.salesBadgeMuted]}>{status.label}</Text>
+            <TouchableOpacity key={item.event.id} style={styles.eventCard} onPress={() => navigation.navigate('CheckInManage', { eventId: item.event.id })}>
+              <View style={styles.cardTop}>
+                <Text style={styles.eventName} numberOfLines={1}>{eventTitle(item.event)}</Text>
+                <View style={[styles.statusBadge, { backgroundColor: badge.bg }]}>
+                  <Text style={[styles.statusBadgeText, { color: badge.text }]}>{status.label}</Text>
+                </View>
               </View>
               <Text style={styles.eventMeta}>{status.startSummary}</Text>
               <Text style={styles.eventMeta}>입장 완료 {status.usedCount} / {status.ticketCount}</Text>
               <View style={styles.actionRow}>
                 <TouchableOpacity
-                  style={[styles.primaryButton, !status.actionable && styles.primaryButtonMuted]}
-                  onPress={() => navigation.navigate('CheckInManage', { eventId: event.event.id })}
+                  style={[styles.primaryBtn, !status.actionable && styles.primaryBtnMuted]}
+                  onPress={() => navigation.navigate('CheckInManage', { eventId: item.event.id })}
                 >
-                  <Text style={[styles.primaryButtonText, !status.actionable && styles.primaryButtonTextMuted]}>{status.actionable ? '체크인 하기' : status.buttonLabel}</Text>
+                  <Text style={[styles.primaryBtnText, !status.actionable && styles.primaryBtnTextMuted]}>
+                    {status.actionable ? '체크인 하기' : status.buttonLabel}
+                  </Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.secondaryButton} onPress={() => navigation.navigate('CheckInStatus', { eventId: event.event.id })}>
-                  <Text style={styles.secondaryButtonText}>체크인 현황</Text>
+                <TouchableOpacity style={styles.secondaryBtn} onPress={() => navigation.navigate('CheckInStatus', { eventId: item.event.id })}>
+                  <Text style={styles.secondaryBtnText}>체크인 현황</Text>
                 </TouchableOpacity>
               </View>
             </TouchableOpacity>
           );
-        }}
-        ListEmptyComponent={(
-          <View style={styles.empty}>
-            <Text style={styles.emptyTitle}>표시할 이벤트가 없습니다.</Text>
-          </View>
-        )}
-        ListFooterComponent={filteredEvents.length > PAGE_SIZE ? (
-          <View style={styles.pagination}>
-            <TouchableOpacity style={[styles.pageButton, currentPage === 1 && styles.disabledButton]} disabled={currentPage === 1} onPress={() => setPage((value) => Math.max(value - 1, 1))}>
-              <Text style={styles.pageButtonText}>이전</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.pageButton, currentPage >= totalPages && styles.disabledButton]} disabled={currentPage >= totalPages} onPress={() => setPage((value) => Math.min(value + 1, totalPages))}>
-              <Text style={styles.pageButtonText}>다음</Text>
-            </TouchableOpacity>
-          </View>
-        ) : null}
-      />
-    </View>
+        })
+      )}
+
+      {filteredEvents.length > PAGE_SIZE && (
+        <View style={styles.pagination}>
+          <TouchableOpacity style={[styles.pageButton, currentPage === 1 && styles.disabledButton]} disabled={currentPage === 1} onPress={() => setPage((v) => Math.max(v - 1, 1))}>
+            <Text style={styles.pageButtonText}>이전</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.pageButton, currentPage >= totalPages && styles.disabledButton]} disabled={currentPage >= totalPages} onPress={() => setPage((v) => Math.min(v + 1, totalPages))}>
+            <Text style={styles.pageButtonText}>다음</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F4F7FB' },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F4F7FB' },
-  loadingText: { marginTop: 12, color: '#64748B' },
-  header: { padding: 18, paddingBottom: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
-  headerCopy: { flex: 1 },
-  eyebrow: { color: '#2563EB', fontWeight: '800', fontSize: 12 },
-  title: { marginTop: 4, fontSize: 28, fontWeight: '900', color: '#0F172A' },
-  subtitle: { marginTop: 8, color: '#64748B', fontSize: 14, lineHeight: 21 },
-  backButton: { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 8, paddingHorizontal: 14, paddingVertical: 10 },
-  backButtonText: { color: '#0F172A', fontWeight: '900' },
-  list: { padding: 18, paddingTop: 8, paddingBottom: 96 },
-  card: { backgroundColor: '#FFFFFF', borderRadius: 8, padding: 16, borderWidth: 1, borderColor: '#E2E8F0', marginBottom: 12 },
-  cardHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 10, marginBottom: 8 },
-  salesBadge: { overflow: 'hidden', borderRadius: 999, backgroundColor: '#E0F2FE', color: '#0369A1', paddingHorizontal: 9, paddingVertical: 5, minWidth: 78, textAlign: 'center', fontSize: 11, fontWeight: '900' },
-  salesBadgeMuted: { backgroundColor: '#F1F5F9', color: '#64748B' },
-  eventTitle: { flex: 1, fontSize: 16, fontWeight: '900', color: '#0F172A' },
-  eventMeta: { marginTop: 4, color: '#64748B', fontSize: 12, lineHeight: 18 },
+  container: { flex: 1, backgroundColor: '#F5F5F5' },
+  content: { paddingBottom: 96 },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F5F5F5' },
+  loadingText: { marginTop: 12, color: '#9CA3AF', fontSize: 14 },
+  hero: { paddingHorizontal: 20, paddingBottom: 28 },
+  heroTopBar: { flexDirection: 'row', alignItems: 'center', marginBottom: 18 },
+  backButton: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
+  eyebrow: { color: '#A89CF7', fontSize: 10, fontWeight: '700', letterSpacing: 1.2, textTransform: 'uppercase' },
+  heroTitle: { color: '#FFFFFF', fontSize: 22, fontWeight: '800', marginTop: 4, marginBottom: 4 },
+  heroSub: { color: 'rgba(255,255,255,0.58)', fontSize: 12, lineHeight: 18, marginBottom: 18 },
+  heroChip: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', backgroundColor: 'rgba(255,255,255,0.12)', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.2)', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 5 },
+  heroDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#6EE7B7' },
+  heroChipText: { color: 'rgba(255,255,255,0.85)', fontSize: 11 },
+  resultRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, marginTop: 14, marginBottom: 10 },
+  resultHint: { fontSize: 11, color: '#9CA3AF', fontWeight: '700' },
+  eventCard: { backgroundColor: '#FFFFFF', borderRadius: 14, padding: 14, borderWidth: 0.5, borderColor: '#E5E7EB', marginHorizontal: 16, marginBottom: 8 },
+  cardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 10, marginBottom: 8 },
+  eventName: { flex: 1, fontSize: 13, fontWeight: '800', color: '#1A1A2E' },
+  statusBadge: { paddingHorizontal: 9, paddingVertical: 4, borderRadius: 20 },
+  statusBadgeText: { fontSize: 10, fontWeight: '800' },
+  eventMeta: { fontSize: 11, color: '#9CA3AF', marginTop: 3 },
   actionRow: { flexDirection: 'row', gap: 8, marginTop: 12 },
-  primaryButton: { flex: 1, backgroundColor: '#2563EB', borderRadius: 8, paddingVertical: 13, alignItems: 'center' },
-  primaryButtonMuted: { backgroundColor: '#F1F5F9', borderWidth: 1, borderColor: '#CBD5E1' },
-  primaryButtonText: { color: '#FFFFFF', fontWeight: '900' },
-  primaryButtonTextMuted: { color: '#64748B' },
-  secondaryButton: { flex: 1, borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 8, paddingVertical: 13, alignItems: 'center', backgroundColor: '#FFFFFF' },
-  secondaryButtonText: { color: '#0F172A', fontWeight: '900' },
-  empty: { alignItems: 'center', paddingVertical: 80 },
-  emptyTitle: { color: '#0F172A', fontSize: 18, fontWeight: '900' },
-  pagination: { flexDirection: 'row', gap: 8, marginTop: 4 },
-  pageButton: { flex: 1, borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 8, paddingVertical: 12, alignItems: 'center', backgroundColor: '#FFFFFF' },
-  pageButtonText: { color: '#0F172A', fontWeight: '900' },
-  dangerButton: { backgroundColor: '#FEE2E2', borderWidth: 1, borderColor: '#FCA5A5' },
-  dangerButtonText: { color: '#B91C1C' },
-  disabledButton: { opacity: 0.55 },
+  primaryBtn: { flex: 1, backgroundColor: '#1A1A2E', borderRadius: 10, paddingVertical: 11, alignItems: 'center' },
+  primaryBtnMuted: { backgroundColor: '#F3F4F6', borderWidth: 0.5, borderColor: '#E5E7EB' },
+  primaryBtnText: { color: '#FFFFFF', fontWeight: '800', fontSize: 13 },
+  primaryBtnTextMuted: { color: '#9CA3AF' },
+  secondaryBtn: { flex: 1, borderWidth: 0.5, borderColor: '#E5E7EB', borderRadius: 10, paddingVertical: 11, alignItems: 'center', backgroundColor: '#FFFFFF' },
+  secondaryBtnText: { color: '#1A1A2E', fontWeight: '700', fontSize: 13 },
+  emptyBox: { backgroundColor: '#FFFFFF', borderRadius: 14, padding: 24, borderWidth: 0.5, borderColor: '#E5E7EB', marginHorizontal: 16, alignItems: 'center' },
+  emptyTitle: { color: '#6B7280', fontSize: 13, fontWeight: '800' },
+  pagination: { flexDirection: 'row', gap: 10, paddingHorizontal: 16, marginTop: 8 },
+  pageButton: { flex: 1, backgroundColor: '#1A1A2E', borderRadius: 12, paddingVertical: 13, alignItems: 'center' },
+  pageButtonText: { color: '#FFFFFF', fontWeight: '800', fontSize: 13 },
+  disabledButton: { opacity: 0.35 },
 });

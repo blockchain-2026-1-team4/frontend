@@ -1,11 +1,33 @@
-﻿import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
-import { ActivityIndicator, Alert, FlatList, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Svg, { Path, Circle } from 'react-native-svg';
 import { TextInput } from '../components/TextInput';
 import { errorMessage } from '../lib/account';
 import { backendApi } from '../lib/backend';
 import { formatEventDate } from '../lib/ticketDisplay';
 import type { CheckInRecord, TicketDetail } from '../types/api';
+
+const HeroGradient = LinearGradient as unknown as React.ComponentType<any>;
+
+function BackIcon() {
+  return (
+    <Svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.78)" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <Path d="M19 12H5m7 7-7-7 7-7" />
+    </Svg>
+  );
+}
+
+function SearchIcon() {
+  return (
+    <Svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <Circle cx={11} cy={11} r={8} />
+      <Path d="m21 21-4.35-4.35" />
+    </Svg>
+  );
+}
 
 const PAGE_SIZE = 20;
 const MAX_VISIBLE_PAGES = 4;
@@ -31,7 +53,15 @@ function resultLabel(record: CheckInRecord) {
   return value || '수동 확인';
 }
 
-export default function CheckInStatusPage({ route }: any) {
+function resultStyle(record: CheckInRecord): { bg: string; text: string } {
+  const value = String(record.result ?? record.status ?? '').toUpperCase();
+  if (value === 'SUCCESS') return { bg: '#E1F5EE', text: '#0F6E56' };
+  if (value === 'FAILED') return { bg: '#FEE2E2', text: '#B91C1C' };
+  return { bg: '#FAEEDA', text: '#854F0B' };
+}
+
+export default function CheckInStatusPage({ navigation, route }: any) {
+  const insets = useSafeAreaInsets();
   const eventId = route?.params?.eventId as string;
   const [tickets, setTickets] = useState<TicketDetail[]>([]);
   const [records, setRecords] = useState<CheckInRecord[]>([]);
@@ -60,25 +90,23 @@ export default function CheckInStatusPage({ route }: any) {
 
   useFocusEffect(useCallback(() => { void load(); }, [load]));
 
-  const used = tickets.filter((ticket) => ticket.status === 'USED').length;
   const success = records.filter((record) => record.result === 'SUCCESS' || record.status === 'SUCCESS').length;
   const failure = records.filter((record) => String(record.result ?? record.status ?? '').toUpperCase() === 'FAILED').length;
   const manualReview = records.filter((record) => {
     const value = String(record.result ?? record.status ?? '').toUpperCase();
     return value === 'PENDING' || !value;
   }).length;
+
   const filteredRecords = useMemo(() => {
     const normalized = query.trim().toLowerCase();
     const base = records.filter((record) => {
       const ticketMatch = String(record.ticketId || '').toLowerCase();
       const memoMatch = String(record.memo || '').toLowerCase();
-      const haystack = `${ticketMatch} ${memoMatch}`;
-      const matchesQuery = !normalized || haystack.includes(normalized);
+      const matchesQuery = !normalized || `${ticketMatch} ${memoMatch}`.includes(normalized);
       const resultKey = String(record.result || record.status || '').toUpperCase();
       const matchesResult = selectedResult === 'ALL' || resultKey === selectedResult || (selectedResult === 'PENDING' && !record.result && !record.status);
       return matchesQuery && matchesResult;
     });
-
     return [...base].sort((a, b) => {
       const aTime = new Date(a.checkedInAt || a.createdAt || '').getTime();
       const bTime = new Date(b.checkedInAt || b.createdAt || '').getTime();
@@ -89,7 +117,6 @@ export default function CheckInStatusPage({ route }: any) {
   }, [query, records, selectedResult, sortMode]);
 
   const hasActiveFilters = Boolean(query.trim()) || selectedResult !== 'ALL';
-
   const totalPages = Math.max(1, Math.ceil(filteredRecords.length / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
   const pagedRecords = useMemo(() => filteredRecords.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE), [currentPage, filteredRecords]);
@@ -100,156 +127,198 @@ export default function CheckInStatusPage({ route }: any) {
     return Array.from({ length: end - start + 1 }, (_, index) => start + index);
   }, [currentPage, totalPages]);
 
+  const goBack = () => {
+    if (navigation.canGoBack?.()) navigation.goBack();
+    else navigation.navigate('OrganizerDashboard');
+  };
+
   if (loading) {
-    return <View style={styles.center}><ActivityIndicator size="large" color="#2563EB" /></View>;
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator size="large" color="#534AB7" />
+      </View>
+    );
   }
 
   return (
-    <FlatList
+    <ScrollView
       style={styles.container}
       contentContainerStyle={styles.content}
-      data={pagedRecords}
-      keyExtractor={(item, index) => String(item.id ?? `${item.ticketId}-${item.checkedInAt}-${index}`)}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} />}
-      ListHeaderComponent={
-        <>
-          <Text style={styles.eyebrow}>Check-in Status</Text>
-          <Text style={styles.title}>체크인 현황</Text>
-          <Text style={styles.subtitle}>입장 처리 결과와 확인이 필요한 기록을 관리합니다.</Text>
-          <View style={styles.metricGrid}>
-            <Metric label="입장 완료" value={success} />
-            <Metric label="입장 실패" value={failure} />
-            <Metric label="수동 확인" value={manualReview} />
-          </View>
+    >
+      <HeroGradient colors={['#1A1A2E', '#2D2B6B']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.hero, { paddingTop: Math.max(insets.top + 20, 42) }]}>
+        <View style={styles.heroTopBar}>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel="뒤로가기" style={styles.backButton} onPress={goBack}>
+            <BackIcon />
+          </TouchableOpacity>
+        </View>
+        <Text style={styles.eyebrow}>CHECK-IN STATUS</Text>
+        <Text style={styles.heroTitle}>체크인 현황</Text>
+        <Text style={styles.heroSub}>입장 처리 결과와 확인이 필요한 기록을 관리합니다.</Text>
+        <View style={styles.heroChip}>
+          <View style={styles.heroDot} />
+          <Text style={styles.heroChipText}>총 {records.length}건 · 완료 {success}건 · 실패 {failure}건</Text>
+        </View>
+      </HeroGradient>
 
-          <View style={styles.summaryCard}>
-            <Text style={styles.summaryText}>입장 처리 결과와 확인이 필요한 기록을 한 화면에서 관리합니다.</Text>
-          </View>
+      <View style={styles.metricGrid}>
+        <MetricCard label="입장 완료" value={success} bg="#E1F5EE" color="#0F6E56" />
+        <MetricCard label="입장 실패" value={failure} bg="#FEE2E2" color="#B91C1C" />
+        <MetricCard label="수동 확인" value={manualReview} bg="#FAEEDA" color="#854F0B" />
+      </View>
 
-          <View style={styles.toolbarRow}>
-            <Text style={styles.pageText}>검색된 기록 {filteredRecords.length}건</Text>
-            <TouchableOpacity style={styles.sortButton} onPress={() => setShowSortOptions((value) => !value)}>
-              <Text style={styles.sortButtonText}>{SORT_MODES.find((item) => item.value === sortMode)?.label ?? '최신순'} ▼</Text>
-            </TouchableOpacity>
-          </View>
+      <View style={styles.searchSection}>
+        <View style={styles.searchBar}>
+          <SearchIcon />
           <TextInput
-            style={styles.input}
+            style={styles.searchInput}
             value={query}
-            onChangeText={(value) => {
-              setQuery(value);
-              setPage(1);
-            }}
-            placeholder="티켓 ID 또는 좌석 검색"
+            onChangeText={(value) => { setQuery(value); setPage(1); }}
+            placeholder="티켓 ID 또는 메모 검색"
             returnKeyType="search"
           />
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterList}>
-            {RESULT_FILTERS.map((item) => (
-              <TouchableOpacity
-                key={item.value}
-                style={[styles.filterChip, selectedResult === item.value && styles.activeFilterChip]}
-                onPress={() => {
-                  setSelectedResult(item.value);
-                  setPage(1);
-                }}
-              >
-                <Text style={[styles.filterChipText, selectedResult === item.value && styles.activeFilterChipText]}>{item.label}</Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-          {showSortOptions ? (
-            <View style={styles.sortSheet}>
-              {SORT_MODES.map((item) => (
-                <TouchableOpacity key={item.value} style={[styles.sortSheetItem, sortMode === item.value && styles.activeSortSheetItem]} onPress={() => { setSortMode(item.value); setPage(1); setShowSortOptions(false); }}>
-                  <Text style={[styles.sortSheetItemText, sortMode === item.value && styles.activeSortSheetItemText]}>{item.label}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          ) : null}
-          <View style={styles.listHead}>
-            <Text style={styles.listTitle}>입장 처리 기록</Text>
-            <Text style={styles.pageText}>{currentPage} / {totalPages}</Text>
-          </View>
-        </>
-      }
-      renderItem={({ item }) => (
-        <View style={styles.row}>
-          <Text style={styles.rowTitle}>{resultLabel(item)}</Text>
-          <Text style={styles.rowMeta}>{formatEventDate(item.checkedInAt || item.createdAt)} · 티켓 {item.ticketId}</Text>
-          {item.memo ? <Text style={styles.rowMemo}>{item.memo}</Text> : null}
         </View>
-      )}
-      ListEmptyComponent={(
-        <View style={styles.emptyWrap}>
+      </View>
+
+      <View style={styles.filterRow}>
+        {RESULT_FILTERS.map((item) => (
+          <TouchableOpacity
+            key={item.value}
+            style={[styles.filterTab, selectedResult === item.value && styles.filterTabActive]}
+            onPress={() => { setSelectedResult(item.value); setPage(1); }}
+          >
+            <Text style={[styles.filterTabText, selectedResult === item.value && styles.filterTabTextActive]}>{item.label}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      <View style={styles.toolbarRow}>
+        <Text style={styles.resultHint}>결과 {filteredRecords.length}건</Text>
+        <TouchableOpacity style={styles.sortButton} onPress={() => setShowSortOptions((v) => !v)}>
+          <Text style={styles.sortButtonText}>{SORT_MODES.find((item) => item.value === sortMode)?.label ?? '최신순'} ▾</Text>
+        </TouchableOpacity>
+      </View>
+
+      {showSortOptions ? (
+        <View style={styles.sortSheet}>
+          {SORT_MODES.map((item) => (
+            <TouchableOpacity key={item.value} style={[styles.sortSheetItem, sortMode === item.value && styles.activeSortSheetItem]} onPress={() => { setSortMode(item.value); setPage(1); setShowSortOptions(false); }}>
+              <Text style={[styles.sortSheetItemText, sortMode === item.value && styles.activeSortSheetItemText]}>{item.label}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      ) : null}
+
+      <View style={styles.listHead}>
+        <Text style={styles.listTitle}>입장 처리 기록</Text>
+        {filteredRecords.length > PAGE_SIZE && <Text style={styles.resultHint}>{currentPage} / {totalPages}</Text>}
+      </View>
+
+      {pagedRecords.length === 0 ? (
+        <View style={styles.emptyBox}>
           <Text style={styles.emptyText}>{records.length === 0 && !hasActiveFilters ? '아직 입장 처리 기록이 없습니다.' : '검색 조건에 맞는 기록이 없습니다.'}</Text>
         </View>
+      ) : (
+        pagedRecords.map((item, index) => {
+          const rs = resultStyle(item);
+          return (
+            <View key={String(item.id ?? `${item.ticketId}-${item.checkedInAt}-${index}`)} style={styles.row}>
+              <View style={styles.rowHead}>
+                <View style={[styles.resultBadge, { backgroundColor: rs.bg }]}>
+                  <Text style={[styles.resultBadgeText, { color: rs.text }]}>{resultLabel(item)}</Text>
+                </View>
+                <Text style={styles.rowMeta}>{formatEventDate(item.checkedInAt || item.createdAt)}</Text>
+              </View>
+              <Text style={styles.rowTicket}>티켓 {item.ticketId}</Text>
+              {item.memo ? <Text style={styles.rowMemo}>{item.memo}</Text> : null}
+            </View>
+          );
+        })
       )}
-      ListFooterComponent={
-        filteredRecords.length > PAGE_SIZE ? (
-          <View style={styles.pagination}>
-            <TouchableOpacity style={[styles.pageButton, currentPage === 1 && styles.disabledButton]} disabled={currentPage === 1} onPress={() => setPage((value) => Math.max(value - 1, 1))}>
-              <Text style={styles.pageButtonText}>이전</Text>
+
+      {filteredRecords.length > PAGE_SIZE && (
+        <View style={styles.pagination}>
+          <TouchableOpacity style={[styles.pageButton, currentPage === 1 && styles.disabledButton]} disabled={currentPage === 1} onPress={() => setPage((v) => Math.max(v - 1, 1))}>
+            <Text style={styles.pageButtonText}>이전</Text>
+          </TouchableOpacity>
+          {pageNumbers.map((pageNumber) => (
+            <TouchableOpacity key={pageNumber} style={[styles.pageNumberButton, currentPage === pageNumber && styles.activePageNumberButton]} onPress={() => setPage(pageNumber)}>
+              <Text style={[styles.pageNumberText, currentPage === pageNumber && styles.activePageNumberText]}>{pageNumber}</Text>
             </TouchableOpacity>
-            {pageNumbers.map((pageNumber) => (
-              <TouchableOpacity key={pageNumber} style={[styles.pageNumberButton, currentPage === pageNumber && styles.activePageNumberButton]} onPress={() => setPage(pageNumber)}>
-                <Text style={[styles.pageNumberText, currentPage === pageNumber && styles.activePageNumberText]}>{pageNumber}</Text>
-              </TouchableOpacity>
-            ))}
-            <TouchableOpacity style={[styles.pageButton, currentPage >= totalPages && styles.disabledButton]} disabled={currentPage >= totalPages} onPress={() => setPage((value) => Math.min(value + 1, totalPages))}>
-              <Text style={styles.pageButtonText}>다음</Text>
-            </TouchableOpacity>
-          </View>
-        ) : null
-      }
-    />
+          ))}
+          <TouchableOpacity style={[styles.pageButton, currentPage >= totalPages && styles.disabledButton]} disabled={currentPage >= totalPages} onPress={() => setPage((v) => Math.min(v + 1, totalPages))}>
+            <Text style={styles.pageButtonText}>다음</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+    </ScrollView>
   );
 }
 
-function Metric({ label, value }: { label: string; value: number }) {
-  return <View style={styles.metricCard}><Text style={styles.metricLabel}>{label}</Text><Text style={styles.metricValue}>{value}</Text></View>;
+function MetricCard({ label, value, bg, color }: { label: string; value: number; bg: string; color: string }) {
+  return (
+    <View style={styles.metricCard}>
+      <View style={[styles.metricIconBox, { backgroundColor: bg }]}>
+        <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: color }} />
+      </View>
+      <Text style={[styles.metricValue, { color }]}>{value.toLocaleString()}</Text>
+      <Text style={styles.metricLabel}>{label}</Text>
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F4F7FB' },
-  content: { padding: 18, paddingBottom: 96 },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F4F7FB' },
-  eyebrow: { color: '#2563EB', fontWeight: '800', fontSize: 12 },
-  title: { marginTop: 4, fontSize: 28, fontWeight: '900', color: '#0F172A' },
-  subtitle: { marginTop: 8, color: '#64748B', fontSize: 14, lineHeight: 21 },
-  metricGrid: { flexDirection: 'row', gap: 8, marginTop: 16 },
-  metricCard: { flex: 1, backgroundColor: '#FFFFFF', borderRadius: 8, padding: 13, borderWidth: 1, borderColor: '#E2E8F0' },
-  metricLabel: { color: '#64748B', fontSize: 12, fontWeight: '800' },
-  metricValue: { marginTop: 8, color: '#0F172A', fontSize: 24, fontWeight: '900' },
-  summaryCard: { marginTop: 16, backgroundColor: '#FFFFFF', borderRadius: 8, padding: 16, borderWidth: 1, borderColor: '#E2E8F0' },
-  summaryText: { color: '#64748B', fontSize: 12, lineHeight: 18 },
-  toolbarRow: { marginTop: 14, marginBottom: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
-  listHead: { marginTop: 16, marginBottom: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  listTitle: { color: '#0F172A', fontSize: 17, fontWeight: '900' },
-  pageText: { color: '#64748B', fontSize: 12, fontWeight: '800' },
-  input: { borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 8, padding: 12, backgroundColor: '#FFFFFF', color: '#0F172A' },
-  filterList: { gap: 8, marginTop: 10, paddingBottom: 8 },
-  filterChip: { borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: '#FFFFFF' },
-  activeFilterChip: { borderColor: '#2563EB', backgroundColor: '#EFF6FF' },
-  filterChipText: { color: '#475569', fontWeight: '800', fontSize: 12 },
-  activeFilterChipText: { color: '#2563EB' },
-  sortButton: { minWidth: 118, borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 8, paddingVertical: 11, paddingHorizontal: 12, alignItems: 'center', backgroundColor: '#FFFFFF' },
-  sortButtonText: { color: '#2563EB', fontWeight: '900', fontSize: 13 },
-  sortSheet: { marginBottom: 10, borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 8, backgroundColor: '#FFFFFF', overflow: 'hidden' },
-  sortSheetItem: { paddingVertical: 12, paddingHorizontal: 14, borderTopWidth: 1, borderTopColor: '#E2E8F0' },
-  activeSortSheetItem: { backgroundColor: '#EFF6FF' },
-  sortSheetItemText: { color: '#475569', fontWeight: '900' },
-  activeSortSheetItemText: { color: '#2563EB' },
-  row: { backgroundColor: '#FFFFFF', borderRadius: 8, padding: 16, borderWidth: 1, borderColor: '#E2E8F0', marginBottom: 10 },
-  rowTitle: { color: '#0F172A', fontWeight: '900' },
-  rowMeta: { marginTop: 4, color: '#64748B', fontSize: 12 },
-  rowMemo: { marginTop: 8, color: '#334155', fontSize: 13, lineHeight: 18 },
-  pagination: { flexDirection: 'row', gap: 8, marginTop: 4, alignItems: 'center', justifyContent: 'center' },
-  pageButton: { flex: 1, borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 8, paddingVertical: 12, alignItems: 'center', backgroundColor: '#FFFFFF' },
-  pageButtonText: { color: '#0F172A', fontWeight: '900' },
-  pageNumberButton: { minWidth: 36, borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 8, paddingVertical: 9, paddingHorizontal: 8, alignItems: 'center', backgroundColor: '#FFFFFF' },
-  activePageNumberButton: { borderColor: '#2563EB', backgroundColor: '#2563EB' },
-  pageNumberText: { color: '#475569', fontWeight: '900', fontSize: 12 },
+  container: { flex: 1, backgroundColor: '#F5F5F5' },
+  content: { paddingBottom: 96 },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F5F5F5' },
+  hero: { paddingHorizontal: 20, paddingBottom: 28 },
+  heroTopBar: { flexDirection: 'row', alignItems: 'center', marginBottom: 18 },
+  backButton: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
+  eyebrow: { color: '#A89CF7', fontSize: 10, fontWeight: '700', letterSpacing: 1.2, textTransform: 'uppercase' },
+  heroTitle: { color: '#FFFFFF', fontSize: 22, fontWeight: '800', marginTop: 4, marginBottom: 4 },
+  heroSub: { color: 'rgba(255,255,255,0.58)', fontSize: 12, lineHeight: 18, marginBottom: 18 },
+  heroChip: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', backgroundColor: 'rgba(255,255,255,0.12)', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.2)', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 5 },
+  heroDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#6EE7B7' },
+  heroChipText: { color: 'rgba(255,255,255,0.85)', fontSize: 11 },
+  metricGrid: { flexDirection: 'row', gap: 10, paddingHorizontal: 16, marginTop: -20, marginBottom: 14 },
+  metricCard: { flex: 1, backgroundColor: '#FFFFFF', borderRadius: 14, padding: 12, borderWidth: 0.5, borderColor: '#E5E7EB' },
+  metricIconBox: { width: 26, height: 26, borderRadius: 7, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
+  metricValue: { fontSize: 22, fontWeight: '800' },
+  metricLabel: { fontSize: 10, color: '#9CA3AF', marginTop: 2 },
+  searchSection: { paddingHorizontal: 16, marginBottom: 10 },
+  searchBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: 12, borderWidth: 0.5, borderColor: '#E5E7EB', paddingHorizontal: 12, gap: 8 },
+  searchInput: { flex: 1, paddingVertical: 12, color: '#1A1A2E', fontSize: 13 },
+  filterRow: { flexDirection: 'row', gap: 8, paddingHorizontal: 16, marginBottom: 10 },
+  filterTab: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, backgroundColor: '#FFFFFF', borderWidth: 0.5, borderColor: '#E5E7EB' },
+  filterTabActive: { backgroundColor: '#1A1A2E', borderColor: '#1A1A2E' },
+  filterTabText: { fontSize: 11, fontWeight: '700', color: '#6B7280' },
+  filterTabTextActive: { color: '#FFFFFF' },
+  toolbarRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, marginBottom: 8 },
+  resultHint: { fontSize: 11, color: '#9CA3AF', fontWeight: '700' },
+  sortButton: { borderWidth: 0.5, borderColor: '#E5E7EB', borderRadius: 8, paddingVertical: 7, paddingHorizontal: 10, backgroundColor: '#FFFFFF' },
+  sortButtonText: { color: '#534AB7', fontWeight: '800', fontSize: 12 },
+  sortSheet: { marginHorizontal: 16, marginBottom: 10, borderWidth: 0.5, borderColor: '#E5E7EB', borderRadius: 12, backgroundColor: '#FFFFFF', overflow: 'hidden' },
+  sortSheetItem: { paddingVertical: 12, paddingHorizontal: 14, borderTopWidth: 0.5, borderTopColor: '#E5E7EB' },
+  activeSortSheetItem: { backgroundColor: '#EEEDFE' },
+  sortSheetItemText: { color: '#6B7280', fontWeight: '700', fontSize: 13 },
+  activeSortSheetItemText: { color: '#534AB7' },
+  listHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, marginBottom: 10 },
+  listTitle: { color: '#1A1A2E', fontSize: 13, fontWeight: '700' },
+  row: { backgroundColor: '#FFFFFF', borderRadius: 14, padding: 14, borderWidth: 0.5, borderColor: '#E5E7EB', marginHorizontal: 16, marginBottom: 8 },
+  rowHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 },
+  resultBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20 },
+  resultBadgeText: { fontSize: 11, fontWeight: '800' },
+  rowTicket: { color: '#6B7280', fontSize: 11, fontWeight: '700' },
+  rowMeta: { color: '#9CA3AF', fontSize: 11 },
+  rowMemo: { marginTop: 6, color: '#1A1A2E', fontSize: 12, lineHeight: 17 },
+  emptyBox: { backgroundColor: '#FFFFFF', borderRadius: 14, padding: 24, borderWidth: 0.5, borderColor: '#E5E7EB', marginHorizontal: 16, alignItems: 'center' },
+  emptyText: { color: '#9CA3AF', fontSize: 13 },
+  pagination: { flexDirection: 'row', gap: 8, marginHorizontal: 16, marginTop: 8, alignItems: 'center', justifyContent: 'center' },
+  pageButton: { flex: 1, backgroundColor: '#1A1A2E', borderRadius: 10, paddingVertical: 11, alignItems: 'center' },
+  pageButtonText: { color: '#FFFFFF', fontWeight: '800', fontSize: 13 },
+  pageNumberButton: { minWidth: 36, borderWidth: 0.5, borderColor: '#E5E7EB', borderRadius: 8, paddingVertical: 9, paddingHorizontal: 8, alignItems: 'center', backgroundColor: '#FFFFFF' },
+  activePageNumberButton: { borderColor: '#534AB7', backgroundColor: '#534AB7' },
+  pageNumberText: { color: '#6B7280', fontWeight: '800', fontSize: 12 },
   activePageNumberText: { color: '#FFFFFF' },
-  disabledButton: { opacity: 0.55 },
-  emptyWrap: { paddingVertical: 48 },
-  emptyText: { color: '#94A3B8', textAlign: 'center' },
+  disabledButton: { opacity: 0.35 },
 });
