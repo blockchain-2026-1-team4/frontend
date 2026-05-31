@@ -216,9 +216,9 @@ export default function EventCreatePage({ navigation }: any) {
   const [invalidFields, setInvalidFields] = useState<Record<string, boolean>>({});
   const [roundMessages, setRoundMessages] = useState<Record<string, string[]>>({});
   const [submitting, setSubmitting] = useState(false);
-  const filledInputStyle = (value: string, invalid?: boolean) => [
+  const filledInputStyle = (_value: string, invalid?: boolean) => [
     styles.input,
-    value.trim() && styles.filledInput,
+    styles.filledInput,
     invalid && styles.invalidInput,
   ];
 
@@ -499,7 +499,7 @@ export default function EventCreatePage({ navigation }: any) {
             <Text style={[styles.formSectionTitle, { color: '#185FA5' }]}>소개</Text>
           </View>
           <TextInput
-            style={[styles.input, description.trim() && styles.filledInput, styles.textArea, { height: descriptionHeight }, invalidFields.description && styles.invalidInput]}
+            style={[styles.input, styles.filledInput, styles.textArea, { height: descriptionHeight }, invalidFields.description && styles.invalidInput]}
             value={description}
             onChangeText={setDescription}
             onContentSizeChange={(event) => setDescriptionHeight(Math.max(76, Math.min(180, event.nativeEvent.contentSize.height + 12)))}
