@@ -3,7 +3,7 @@ import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
 
-type TabIcon = 'home' | 'calendar' | 'ticket' | 'qr' | 'user' | 'resale' | 'dispute';
+type TabIcon = 'home' | 'search' | 'calendar' | 'ticket' | 'qr' | 'user' | 'resale' | 'dispute';
 
 type TabItem = {
   label: string;
@@ -20,16 +20,15 @@ type BottomNavigationProps = {
 const HIDDEN_ROUTES = new Set(['Landing', 'Auth', 'CheckInScan']);
 
 const userTabs: TabItem[] = [
-  { label: '\uD648', target: 'Main', matches: ['Main', 'EventList', 'EventDetail', 'TicketPurchase', 'PurchaseComplete'], icon: 'home' },
-  { label: '\uB9AC\uC140', target: 'ResaleList', matches: ['ResaleList', 'ResaleDetail'], icon: 'resale' },
+  { label: '\uD648', target: 'Main', matches: ['Main'], icon: 'home' },
+  { label: '\uD0D0\uC0C9', target: 'EventList', matches: ['EventList', 'EventDetail', 'TicketPurchase', 'PurchaseComplete'], icon: 'search' },
   {
     label: '\uB0B4 \uD2F0\uCF13',
     target: 'MyTickets',
     matches: ['MyTickets', 'TicketDetail', 'TicketQr', 'TicketResaleCreate', 'ResaleRegisterComplete'],
     icon: 'ticket',
   },
-  { label: '\uBD84\uC7C1', target: 'MyDisputes', matches: ['MyDisputes', 'DisputeCreate'], icon: 'dispute' },
-  { label: '\uB0B4 \uC815\uBCF4', target: 'MyPage', matches: ['MyPage'], icon: 'user' },
+  { label: '\uB0B4 \uC815\uBCF4', target: 'MyPage', matches: ['MyPage', 'ResaleList', 'ResaleDetail', 'MyDisputes', 'DisputeCreate'], icon: 'user' },
 ];
 
 const organizerTabs: TabItem[] = [
@@ -75,6 +74,12 @@ function NavIcon({ name, color }: { name: TabIcon; color: string }) {
           <Rect {...common} x={4} y={5} width={16} height={15} rx={2.5} />
           <Path {...common} d="M8 3v4m8-4v4M4 10h16" />
           <Path {...common} d="M8 14h3m2 0h3m-8 3h3" />
+        </>
+      ) : null}
+      {name === 'search' ? (
+        <>
+          <Circle {...common} cx={11} cy={11} r={6} />
+          <Path {...common} d="m16 16 4 4" />
         </>
       ) : null}
       {name === 'ticket' ? (
@@ -168,6 +173,12 @@ function WebNavIcon({ name, color }: { name: TabIcon; color: string }) {
       webRect({ x: 4, y: 5, width: 16, height: 15, rx: 2.5, color, key: 'calendar-box' }),
       webPath('M8 3v4m8-4v4M4 10h16', color, 'calendar-head'),
       webPath('M8 14h3m2 0h3m-8 3h3', color, 'calendar-days'),
+    );
+  }
+  if (name === 'search') {
+    children.push(
+      webCircle({ cx: 11, cy: 11, r: 6, color, key: 'search-circle' }),
+      webPath('m16 16 4 4', color, 'search-line'),
     );
   }
   if (name === 'ticket') {

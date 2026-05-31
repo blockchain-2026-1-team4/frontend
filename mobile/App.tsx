@@ -46,7 +46,7 @@ const OrganizerProfilePage = require('./src/pages/OrganizerProfilePage').default
 const SalesStatusPage = require('./src/pages/SalesStatusPage').default;
 
 export default function App() {
-  const [currentRouteName, setCurrentRouteName] = React.useState('Landing');
+  const [currentRouteName, setCurrentRouteName] = React.useState('Main');
   const lastOrganizerEventIdRef = React.useRef<string | null>(null);
 
   const syncCurrentRoute = React.useCallback(() => {
@@ -129,7 +129,7 @@ export default function App() {
             <View style={styles.navigationHost}>
               <NavigationContainer ref={navigationRef} onReady={syncCurrentRoute} onStateChange={syncCurrentRoute}>
                 <Stack.Navigator
-                  initialRouteName="Landing"
+                  initialRouteName="Main"
                   screenOptions={{
                     headerShown: false,
                   }}

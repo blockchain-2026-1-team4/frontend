@@ -70,7 +70,7 @@ export default function MyPage({ navigation }: any) {
   const handleLogout = async () => {
     try {
       await clearAccessToken();
-      navigation.reset({ index: 0, routes: [{ name: 'Landing' }] });
+      navigation.reset({ index: 0, routes: [{ name: 'Main' }] });
     } catch (error: any) {
       Alert.alert('로그아웃 실패', errorMessage(error, '세션을 종료하지 못했습니다.'));
     }
@@ -131,6 +131,12 @@ export default function MyPage({ navigation }: any) {
 
       <View style={styles.card}>
         <Text style={styles.cardTitle}>계정 메뉴</Text>
+        <TouchableOpacity style={styles.menuButton} onPress={() => navigation.navigate('ResaleList')}>
+          <Text style={styles.menuButtonText}>리셀 티켓 보기</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.menuButton} onPress={() => navigation.navigate('MyDisputes')}>
+          <Text style={styles.menuButtonText}>내 분쟁 신고</Text>
+        </TouchableOpacity>
         <TouchableOpacity style={styles.menuButton} onPress={() => navigation.navigate('Organizer')}>
           <Text style={styles.menuButtonText}>주최자 홈으로</Text>
         </TouchableOpacity>
