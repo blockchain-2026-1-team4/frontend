@@ -27,8 +27,6 @@ const FILTERS: { key: SalesFilter; label: string; tone?: 'teal' | 'amber' | 'blu
   { key: 'available', label: '판매 중', tone: 'teal' },
   { key: 'sold', label: '매진', tone: 'red' },
   { key: 'listed', label: '리셀 중', tone: 'amber' },
-  { key: 'used', label: '입장 완료', tone: 'blue' },
-  { key: 'cancelled', label: '취소', tone: 'red' },
 ];
 
 const HeroGradient = LinearGradient as unknown as React.ComponentType<any>;
@@ -209,7 +207,7 @@ export default function SalesStatusPage({ navigation, route }: any) {
 
     return (
       <ScrollView style={styles.container} contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} />}>
-        <HeroGradient colors={['#1A1A2E', '#2D2B6B']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.hero, { paddingTop: Math.max(insets.top + 18, 40) }]}>
+        <HeroGradient colors={['#1A1A2E', '#2D2B6B']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.hero, { paddingTop: Math.max(insets.top + 14, 36) }]}>
           <View style={styles.heroTopBar}>
             <TouchableOpacity style={styles.heroBackBtn} onPress={() => navigation.goBack()}>
               <BackIcon />
@@ -257,7 +255,7 @@ export default function SalesStatusPage({ navigation, route }: any) {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} />}>
-      <HeroGradient colors={['#1A1A2E', '#2D2B6B']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.hero, { paddingTop: Math.max(insets.top + 18, 40) }]}>
+      <HeroGradient colors={['#1A1A2E', '#2D2B6B']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.hero, { paddingTop: Math.max(insets.top + 14, 36) }]}>
         <View style={styles.heroTopBar}>
           <TouchableOpacity style={styles.heroBackBtn} onPress={() => navigation.goBack()}>
             <BackIcon />

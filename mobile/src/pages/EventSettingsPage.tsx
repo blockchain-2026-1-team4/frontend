@@ -407,7 +407,7 @@ export default function EventSettingsPage({ navigation, route }: any) {
   return (
     <View style={styles.container}>
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
-        <HeroGradient colors={['#1A1A2E', '#2D2B6B']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.hero, { paddingTop: Math.max(insets.top + 18, 40) }]}>
+        <HeroGradient colors={['#1A1A2E', '#2D2B6B']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.hero, { paddingTop: Math.max(insets.top + 14, 36) }]}>
           <View style={styles.heroTop}>
             <TouchableOpacity accessibilityRole="button" accessibilityLabel="뒤로가기" style={styles.heroBackButton} onPress={() => navigation.goBack()}>
               <BackIcon />
@@ -506,9 +506,11 @@ export default function EventSettingsPage({ navigation, route }: any) {
             </View>
             <Text style={[styles.formSectionTitle, { color: '#854F0B' }]}>회차 일정</Text>
           </View>
-          <Text style={styles.cardTitle}>일정</Text>
-          <Text style={styles.helpText}>공연 회차별로 날짜와 시간을 설정하세요.</Text>
-          <Text style={styles.helpText}>장소나 일정 차이가 큰 경우 별도 이벤트 등록을 권장합니다.</Text>
+          <View style={styles.roundDescBlock}>
+            <Text style={styles.cardTitle}>일정</Text>
+            <Text style={styles.helpText}>회차별로 날짜와 시간을 설정하세요.</Text>
+            <Text style={styles.helpText}>장소나 일정 차이가 큰 경우 별도 이벤트 등록을 권장합니다.</Text>
+          </View>
           {scheduleLocked ? (
             <View style={styles.warnBox}>
               <Text style={styles.warnText}>이미 발행된 티켓 {issuedTicketCount}장이 있어 일정을 수정할 수 없습니다.</Text>
@@ -733,7 +735,7 @@ const styles = StyleSheet.create({
   emptyText: { marginTop: 8, color: '#64748B', fontSize: 13, textAlign: 'center', lineHeight: 19 },
   hero: { paddingHorizontal: 18, paddingBottom: 28 },
   heroTop: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 },
-  heroBackButton: { width: 30, height: 30, borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.1)', alignItems: 'center', justifyContent: 'center' },
+  heroBackButton: { width: 28, height: 28, borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.1)', alignItems: 'center', justifyContent: 'center' },
   heroEyebrow: { color: '#A89CF7', fontSize: 10, fontWeight: '800', letterSpacing: 1, textTransform: 'uppercase' },
   heroTitle: { color: '#FFFFFF', fontSize: 20, fontWeight: '900', lineHeight: 25 },
   heroSub: { color: 'rgba(255,255,255,0.48)', fontSize: 11, lineHeight: 17, marginTop: 3 },
@@ -763,6 +765,7 @@ const styles = StyleSheet.create({
   activeCategoryChip: { borderColor: '#534AB7', backgroundColor: '#EEEDFE' },
   categoryChipText: { color: '#475569', fontWeight: '800', fontSize: 13 },
   activeCategoryChipText: { color: '#534AB7' },
+  roundDescBlock: { paddingHorizontal: 12, paddingTop: 2, paddingBottom: 6 },
   warnBox: { backgroundColor: '#FAEEDA', borderRadius: 8, padding: 10, flexDirection: 'row', alignItems: 'flex-start', gap: 5, marginBottom: 8 },
   warnText: { fontSize: 10, color: '#854F0B', fontWeight: '600', lineHeight: 15, flex: 1 },
   roundList: { gap: 6 },

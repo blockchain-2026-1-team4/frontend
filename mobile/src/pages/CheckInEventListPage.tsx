@@ -167,13 +167,13 @@ export default function CheckInEventListPage({ navigation, route }: any) {
       contentContainerStyle={styles.content}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} />}
     >
-      <HeroGradient colors={['#1A1A2E', '#2D2B6B']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.hero, { paddingTop: Math.max(insets.top + 20, 42) }]}>
+      <HeroGradient colors={['#1A1A2E', '#2D2B6B']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.hero, { paddingTop: Math.max(insets.top + 14, 36) }]}>
         <View style={styles.heroTopBar}>
           <TouchableOpacity accessibilityRole="button" accessibilityLabel="뒤로가기" style={styles.backButton} onPress={() => navigation.goBack()}>
             <BackIcon />
           </TouchableOpacity>
+          <Text style={styles.eyebrow}>CHECK-IN EVENTS</Text>
         </View>
-        <Text style={styles.eyebrow}>CHECK-IN EVENTS</Text>
         <Text style={styles.heroTitle}>{section}</Text>
         <Text style={styles.heroSub}>{SECTION_SUBTITLE[section]}</Text>
         <View style={styles.heroChip}>
@@ -268,8 +268,8 @@ const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F5F5F5' },
   loadingText: { marginTop: 12, color: '#9CA3AF', fontSize: 14 },
   hero: { paddingHorizontal: 20, paddingBottom: 28 },
-  heroTopBar: { flexDirection: 'row', alignItems: 'center', marginBottom: 18 },
-  backButton: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
+  heroTopBar: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 },
+  backButton: { width: 28, height: 28, borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.1)', alignItems: 'center', justifyContent: 'center' },
   eyebrow: { color: '#A89CF7', fontSize: 10, fontWeight: '700', letterSpacing: 1.2, textTransform: 'uppercase' },
   heroTitle: { color: '#FFFFFF', fontSize: 22, fontWeight: '800', marginTop: 4, marginBottom: 4 },
   heroSub: { color: 'rgba(255,255,255,0.58)', fontSize: 12, lineHeight: 18, marginBottom: 18 },

@@ -456,13 +456,13 @@ export default function EventCreatePage({ navigation }: any) {
   return (
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.keyboard}>
       <ScrollView ref={scrollRef} style={styles.container} contentContainerStyle={styles.content}>
-        <HeroGradient colors={['#1A1A2E', '#2D2B6B']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.hero, { paddingTop: Math.max(insets.top + 20, 42) }]}>
+        <HeroGradient colors={['#1A1A2E', '#2D2B6B']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.hero, { paddingTop: Math.max(insets.top + 14, 36) }]}>
           <View style={styles.heroTopBar}>
             <TouchableOpacity accessibilityRole="button" accessibilityLabel="뒤로가기" style={styles.heroBackButton} onPress={() => navigation.goBack()}>
               <BackIcon />
             </TouchableOpacity>
+            <Text style={styles.heroEyebrow}>EVENT CREATE</Text>
           </View>
-          <Text style={styles.heroEyebrow}>EVENT CREATE</Text>
           <Text style={styles.heroTitle}>이벤트 등록</Text>
           <Text style={styles.heroSub}>이벤트 등록 후 티켓과 좌석 정보를 설정합니다.</Text>
         </HeroGradient>
@@ -548,9 +548,11 @@ export default function EventCreatePage({ navigation }: any) {
             </View>
             <Text style={[styles.formSectionTitle, { color: '#854F0B' }]}>회차 일정</Text>
           </View>
-          <Text style={styles.cardTitle}>일정</Text>
-          <Text style={styles.helpText}>공연 회차별로 날짜와 시간을 설정하세요.</Text>
-          <Text style={styles.helpText}>장소나 일정 차이가 큰 경우 별도 이벤트 등록을 권장합니다.</Text>
+          <View style={styles.roundDescBlock}>
+            <Text style={styles.cardTitle}>일정</Text>
+            <Text style={styles.helpText}>회차별로 날짜와 시간을 설정하세요.</Text>
+            <Text style={styles.helpText}>장소나 일정 차이가 큰 경우 별도 이벤트 등록을 권장합니다.</Text>
+          </View>
           <View style={styles.roundList}>
             {rounds.map((round, index) => {
               const expanded = expandedRoundIds.includes(round.id);
@@ -845,8 +847,8 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F5F5F5' },
   content: { paddingBottom: 84 },
   hero: { paddingHorizontal: 20, paddingBottom: 24 },
-  heroTopBar: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
-  heroBackButton: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
+  heroTopBar: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 },
+  heroBackButton: { width: 28, height: 28, borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.1)', alignItems: 'center', justifyContent: 'center' },
   heroEyebrow: { color: '#A89CF7', fontSize: 10, fontWeight: '700', letterSpacing: 1.2, textTransform: 'uppercase' },
   heroTitle: { color: '#FFFFFF', fontSize: 22, fontWeight: '800', marginTop: 4, marginBottom: 4 },
   heroSub: { color: 'rgba(255,255,255,0.58)', fontSize: 12, lineHeight: 18 },
@@ -911,6 +913,7 @@ const styles = StyleSheet.create({
   roundSummary: { marginTop: 4, color: '#9CA3AF', fontSize: 12, fontWeight: '700' },
   compactDeleteButton: { borderWidth: 0.5, borderColor: '#FECACA', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, backgroundColor: '#FEF2F2' },
   compactDeleteText: { color: '#B91C1C', fontWeight: '700', fontSize: 12 },
+  roundDescBlock: { paddingHorizontal: 12, paddingTop: 2, paddingBottom: 6 },
   roundBody: { backgroundColor: '#FAFAFA', borderTopWidth: 0.5, borderTopColor: '#F3F4F6', padding: 12 },
   flatField: { marginTop: 7 },
   flatLabel: { color: '#1A1A2E', fontSize: 12, fontWeight: '700', marginBottom: 5 },

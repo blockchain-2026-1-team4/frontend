@@ -97,7 +97,7 @@ export default function CheckInHomePage({ navigation }: any) {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} />}>
-      <HeroGradient colors={['#1A1A2E', '#2D2B6B']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.hero, { paddingTop: Math.max(insets.top + 18, 40) }]}>
+      <HeroGradient colors={['#1A1A2E', '#2D2B6B']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.hero, { paddingTop: Math.max(insets.top + 14, 36) }]}>
         <Text style={styles.eyebrow}>Check-in Operations</Text>
         <Text style={styles.heroTitle}>체크인 허브</Text>
         <Text style={styles.heroSub}>운영 현황을 한눈에 확인하고 바로 처리합니다.</Text>

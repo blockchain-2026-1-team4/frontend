@@ -1,6 +1,7 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import { ActivityIndicator, Alert, FlatList, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { TextInput } from '../components/TextInput';
 import { errorMessage } from '../lib/account';
 import { backendApi } from '../lib/backend';
@@ -61,6 +62,7 @@ function matchesTicketStatusFilter(status: string, selectedStatus: (typeof STATU
 }
 
 export default function TicketExplorePage({ navigation, route }: any) {
+  const insets = useSafeAreaInsets();
   const eventId = route?.params?.eventId as string;
   const [event, setEvent] = useState<EventDetail | null>(null);
   const [tickets, setTickets] = useState<TicketDetail[]>([]);
@@ -159,7 +161,7 @@ export default function TicketExplorePage({ navigation, route }: any) {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} />}
       ListHeaderComponent={(
         <>
-          <View style={styles.hero}>
+          <View style={[styles.hero, { paddingTop: Math.max(insets.top + 14, 36) }]}>
             <View style={styles.heroTop}>
               <TouchableOpacity style={styles.backButton} onPress={() => eventId ? navigation.navigate('OrganizerEventDetail', { eventId }) : navigation.navigate('MyEvents')}>
                 <Text style={styles.backButtonText}>‹</Text>
@@ -312,7 +314,7 @@ const styles = StyleSheet.create({
   emptyTitle: { color: '#0F172A', fontSize: 18, fontWeight: '900', textAlign: 'center' },
   emptyText: { color: '#94A3B8', paddingVertical: 48, textAlign: 'center' },
   errorText: { marginTop: 8, color: '#64748B', fontSize: 13, textAlign: 'center', lineHeight: 19 },
-  hero: { backgroundColor: '#1A1A2E', paddingHorizontal: 18, paddingTop: 16, paddingBottom: 28 },
+  hero: { backgroundColor: '#1A1A2E', paddingHorizontal: 18, paddingBottom: 28 },
   heroTop: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 },
   backButton: { width: 28, height: 28, borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.1)' },
   backButtonText: { color: 'rgba(255,255,255,0.75)', fontWeight: '900', fontSize: 20, lineHeight: 22 },

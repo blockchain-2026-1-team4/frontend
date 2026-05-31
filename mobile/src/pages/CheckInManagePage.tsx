@@ -372,8 +372,15 @@ export default function CheckInManagePage({ navigation, route }: any) {
           <View style={styles.mcBody}>
             <Text style={styles.mcHint}>이 이벤트의 체크인을 처리할 수 있는 검증자를 등록하세요.</Text>
             {validators.map((validator, index) => {
-              const nameLabel = String(validator.validatorDisplayName ?? validator.displayName ?? validator.email ?? validator.validatorEmail ?? '').trim() || '-';
-              const walletRaw = String(validator.walletAddress ?? validator.validatorWalletAddress ?? '').trim();
+              const nested = (validator.user ?? validator.validator ?? validator) as Record<string, unknown>;
+              const nameLabel = [
+                validator.validatorDisplayName, validator.displayName,
+                validator.name, validator.userName, validator.validatorName,
+                validator.nickname, validator.validatorNickname,
+                nested.displayName, nested.name, nested.nickname, nested.userName,
+                validator.email, validator.validatorEmail, nested.email,
+              ].map((v) => String(v ?? '').trim()).find(Boolean) || String(validator.id ?? validator.userId ?? index + 1);
+              const walletRaw = String(validator.walletAddress ?? validator.validatorWalletAddress ?? (nested as any).walletAddress ?? '').trim();
               const walletShort = walletRaw.length > 10 ? `${walletRaw.slice(0, 6)}...${walletRaw.slice(-4)}` : walletRaw;
               return (
                 <View key={String(validator.id ?? index)} style={styles.vRow}>

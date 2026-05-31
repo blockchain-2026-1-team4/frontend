@@ -203,7 +203,7 @@ export default function OrganizerEventDetailPage({ navigation, route }: any) {
       contentContainerStyle={styles.content}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} />}
     >
-      <HeroGradient colors={['#1A1A2E', '#2D2B6B']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.hero, posterUri && styles.posterHero, { paddingTop: Math.max(insets.top + 20, 42) }]}>
+      <HeroGradient colors={['#1A1A2E', '#2D2B6B']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.hero, posterUri && styles.posterHero, { paddingTop: Math.max(insets.top + 14, 36) }]}>
         {posterUri ? (
           <>
             <Image source={{ uri: posterUri }} style={styles.posterHeroImage} resizeMode="cover" />
@@ -394,7 +394,7 @@ const styles = StyleSheet.create({
   posterHeroImage: { ...StyleSheet.absoluteFillObject, width: '100%', height: '100%' },
   posterHeroOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(26,26,46,0.72)' },
   heroTopBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 },
-  backButton: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
+  backButton: { width: 28, height: 28, borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.1)', alignItems: 'center', justifyContent: 'center' },
   statusChipHero: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
   statusChipHeroText: { fontSize: 11, fontWeight: '800' },
   eyebrow: { color: '#A89CF7', fontSize: 10, fontWeight: '700', letterSpacing: 1.2, textTransform: 'uppercase' },
