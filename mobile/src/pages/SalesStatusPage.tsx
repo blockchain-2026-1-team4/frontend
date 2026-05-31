@@ -3,24 +3,48 @@ import { useFocusEffect } from '@react-navigation/native';
 import { ActivityIndicator, Alert, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Svg, { Path } from 'react-native-svg';
+import Svg, { Circle, Path, Rect } from 'react-native-svg';
+import { TextInput } from '../components/TextInput';
 import { errorMessage } from '../lib/account';
 import { backendApi } from '../lib/backend';
-import { formatNextRoundLabel, getSalesDisplayStatus, getNextRoundTime, salesSortRank, weiToEth } from '../lib/ticketDisplay';
+import { getNextRoundTime, salesSortRank, weiToEth } from '../lib/ticketDisplay';
 import type { EventDetail, EventSummary, TicketDetail } from '../types/api';
+
+type IconName = 'ticket' | 'cart' | 'search' | 'alert';
+type SalesItem = { event: EventSummary; tickets: TicketDetail[] };
+type SalesFilter = 'all' | 'selling' | 'missing' | 'ended';
+
+const FILTERS: { key: SalesFilter; label: string; tone?: 'teal' | 'amber' }[] = [
+  { key: 'all', label: '전체' },
+  { key: 'selling', label: '판매 중', tone: 'teal' },
+  { key: 'missing', label: '미발행', tone: 'amber' },
+  { key: 'ended', label: '종료' },
+];
 
 const HeroGradient = LinearGradient as unknown as React.ComponentType<any>;
 
-function BackIcon() {
-  return (
-    <Svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.78)" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-      <Path d="M19 12H5m7 7-7-7 7-7" />
-    </Svg>
-  );
-}
-
 function eventTitle(event: EventSummary | EventDetail) {
   return event.name || event.title || '이벤트';
+}
+
+function eventDateText(event: EventSummary | EventDetail) {
+  const next = getNextRoundTime(event);
+  const value = !Number.isNaN(next) ? new Date(next) : new Date(event.eventStartAt || event.startsAt || event.eventAt || event.eventDateTime || '');
+  if (Number.isNaN(value.getTime())) return '일정 미정';
+  return value.toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' });
+}
+
+function isEnded(event: EventSummary) {
+  const end = new Date(event.eventEndAt || event.endsAt || event.eventAt || event.eventDateTime || '').getTime();
+  return !Number.isNaN(end) && end < Date.now();
+}
+
+function ticketStats(event: EventSummary, tickets: TicketDetail[]) {
+  const total = Number(event.totalTicketCount ?? 0) || tickets.length;
+  const sold = Number(event.soldTicketCount ?? 0) || tickets.filter((ticket) => ['SOLD', 'LISTED', 'USED'].includes(String(ticket.status).toUpperCase())).length;
+  const available = Number(event.remainingTicketCount ?? 0) || tickets.filter((ticket) => String(ticket.status).toUpperCase() === 'AVAILABLE').length;
+  const listed = tickets.filter((ticket) => String(ticket.status).toUpperCase() === 'LISTED').length;
+  return { total, sold, available, listed };
 }
 
 function sectionOf(ticket: TicketDetail) {
@@ -39,40 +63,69 @@ function sectionStats(tickets: TicketDetail[]) {
   return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0], 'ko-KR', { numeric: true }));
 }
 
+function AppIcon({ name, color = '#534AB7', size = 18 }: { name: IconName; color?: string; size?: number }) {
+  const common = { fill: 'none', stroke: color, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const, strokeWidth: 2 };
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24">
+      {name === 'ticket' ? <Path {...common} d="M4 9a3 3 0 0 0 0 6v3h16v-3a3 3 0 0 0 0-6V6H4v3Zm8-2v10" /> : null}
+      {name === 'cart' ? (
+        <>
+          <Circle {...common} cx={9} cy={20} r={1} />
+          <Circle {...common} cx={17} cy={20} r={1} />
+          <Path {...common} d="M3 4h2l2.2 10.5a2 2 0 0 0 2 1.5h7.8a2 2 0 0 0 2-1.6L21 8H7" />
+        </>
+      ) : null}
+      {name === 'search' ? (
+        <>
+          <Circle {...common} cx={11} cy={11} r={8} />
+          <Path {...common} d="m21 21-4.35-4.35" />
+        </>
+      ) : null}
+      {name === 'alert' ? (
+        <>
+          <Path {...common} d="M10.3 4.3 2.4 18a2 2 0 0 0 1.7 3h15.8a2 2 0 0 0 1.7-3L13.7 4.3a2 2 0 0 0-3.4 0Z" />
+          <Path {...common} d="M12 9v4m0 4h.01" />
+        </>
+      ) : null}
+    </Svg>
+  );
+}
+
 export default function SalesStatusPage({ navigation, route }: any) {
   const insets = useSafeAreaInsets();
   const eventId = route?.params?.eventId as string | undefined;
   const [event, setEvent] = useState<EventDetail | null>(null);
-  const [events, setEvents] = useState<EventSummary[]>([]);
+  const [items, setItems] = useState<SalesItem[]>([]);
   const [tickets, setTickets] = useState<TicketDetail[]>([]);
+  const [query, setQuery] = useState('');
+  const [filter, setFilter] = useState<SalesFilter>('all');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(async () => {
     try {
-      if (!eventId) {
-        const page = await backendApi.getMyEvents({ page: 0, size: 50 });
-        const myEvents = (page.items ?? [])
-          .filter((item) => String(item.status).toUpperCase() !== 'CANCELLED')
-          .sort((a, b) => {
-            const rankDiff = salesSortRank(a) - salesSortRank(b);
-            if (rankDiff !== 0) return rankDiff;
-            const aTime = getNextRoundTime(a);
-            const bTime = getNextRoundTime(b);
-            return (Number.isNaN(aTime) ? Number.MAX_SAFE_INTEGER : aTime) - (Number.isNaN(bTime) ? Number.MAX_SAFE_INTEGER : bTime);
-          });
-        setEvents(myEvents);
-        setEvent(null);
-        setTickets([]);
-      } else {
-        const [detail, list] = await Promise.all([
-          backendApi.getEvent(eventId),
-          backendApi.getEventTickets(eventId).catch(() => []),
-        ]);
+      if (eventId) {
+        const [detail, list] = await Promise.all([backendApi.getEvent(eventId), backendApi.getEventTickets(eventId).catch(() => [])]);
         setEvent(detail);
         setTickets(list);
-        setEvents([]);
+        setItems([]);
+        return;
       }
+
+      const page = await backendApi.getMyEvents({ page: 0, size: 100 });
+      const myEvents = (page.items ?? [])
+        .filter((item) => String(item.status).toUpperCase() !== 'CANCELLED')
+        .sort((a, b) => {
+          const rankDiff = salesSortRank(a) - salesSortRank(b);
+          if (rankDiff !== 0) return rankDiff;
+          const aTime = getNextRoundTime(a);
+          const bTime = getNextRoundTime(b);
+          return (Number.isNaN(aTime) ? Number.MAX_SAFE_INTEGER : aTime) - (Number.isNaN(bTime) ? Number.MAX_SAFE_INTEGER : bTime);
+        });
+      const withTickets = await Promise.all(myEvents.map(async (item) => ({ event: item, tickets: await backendApi.getEventTickets(item.id).catch(() => []) })));
+      setItems(withTickets);
+      setEvent(null);
+      setTickets([]);
     } catch (error: any) {
       Alert.alert('티켓 판매 현황 로드 실패', errorMessage(error, '티켓 판매 현황을 불러오지 못했습니다.'));
     } finally {
@@ -83,16 +136,30 @@ export default function SalesStatusPage({ navigation, route }: any) {
 
   useFocusEffect(useCallback(() => { void load(); }, [load]));
 
-  const sold = tickets.filter((ticket) => ['SOLD', 'LISTED', 'USED'].includes(String(ticket.status).toUpperCase())).length;
-  const used = tickets.filter((ticket) => String(ticket.status).toUpperCase() === 'USED').length;
-  const available = tickets.filter((ticket) => String(ticket.status).toUpperCase() === 'AVAILABLE').length;
-  const listed = tickets.filter((ticket) => String(ticket.status).toUpperCase() === 'LISTED').length;
-  const stats = useMemo(() => sectionStats(tickets), [tickets]);
+  const totals = useMemo(() => {
+    return items.reduce(
+      (acc, item) => {
+        const stat = ticketStats(item.event, item.tickets);
+        acc.issued += stat.total;
+        acc.sold += stat.sold;
+        return acc;
+      },
+      { issued: 0, sold: 0 },
+    );
+  }, [items]);
 
-  const goBack = () => {
-    if (navigation.canGoBack?.()) navigation.goBack();
-    else navigation.navigate('OrganizerDashboard');
-  };
+  const visibleItems = useMemo(() => {
+    const normalized = query.trim().toLowerCase();
+    return items.filter((item) => {
+      const stat = ticketStats(item.event, item.tickets);
+      const ended = isEnded(item.event);
+      if (filter === 'selling' && (stat.total <= 0 || ended)) return false;
+      if (filter === 'missing' && stat.total > 0) return false;
+      if (filter === 'ended' && !ended) return false;
+      if (!normalized) return true;
+      return `${eventTitle(item.event)} ${item.event.venue || ''}`.toLowerCase().includes(normalized);
+    });
+  }, [items, query, filter]);
 
   if (loading) {
     return (
@@ -102,124 +169,140 @@ export default function SalesStatusPage({ navigation, route }: any) {
     );
   }
 
-  if (!eventId) {
+  if (eventId && event) {
+    const sold = tickets.filter((ticket) => ['SOLD', 'LISTED', 'USED'].includes(String(ticket.status).toUpperCase())).length;
+    const used = tickets.filter((ticket) => String(ticket.status).toUpperCase() === 'USED').length;
+    const available = tickets.filter((ticket) => String(ticket.status).toUpperCase() === 'AVAILABLE').length;
+    const listed = tickets.filter((ticket) => String(ticket.status).toUpperCase() === 'LISTED').length;
+    const stats = sectionStats(tickets);
+
     return (
-      <ScrollView
-        style={styles.container}
-        contentContainerStyle={styles.content}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} />}
-      >
-        <HeroGradient colors={['#1A1A2E', '#2D2B6B']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.hero, { paddingTop: Math.max(insets.top + 20, 42) }]}>
-          <View style={styles.heroTopBar}>
-            <TouchableOpacity accessibilityRole="button" accessibilityLabel="뒤로가기" style={styles.backButton} onPress={goBack}>
-              <BackIcon />
-            </TouchableOpacity>
-          </View>
-          <Text style={styles.eyebrow}>TICKET OPERATIONS</Text>
+      <ScrollView style={styles.container} contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} />}>
+        <HeroGradient colors={['#1A1A2E', '#2D2B6B']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.hero, { paddingTop: Math.max(insets.top + 18, 40) }]}>
+          <Text style={styles.eyebrow}>Sales Dashboard</Text>
           <Text style={styles.heroTitle}>티켓 판매 현황</Text>
-          <Text style={styles.heroSub}>이벤트별 판매 상태와 좌석 현황을 관리합니다.</Text>
-          <View style={styles.heroChip}>
-            <View style={styles.heroDot} />
-            <Text style={styles.heroChipText}>운영중 이벤트 {events.length}개</Text>
-          </View>
+          <Text style={styles.heroSub} numberOfLines={1}>{eventTitle(event)} · {weiToEth(event.ticketPriceWei)}</Text>
+          <View style={styles.heroChip}><View style={styles.heroDotAmber} /><Text style={styles.heroChipText}>판매 {sold}장 · 잔여 {available}장</Text></View>
         </HeroGradient>
-
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>운영중 판매 이벤트</Text>
+        <View style={styles.statStrip}>
+          <MiniStat label="판매" value={sold} color="#0F6E56" />
+          <MiniStat label="잔여" value={available} color="#534AB7" />
+          <MiniStat label="리셀" value={listed} color="#854F0B" />
+          <MiniStat label="체크인" value={used} color="#185FA5" />
         </View>
-
-        {events.length === 0 ? (
-          <View style={styles.emptyBox}>
-            <Text style={styles.emptyTitle}>운영할 판매 이벤트가 없습니다.</Text>
-          </View>
-        ) : (
-          events.map((item) => {
-            const status = getSalesDisplayStatus(item);
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>구역별 판매 현황</Text>
+          <TouchableOpacity onPress={() => navigation.navigate('TicketExplore', { eventId })}><Text style={styles.sectionLink}>전체 티켓</Text></TouchableOpacity>
+        </View>
+        <View style={styles.detailCard}>
+          {stats.length === 0 ? <Text style={styles.emptyText}>발행된 티켓이 없습니다.</Text> : stats.map(([section, item]) => {
+            const pct = item.total > 0 ? Math.round((item.sold / item.total) * 100) : 0;
             return (
-              <TouchableOpacity key={item.id} style={styles.eventItem} onPress={() => navigation.navigate('SalesStatus', { eventId: item.id })}>
-                <View style={styles.eventInfo}>
-                  <Text style={styles.eventName} numberOfLines={1}>{eventTitle(item)}</Text>
-                  <Text style={styles.eventMeta}>{formatNextRoundLabel(item)}</Text>
-                  <Text style={styles.eventMeta}>남은 좌석 {item.remainingTicketCount ?? 0}장</Text>
-                </View>
-                <View style={[styles.statusBadge, styles[`tone_${status.tone}` as keyof typeof styles] as any]}>
-                  <Text style={[styles.statusBadgeText, styles[`toneText_${status.tone}` as keyof typeof styles] as any]}>{status.label}</Text>
-                </View>
-              </TouchableOpacity>
+              <View key={section} style={styles.sectionRow}>
+                <View style={styles.barTop}><Text style={styles.cardName}>{section}</Text><Text style={styles.barValue}>{item.sold}/{item.total}</Text></View>
+                <View style={styles.barBg}><View style={[styles.barFill, { width: `${pct}%`, backgroundColor: '#534AB7' }]} /></View>
+              </View>
             );
-          })
-        )}
+          })}
+        </View>
       </ScrollView>
     );
   }
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={styles.content}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} />}
-    >
-      <HeroGradient colors={['#1A1A2E', '#2D2B6B']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.hero, { paddingTop: Math.max(insets.top + 20, 42) }]}>
-        <View style={styles.heroTopBar}>
-          <TouchableOpacity accessibilityRole="button" accessibilityLabel="뒤로가기" style={styles.backButton} onPress={goBack}>
-            <BackIcon />
-          </TouchableOpacity>
-        </View>
-        <Text style={styles.eyebrow}>SALES DASHBOARD</Text>
+    <ScrollView style={styles.container} contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} />}>
+      <HeroGradient colors={['#1A1A2E', '#2D2B6B']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.hero, { paddingTop: Math.max(insets.top + 18, 40) }]}>
+        <Text style={styles.eyebrow}>Ticket Operations</Text>
         <Text style={styles.heroTitle}>티켓 판매 현황</Text>
-        <Text style={styles.heroSub} numberOfLines={1}>{event?.name || event?.title || '이벤트'} · {weiToEth(event?.ticketPriceWei)}</Text>
-        <View style={styles.heroChip}>
-          <View style={styles.heroDot} />
-          <Text style={styles.heroChipText}>판매 {sold}장 · 남은 좌석 {available}장</Text>
-        </View>
+        <Text style={styles.heroSub}>이벤트별 판매 상태와 좌석 현황을 관리합니다.</Text>
+        <View style={styles.heroChip}><View style={styles.heroDotAmber} /><Text style={styles.heroChipText}>운영중 이벤트 {items.length}개</Text></View>
       </HeroGradient>
 
       <View style={styles.metricGrid}>
-        <MetricCard label="판매" value={sold} bg="#E1F5EE" color="#0F6E56" />
-        <MetricCard label="남은 좌석" value={available} bg="#EEEDFE" color="#534AB7" />
-        <MetricCard label="리셀 중" value={listed} bg="#FAEEDA" color="#854F0B" />
-        <MetricCard label="체크인" value={used} bg="#E6F1FB" color="#185FA5" />
+        <MetricCard icon="ticket" iconBg="#EEEDFE" iconColor="#534AB7" value={totals.issued} label="총 발급 티켓" />
+        <MetricCard icon="cart" iconBg="#E1F5EE" iconColor="#0F6E56" value={totals.sold} label="판매 완료" />
       </View>
 
-      <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>구역별 판매 현황</Text>
-        <TouchableOpacity onPress={() => navigation?.navigate?.('TicketExplore', { eventId })}>
-          <Text style={styles.sectionLink}>전체 티켓</Text>
-        </TouchableOpacity>
+      <View style={styles.searchWrap}>
+        <View style={styles.searchBox}>
+          <AppIcon name="search" color="#9CA3AF" size={15} />
+          <TextInput style={styles.searchInput} value={query} onChangeText={setQuery} placeholder="이벤트명 검색" returnKeyType="search" />
+        </View>
       </View>
 
-      <View style={styles.card}>
-        {stats.length === 0 ? (
-          <Text style={styles.emptyText}>발행된 티켓이 없습니다.</Text>
-        ) : (
-          stats.map(([section, item]) => {
-            const pct = item.total > 0 ? Math.round((item.sold / item.total) * 100) : 0;
-            return (
-              <View key={section} style={styles.sectionRow}>
-                <View style={styles.sectionInfo}>
-                  <Text style={styles.rowTitle}>{section}</Text>
-                  <Text style={styles.rowMeta}>판매 {item.sold} / {item.total} ({pct}%)</Text>
-                </View>
-                <View style={styles.progressTrack}>
-                  <View style={[styles.progressFill, { width: `${pct}%` }]} />
-                </View>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterWrap}>
+        {FILTERS.map((item) => {
+          const active = filter === item.key;
+          return (
+            <TouchableOpacity key={item.key} style={[styles.filterPill, active && styles.filterPillActive, !active && item.tone === 'teal' && styles.filterPillTeal, !active && item.tone === 'amber' && styles.filterPillAmber]} onPress={() => setFilter(item.key)}>
+              <Text style={[styles.filterText, active && styles.filterTextActive, !active && item.tone === 'teal' && styles.filterTextTeal, !active && item.tone === 'amber' && styles.filterTextAmber]}>{item.label}</Text>
+            </TouchableOpacity>
+          );
+        })}
+      </ScrollView>
+
+      <View style={styles.resultLabel}>
+        <Text style={styles.resultText}>운영중 이벤트 {visibleItems.length}건</Text>
+        <Text style={styles.sortText}>최신순</Text>
+      </View>
+
+      {visibleItems.length === 0 ? (
+        <View style={styles.emptyBox}><Text style={styles.emptyTitle}>운영할 판매 이벤트가 없습니다.</Text></View>
+      ) : visibleItems.map((item) => {
+        const stat = ticketStats(item.event, item.tickets);
+        const soldPct = stat.total > 0 ? Math.min(100, Math.round((stat.sold / stat.total) * 100)) : 0;
+        const remainPct = stat.total > 0 ? Math.min(100, Math.round((stat.available / stat.total) * 100)) : 0;
+        const resalePct = stat.total > 0 ? Math.min(100, Math.round((stat.listed / stat.total) * 100)) : 0;
+        const missing = stat.total <= 0;
+        return (
+          <TouchableOpacity key={item.event.id} style={styles.ticketCard} onPress={() => navigation.navigate('SalesStatus', { eventId: item.event.id })}>
+            <View style={styles.cardTop}>
+              <View style={styles.cardCopy}>
+                <Text style={styles.cardName} numberOfLines={1}>{eventTitle(item.event)}</Text>
+                <Text style={styles.cardMeta}>{item.event.venue || '장소 미정'} · {eventDateText(item.event)}</Text>
               </View>
-            );
-          })
-        )}
-      </View>
+              <View style={[styles.badge, missing ? styles.badgeWarn : styles.badgeSell]}>
+                <Text style={[styles.badgeText, missing ? styles.badgeTextWarn : styles.badgeTextSell]}>{missing ? '미발행' : '판매 중'}</Text>
+              </View>
+            </View>
+            {missing ? (
+              <View style={styles.warnBox}><AppIcon name="alert" color="#854F0B" size={13} /><Text style={styles.warnText}>티켓이 아직 발행되지 않았습니다. 티켓 발행 후 판매가 시작됩니다.</Text></View>
+            ) : (
+              <View style={styles.bars}>
+                <BarRow label="판매" value={`${stat.sold}/${stat.total}`} pct={soldPct} color="#534AB7" />
+                <BarRow label="잔여" value={`${stat.available}`} pct={remainPct} color="#CECBF6" muted />
+                <BarRow label="리셀" value={`${stat.listed}`} pct={resalePct} color="#FAC775" muted />
+              </View>
+            )}
+          </TouchableOpacity>
+        );
+      })}
     </ScrollView>
   );
 }
 
-function MetricCard({ label, value, bg, color }: { label: string; value: number; bg: string; color: string }) {
+function MetricCard({ icon, iconBg, iconColor, value, label }: { icon: IconName; iconBg: string; iconColor: string; value: number; label: string }) {
   return (
     <View style={styles.metricCard}>
-      <View style={[styles.metricIconBox, { backgroundColor: bg }]}>
-        <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: color }} />
-      </View>
+      <View style={[styles.metricIcon, { backgroundColor: iconBg }]}><AppIcon name={icon} color={iconColor} size={15} /></View>
       <Text style={styles.metricValue}>{value.toLocaleString()}</Text>
       <Text style={styles.metricLabel}>{label}</Text>
+    </View>
+  );
+}
+
+function MiniStat({ label, value, color }: { label: string; value: number; color: string }) {
+  return (
+    <View style={styles.statMini}><Text style={[styles.statValue, { color }]}>{value.toLocaleString()}</Text><Text style={styles.statLabel}>{label}</Text></View>
+  );
+}
+
+function BarRow({ label, value, pct, color, muted }: { label: string; value: string; pct: number; color: string; muted?: boolean }) {
+  return (
+    <View style={styles.barRow}>
+      <Text style={styles.barLabel}>{label}</Text>
+      <View style={styles.barBg}><View style={[styles.barFill, { width: `${pct}%`, backgroundColor: color }]} /></View>
+      <Text style={[styles.barValue, muted && styles.barValueMuted]}>{value}</Text>
     </View>
   );
 }
@@ -228,49 +311,64 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F5F5F5' },
   content: { paddingBottom: 96 },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F5F5F5' },
-  hero: { paddingHorizontal: 20, paddingBottom: 28 },
-  heroTopBar: { flexDirection: 'row', alignItems: 'center', marginBottom: 18 },
-  backButton: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
-  eyebrow: { color: '#A89CF7', fontSize: 10, fontWeight: '700', letterSpacing: 1.2, textTransform: 'uppercase' },
-  heroTitle: { color: '#FFFFFF', fontSize: 22, fontWeight: '800', marginTop: 4, marginBottom: 4 },
-  heroSub: { color: 'rgba(255,255,255,0.58)', fontSize: 12, lineHeight: 18, marginBottom: 18 },
-  heroChip: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', backgroundColor: 'rgba(255,255,255,0.12)', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.2)', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 5 },
-  heroDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#6EE7B7' },
-  heroChipText: { color: 'rgba(255,255,255,0.85)', fontSize: 11 },
-  metricGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, paddingHorizontal: 16, marginTop: -20, marginBottom: 16 },
-  metricCard: { width: '48.5%', backgroundColor: '#FFFFFF', borderRadius: 14, padding: 13, borderWidth: 0.5, borderColor: '#E5E7EB' },
-  metricIconBox: { width: 26, height: 26, borderRadius: 7, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
-  metricValue: { fontSize: 22, fontWeight: '800', color: '#1A1A2E' },
-  metricLabel: { fontSize: 11, color: '#9CA3AF', marginTop: 2 },
-  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, marginBottom: 10, marginTop: 2 },
-  sectionTitle: { fontSize: 13, fontWeight: '700', color: '#1A1A2E' },
-  sectionLink: { fontSize: 11, color: '#534AB7', fontWeight: '700' },
-  card: { marginHorizontal: 16, marginBottom: 16, backgroundColor: '#FFFFFF', borderRadius: 14, padding: 14, borderWidth: 0.5, borderColor: '#E5E7EB' },
-  sectionRow: { paddingVertical: 12, borderTopWidth: 0.5, borderTopColor: '#E5E7EB' },
-  sectionInfo: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  rowTitle: { color: '#1A1A2E', fontWeight: '800', fontSize: 13 },
-  rowMeta: { color: '#9CA3AF', fontSize: 11 },
-  progressTrack: { marginTop: 8, height: 6, borderRadius: 999, backgroundColor: '#F3F4F6', overflow: 'hidden' },
-  progressFill: { height: 6, borderRadius: 999, backgroundColor: '#534AB7' },
-  eventItem: { backgroundColor: '#FFFFFF', borderRadius: 14, padding: 12, borderWidth: 0.5, borderColor: '#E5E7EB', marginHorizontal: 16, marginBottom: 8, flexDirection: 'row', alignItems: 'center', gap: 12 },
-  eventInfo: { flex: 1, minWidth: 0 },
-  eventName: { fontSize: 13, fontWeight: '800', color: '#1A1A2E' },
-  eventMeta: { fontSize: 11, color: '#9CA3AF', marginTop: 2 },
-  statusBadge: { paddingHorizontal: 9, paddingVertical: 4, borderRadius: 20 },
-  statusBadgeText: { fontSize: 10, fontWeight: '800' },
-  emptyBox: { backgroundColor: '#FFFFFF', borderRadius: 14, padding: 24, borderWidth: 0.5, borderColor: '#E5E7EB', marginHorizontal: 16, alignItems: 'center' },
+  hero: { paddingHorizontal: 18, paddingBottom: 30 },
+  eyebrow: { color: '#A89CF7', fontSize: 10, fontWeight: '800', letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 12 },
+  heroTitle: { color: '#FFFFFF', fontSize: 21, fontWeight: '900', lineHeight: 26 },
+  heroSub: { color: 'rgba(255,255,255,0.48)', fontSize: 11, marginTop: 4 },
+  heroChip: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: 'rgba(255,255,255,0.1)', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.2)', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4, marginTop: 12 },
+  heroDotAmber: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#FAC775' },
+  heroChipText: { color: 'rgba(255,255,255,0.85)', fontSize: 10, fontWeight: '700' },
+  metricGrid: { flexDirection: 'row', gap: 8, paddingHorizontal: 14, marginTop: -18, marginBottom: 10 },
+  metricCard: { flex: 1, backgroundColor: '#FFFFFF', borderRadius: 12, borderWidth: 0.5, borderColor: '#E5E7EB', padding: 11 },
+  metricIcon: { width: 26, height: 26, borderRadius: 7, alignItems: 'center', justifyContent: 'center', marginBottom: 7 },
+  metricValue: { fontSize: 20, fontWeight: '900', color: '#1A1A2E', lineHeight: 22 },
+  metricLabel: { fontSize: 10, color: '#9CA3AF', marginTop: 2, fontWeight: '700' },
+  searchWrap: { paddingHorizontal: 14, paddingTop: 8, paddingBottom: 6 },
+  searchBox: { flexDirection: 'row', alignItems: 'center', gap: 7, backgroundColor: '#FFFFFF', borderWidth: 0.5, borderColor: '#E5E7EB', borderRadius: 10, paddingHorizontal: 11 },
+  searchInput: { flex: 1, paddingVertical: 9, color: '#1A1A2E', fontSize: 12 },
+  filterWrap: { paddingHorizontal: 14, paddingBottom: 8, gap: 6 },
+  filterPill: { paddingHorizontal: 11, paddingVertical: 6, borderRadius: 20, borderWidth: 0.5, borderColor: '#E5E7EB', backgroundColor: '#FFFFFF' },
+  filterPillActive: { backgroundColor: '#1A1A2E', borderColor: '#1A1A2E' },
+  filterPillTeal: { backgroundColor: '#E1F5EE', borderColor: '#9FE1CB' },
+  filterPillAmber: { backgroundColor: '#FAEEDA', borderColor: '#FAC775' },
+  filterText: { color: '#6B7280', fontSize: 10, fontWeight: '800' },
+  filterTextActive: { color: '#FFFFFF' },
+  filterTextTeal: { color: '#0F6E56' },
+  filterTextAmber: { color: '#854F0B' },
+  resultLabel: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 14, paddingBottom: 6 },
+  resultText: { fontSize: 10, color: '#9CA3AF', fontWeight: '800' },
+  sortText: { fontSize: 10, color: '#534AB7', fontWeight: '800' },
+  ticketCard: { backgroundColor: '#FFFFFF', borderRadius: 12, borderWidth: 0.5, borderColor: '#E5E7EB', padding: 12, marginHorizontal: 14, marginBottom: 7 },
+  cardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10, marginBottom: 8 },
+  cardCopy: { flex: 1, minWidth: 0 },
+  cardName: { fontSize: 12, fontWeight: '900', color: '#1A1A2E' },
+  cardMeta: { fontSize: 10, color: '#9CA3AF', marginTop: 2 },
+  badge: { paddingHorizontal: 7, paddingVertical: 3, borderRadius: 20 },
+  badgeSell: { backgroundColor: '#E6F1FB' },
+  badgeWarn: { backgroundColor: '#FAEEDA' },
+  badgeText: { fontSize: 9, fontWeight: '900' },
+  badgeTextSell: { color: '#185FA5' },
+  badgeTextWarn: { color: '#854F0B' },
+  bars: { gap: 5 },
+  barRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  barLabel: { width: 30, fontSize: 9, color: '#9CA3AF', fontWeight: '800' },
+  barBg: { flex: 1, height: 5, borderRadius: 99, backgroundColor: '#F3F4F6', overflow: 'hidden' },
+  barFill: { height: '100%', borderRadius: 99 },
+  barValue: { width: 34, textAlign: 'right', fontSize: 9, fontWeight: '900', color: '#1A1A2E' },
+  barValueMuted: { color: '#9CA3AF' },
+  warnBox: { backgroundColor: '#FAEEDA', borderRadius: 8, padding: 8, flexDirection: 'row', alignItems: 'flex-start', gap: 6 },
+  warnText: { flex: 1, color: '#854F0B', fontSize: 10, fontWeight: '700', lineHeight: 15 },
+  emptyBox: { backgroundColor: '#FFFFFF', borderRadius: 12, padding: 24, borderWidth: 0.5, borderColor: '#E5E7EB', marginHorizontal: 14, alignItems: 'center' },
   emptyTitle: { color: '#6B7280', fontSize: 13, fontWeight: '800' },
-  emptyText: { color: '#9CA3AF', paddingVertical: 16, textAlign: 'center', fontSize: 13 },
-  tone_neutral: { backgroundColor: '#F1F5F9' },
-  toneText_neutral: { color: '#475569' },
-  tone_blue: { backgroundColor: '#EEEDFE' },
-  toneText_blue: { color: '#534AB7' },
-  tone_green: { backgroundColor: '#E1F5EE' },
-  toneText_green: { color: '#0F6E56' },
-  tone_yellow: { backgroundColor: '#FAEEDA' },
-  toneText_yellow: { color: '#854F0B' },
-  tone_red: { backgroundColor: '#FEE2E2' },
-  toneText_red: { color: '#B91C1C' },
-  tone_gray: { backgroundColor: '#E5E7EB' },
-  toneText_gray: { color: '#6B7280' },
+  statStrip: { flexDirection: 'row', gap: 7, paddingHorizontal: 14, paddingTop: 14, paddingBottom: 10 },
+  statMini: { flex: 1, backgroundColor: '#FFFFFF', borderRadius: 10, borderWidth: 0.5, borderColor: '#E5E7EB', paddingVertical: 9, alignItems: 'center' },
+  statValue: { fontSize: 17, fontWeight: '900', lineHeight: 19 },
+  statLabel: { fontSize: 9, color: '#9CA3AF', marginTop: 2, fontWeight: '700' },
+  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 14, paddingVertical: 8 },
+  sectionTitle: { fontSize: 12, fontWeight: '900', color: '#1A1A2E' },
+  sectionLink: { color: '#534AB7', fontSize: 11, fontWeight: '800' },
+  detailCard: { marginHorizontal: 14, backgroundColor: '#FFFFFF', borderRadius: 12, borderWidth: 0.5, borderColor: '#E5E7EB', padding: 12 },
+  sectionRow: { paddingVertical: 9 },
+  barTop: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
+  emptyText: { color: '#9CA3AF', paddingVertical: 16, textAlign: 'center', fontSize: 12, fontWeight: '700' },
 });
