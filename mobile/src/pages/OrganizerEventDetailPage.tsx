@@ -30,7 +30,7 @@ function BackIcon() {
   );
 }
 
-type DetailIconName = 'edit' | 'eye' | 'ticket' | 'chart' | 'qr' | 'tag' | 'cart';
+type DetailIconName = 'edit' | 'eye' | 'ticket' | 'chart' | 'qr' | 'tag' | 'cart' | 'broadcast' | 'eye-off' | 'x-icon';
 
 function DetailIcon({ name, color = '#534AB7', size = 16 }: { name: DetailIconName; color?: string; size?: number }) {
   const common = { fill: 'none', stroke: color, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const, strokeWidth: 2 };
@@ -43,6 +43,9 @@ function DetailIcon({ name, color = '#534AB7', size = 16 }: { name: DetailIconNa
       {name === 'qr' ? <Path {...common} d="M4 4h6v6H4V4Zm10 0h6v6h-6V4ZM4 14h6v6H4v-6Zm10 0h2v2h-2v-2Zm4 0h2v6h-2v-6Zm-4 4h2v2h-2v-2Z" /> : null}
       {name === 'tag' ? <Path {...common} d="M20 10 12 2H5v7l8 8a2 2 0 0 0 3 0l4-4a2 2 0 0 0 0-3ZM8 7h.01" /> : null}
       {name === 'cart' ? <Path {...common} d="M6 6h15l-2 8H8L6 3H3m6 17h.01M18 20h.01" /> : null}
+      {name === 'broadcast' ? <Path {...common} d="M12 12m-1 0a1 1 0 1 0 2 0a1 1 0 1 0-2 0M15.457 7.519a6 6 0 0 1 0 8.962M18.929 4.048a11 11 0 0 1 0 15.904M8.543 7.519a6 6 0 0 0 0 8.962M5.071 4.048a11 11 0 0 0 0 15.904" /> : null}
+      {name === 'eye-off' ? <Path {...common} d="M3 3l18 18M10.584 10.587a2 2 0 0 0 2.828 2.829M9.363 5.365A9.466 9.466 0 0 1 12 5c4 0 7.333 2.333 10 7-1.496 2.585-3.15 4.427-4.9 5.5M6.979 6.979C4.244 8.262 2.65 10.12 1 12c2.667 4.667 6 7 10 7a9.674 9.674 0 0 0 4.943-1.31" /> : null}
+      {name === 'x-icon' ? <Path {...common} d="M6 6l12 12M6 18L18 6" /> : null}
     </Svg>
   );
 }
@@ -85,6 +88,7 @@ export default function OrganizerEventDetailPage({ navigation, route }: any) {
   const [refreshing, setRefreshing] = useState(false);
   const [statusDraft, setStatusDraft] = useState('PUBLISHED');
   const [statusSaving, setStatusSaving] = useState(false);
+  const [statusAccordionOpen, setStatusAccordionOpen] = useState(false);
 
   const soldTickets = tickets.filter((ticket) => ['SOLD', 'LISTED', 'USED'].includes(String(ticket.status).toUpperCase())).length;
   const usedTickets = tickets.filter((ticket) => String(ticket.status).toUpperCase() === 'USED').length;
@@ -114,15 +118,16 @@ export default function OrganizerEventDetailPage({ navigation, route }: any) {
 
   useFocusEffect(useCallback(() => { void load(); }, [load]));
 
-  const saveStatus = async () => {
+  const saveStatus = async (newStatus: string) => {
     if (!event) return;
-    if (event.adminCanceled && statusDraft !== 'CANCELLED') {
+    if (event.adminCanceled && newStatus !== 'CANCELLED') {
       Alert.alert('변경 불가', '관리자가 취소한 이벤트는 주최자가 복구할 수 없습니다.');
       return;
     }
     setStatusSaving(true);
     try {
-      await backendApi.updateEventStatus(event.id, { status: statusDraft });
+      await backendApi.updateEventStatus(event.id, { status: newStatus });
+      setStatusDraft(newStatus);
       Alert.alert('저장 완료', '이벤트 상태가 변경되었습니다.');
       await load();
     } catch (error: any) {
@@ -130,6 +135,38 @@ export default function OrganizerEventDetailPage({ navigation, route }: any) {
     } finally {
       setStatusSaving(false);
     }
+  };
+
+  const isCancelled = statusDraft === 'CANCELLED';
+
+  const handleStatusSelect = (newStatus: string) => {
+    if (newStatus === statusDraft || statusSaving) return;
+    if (isCancelled && newStatus !== 'CANCELLED') {
+      if (typeof window !== 'undefined' && typeof window.confirm === 'function') {
+        window.alert('변경 불가\n취소된 이벤트는 되돌릴 수 없습니다.');
+        return;
+      }
+      Alert.alert('변경 불가', '취소된 이벤트는 되돌릴 수 없습니다.');
+      return;
+    }
+    if (newStatus === 'CANCELLED') {
+      if (typeof window !== 'undefined' && typeof window.confirm === 'function') {
+        if (window.confirm('이벤트 취소\n취소 후 되돌릴 수 없습니다. 이벤트를 취소하시겠습니까?')) {
+          void saveStatus(newStatus);
+        }
+        return;
+      }
+      Alert.alert(
+        '이벤트 취소',
+        '취소 후 되돌릴 수 없습니다. 이벤트를 취소하시겠습니까?',
+        [
+          { text: '취소', style: 'cancel' },
+          { text: '확인', style: 'destructive', onPress: () => void saveStatus(newStatus) },
+        ]
+      );
+      return;
+    }
+    void saveStatus(newStatus);
   };
 
   const goBack = () => {
@@ -200,7 +237,7 @@ export default function OrganizerEventDetailPage({ navigation, route }: any) {
       <View style={styles.sectionHeader}>
         <Text style={styles.sectionTitle}>이벤트 관리</Text>
       </View>
-      <View style={styles.card}>
+      <View style={styles.manageCard}>
         <TouchableOpacity style={styles.manageActionRow} onPress={() => navigation.navigate('EventSettings', { eventId: event.id })}>
           <View style={[styles.manageIcon, { backgroundColor: '#EEEDFE' }]}>
             <DetailIcon name="edit" color="#534AB7" size={15} />
@@ -211,42 +248,87 @@ export default function OrganizerEventDetailPage({ navigation, route }: any) {
           </View>
           <Text style={styles.manageChevron}>›</Text>
         </TouchableOpacity>
-        <View style={styles.manageActionRow}>
+
+        <TouchableOpacity
+          style={[styles.manageActionRow, !statusAccordionOpen && styles.manageActionRowLast]}
+          onPress={() => setStatusAccordionOpen((prev) => !prev)}
+        >
           <View style={[styles.manageIcon, { backgroundColor: '#F3F4F6' }]}>
             <DetailIcon name="eye" color="#6B7280" size={15} />
           </View>
           <View style={styles.manageCopy}>
             <Text style={styles.manageTitle}>이벤트 상태 변경</Text>
-            <Text style={styles.manageSub}>현재: {displayStatus.label} · 공개 여부 변경</Text>
+            <Text style={styles.manageSub}>현재: {displayStatus.label} · 눌러서 변경</Text>
           </View>
-          <Text style={styles.manageChevron}>›</Text>
-        </View>
-
-        <View style={styles.divider} />
-
-        <Text style={styles.subTitle}>이벤트 상태 변경</Text>
-        <Text style={styles.descriptionText}>게시 여부와 취소 여부를 관리합니다. 판매·공연 상태는 일정과 티켓 수량으로 자동 계산됩니다.</Text>
-        {event.adminCanceled ? <Text style={styles.warningText}>관리자가 취소한 이벤트는 주최자가 복구할 수 없습니다.</Text> : null}
-
-        <View style={styles.statusGrid}>
-          {[
-            { value: 'PUBLISHED', label: '게시중' },
-            { value: 'INACTIVE', label: '비공개' },
-            { value: 'CANCELLED', label: '이벤트 취소' },
-          ].map((item) => (
-            <TouchableOpacity
-              key={item.value}
-              style={[styles.statusChip, statusDraft === item.value && styles.activeStatusChip]}
-              disabled={statusSaving || (event.adminCanceled === true && item.value !== 'CANCELLED')}
-              onPress={() => setStatusDraft(item.value)}
-            >
-              <Text style={[styles.statusChipText, statusDraft === item.value && styles.activeStatusChipText]}>{item.label}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-        <TouchableOpacity style={[styles.statusSaveBtn, statusSaving && styles.disabledButton]} disabled={statusSaving} onPress={() => void saveStatus()}>
-          <Text style={styles.statusSaveBtnText}>{statusSaving ? '저장 중...' : '상태 저장'}</Text>
+          <Text style={[styles.manageChevron, statusAccordionOpen && styles.manageChevronOpen]}>›</Text>
         </TouchableOpacity>
+
+        {statusAccordionOpen ? (
+          <View style={styles.accordionBody}>
+            <Text style={styles.accordionHint}>
+              {'게시 여부와 취소 여부를 관리합니다. 판매·공연 상태는 일정과 티켓 수량으로 자동 계산됩니다.'}
+              {event.adminCanceled ? '\n관리자가 취소한 이벤트는 주최자가 복구할 수 없습니다.' : ''}
+            </Text>
+            <View style={styles.statusOptionList}>
+              <TouchableOpacity
+                style={[styles.statusOptionRow, statusDraft === 'PUBLISHED' && styles.statusOptionRowCurrent, isCancelled && styles.statusOptionRowDisabled]}
+                disabled={statusSaving || !!event.adminCanceled || isCancelled}
+                onPress={() => handleStatusSelect('PUBLISHED')}
+              >
+                <View style={[styles.statusOptionIcon, { backgroundColor: '#EEEDFE' }]}>
+                  <DetailIcon name="broadcast" color="#534AB7" size={14} />
+                </View>
+                <View style={styles.statusOptionCopy}>
+                  <Text style={[styles.statusOptionTitle, statusDraft === 'PUBLISHED' && styles.statusOptionTitleActive]}>게시중</Text>
+                  <Text style={styles.statusOptionSub}>사용자에게 이벤트가 공개됩니다.</Text>
+                </View>
+                {statusDraft === 'PUBLISHED' ? (
+                  <View style={styles.statusCurrentBadge}>
+                    <Text style={styles.statusCurrentBadgeText}>현재</Text>
+                  </View>
+                ) : null}
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.statusOptionRow, statusDraft === 'INACTIVE' && styles.statusOptionRowCurrent, isCancelled && styles.statusOptionRowDisabled]}
+                disabled={statusSaving || (!!event.adminCanceled && statusDraft !== 'CANCELLED') || isCancelled}
+                onPress={() => handleStatusSelect('INACTIVE')}
+              >
+                <View style={[styles.statusOptionIcon, { backgroundColor: '#F3F4F6' }]}>
+                  <DetailIcon name="eye-off" color="#6B7280" size={14} />
+                </View>
+                <View style={styles.statusOptionCopy}>
+                  <Text style={[styles.statusOptionTitle, statusDraft === 'INACTIVE' && styles.statusOptionTitleActive]}>비공개</Text>
+                  <Text style={styles.statusOptionSub}>이벤트가 목록에서 숨겨집니다.</Text>
+                </View>
+                {statusDraft === 'INACTIVE' ? (
+                  <View style={styles.statusCurrentBadge}>
+                    <Text style={styles.statusCurrentBadgeText}>현재</Text>
+                  </View>
+                ) : null}
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.statusOptionRow, styles.statusOptionRowDanger, statusDraft === 'CANCELLED' && styles.statusOptionRowCurrent]}
+                disabled={statusSaving}
+                onPress={() => handleStatusSelect('CANCELLED')}
+              >
+                <View style={[styles.statusOptionIcon, { backgroundColor: '#FCEBEB' }]}>
+                  <DetailIcon name="x-icon" color="#A32D2D" size={14} />
+                </View>
+                <View style={styles.statusOptionCopy}>
+                  <Text style={[styles.statusOptionTitle, { color: '#A32D2D' }]}>이벤트 취소</Text>
+                  <Text style={[styles.statusOptionSub, { color: '#A32D2D', opacity: 0.7 }]}>취소 후 되돌릴 수 없습니다.</Text>
+                </View>
+                {statusDraft === 'CANCELLED' ? (
+                  <View style={styles.statusCurrentBadge}>
+                    <Text style={styles.statusCurrentBadgeText}>현재</Text>
+                  </View>
+                ) : null}
+              </TouchableOpacity>
+            </View>
+          </View>
+        ) : null}
       </View>
 
       <View style={styles.sectionHeader}>
@@ -337,7 +419,24 @@ const styles = StyleSheet.create({
   manageRow: { flexDirection: 'row', gap: 8 },
   manageBtn: { flex: 1, backgroundColor: '#F5F5F5', borderRadius: 10, paddingVertical: 11, alignItems: 'center', borderWidth: 0.5, borderColor: '#E5E7EB' },
   manageBtnText: { color: '#1A1A2E', fontSize: 13, fontWeight: '700' },
-  manageActionRow: { flexDirection: 'row', alignItems: 'center', gap: 11, paddingVertical: 11, borderBottomWidth: 0.5, borderBottomColor: '#F3F4F6' },
+  manageCard: { marginHorizontal: 16, marginBottom: 16, backgroundColor: '#FFFFFF', borderRadius: 12, borderWidth: 0.5, borderColor: '#E5E7EB', overflow: 'hidden' },
+  manageActionRow: { flexDirection: 'row', alignItems: 'center', gap: 11, paddingVertical: 11, paddingHorizontal: 12, borderBottomWidth: 0.5, borderBottomColor: '#F3F4F6' },
+  manageActionRowLast: { borderBottomWidth: 0 },
+  manageChevronOpen: { transform: [{ rotate: '90deg' }] },
+  accordionBody: { borderTopWidth: 0.5, borderTopColor: '#F3F4F6', backgroundColor: '#FAFAFA', padding: 12 },
+  accordionHint: { fontSize: 10, color: '#9CA3AF', lineHeight: 15, marginBottom: 10 },
+  statusOptionList: { gap: 6 },
+  statusOptionRow: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 10, borderRadius: 10, borderWidth: 0.5, borderColor: '#E5E7EB', backgroundColor: '#FFFFFF' },
+  statusOptionRowCurrent: { borderColor: '#534AB7', backgroundColor: '#FAFAFE' },
+  statusOptionRowDanger: { borderColor: '#F7C1C1', backgroundColor: '#FCEBEB' },
+  statusOptionIcon: { width: 28, height: 28, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  statusOptionCopy: { flex: 1, minWidth: 0 },
+  statusOptionTitle: { fontSize: 12, fontWeight: '700', color: '#1A1A2E' },
+  statusOptionTitleActive: { color: '#534AB7' },
+  statusOptionSub: { fontSize: 10, color: '#9CA3AF', marginTop: 1 },
+  statusCurrentBadge: { backgroundColor: '#EEEDFE', borderRadius: 20, paddingHorizontal: 7, paddingVertical: 2 },
+  statusCurrentBadgeText: { color: '#534AB7', fontSize: 9, fontWeight: '700', overflow: 'hidden' },
+  statusOptionRowDisabled: { opacity: 0.38 },
   manageIcon: { width: 32, height: 32, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
   manageCopy: { flex: 1, minWidth: 0 },
   manageTitle: { color: '#1A1A2E', fontSize: 13, fontWeight: '800' },
