@@ -15,6 +15,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
 import { accountStatusMessage, errorMessage } from '../lib/account';
+import { clearAccessToken } from '../lib/auth';
 import { backendApi } from '../lib/backend';
 import { showDialog } from '../lib/dialog';
 import { getNextRoundTime } from '../lib/ticketDisplay';
@@ -275,6 +276,15 @@ export default function OrganizerDashboardPage({ navigation }: any) {
     showDialog('알림', `${todayText}\n${checkInText}`);
   };
 
+  const handleLogout = async () => {
+    try {
+      await clearAccessToken();
+      navigation.reset({ index: 0, routes: [{ name: 'Landing' }] });
+    } catch (error: any) {
+      Alert.alert('로그아웃 실패', errorMessage(error, '세션을 종료하지 못했습니다.'));
+    }
+  };
+
   const submitApplication = async () => {
     if (!businessName.trim()) {
       const message = '상호명을 입력해주세요.';
@@ -340,7 +350,7 @@ export default function OrganizerDashboardPage({ navigation }: any) {
         <View style={styles.card}>
           <Text style={styles.cardTitle}>계정 사용 불가</Text>
           <Text style={styles.cardText}>{blockedMessage}</Text>
-          <TouchableOpacity style={[styles.primaryButton, { marginHorizontal: 0 }]} onPress={() => navigation.navigate('OrganizerLogout')}>
+          <TouchableOpacity style={[styles.primaryButton, { marginHorizontal: 0 }]} onPress={handleLogout}>
             <Text style={styles.primaryButtonText}>로그아웃</Text>
           </TouchableOpacity>
         </View>

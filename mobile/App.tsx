@@ -25,7 +25,6 @@ import OrganizerDashboardPage from './src/pages/OrganizerDashboardPage';
 import EventCreatePage from './src/pages/EventCreatePage';
 import MyEventsPage from './src/pages/MyEventsPage';
 import TicketIssuePage from './src/pages/TicketIssuePage';
-import OrganizerLogoutPage from './src/pages/OrganizerLogoutPage';
 import CheckInStatusPage from './src/pages/CheckInStatusPage';
 import EventSettingsPage from './src/pages/EventSettingsPage';
 import CheckInManagePage from './src/pages/CheckInManagePage';
@@ -168,7 +167,6 @@ export default function App() {
           <Stack.Screen name="CheckInManage" component={CheckInManagePage} options={{ title: '체크인 관리' }} />
           <Stack.Screen name="CheckInScan" component={CheckInScanPage} options={{ title: 'QR 스캔' }} />
           <Stack.Screen name="OrganizerProfile" component={OrganizerProfilePage} options={{ title: '내 정보' }} />
-          <Stack.Screen name="OrganizerLogout" component={OrganizerLogoutPage} options={{ title: '로그아웃' }} />
                 </Stack.Navigator>
               </NavigationContainer>
             </View>

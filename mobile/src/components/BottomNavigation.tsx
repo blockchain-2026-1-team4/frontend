@@ -17,7 +17,7 @@ type BottomNavigationProps = {
   onNavigate: (routeName: string) => void;
 };
 
-const HIDDEN_ROUTES = new Set(['Landing', 'Auth', 'CheckInScan', 'OrganizerLogout']);
+const HIDDEN_ROUTES = new Set(['Landing', 'Auth', 'CheckInScan']);
 
 const userTabs: TabItem[] = [
   { label: '\uD648', target: 'Main', matches: ['Main', 'EventList', 'EventDetail', 'TicketPurchase', 'PurchaseComplete'], icon: 'home' },
@@ -37,7 +37,7 @@ const organizerTabs: TabItem[] = [
   { label: '\uC774\uBCA4\uD2B8', target: 'MyEvents', matches: ['MyEvents', 'EventCreate', 'OrganizerEventDetail', 'EventSettings'], icon: 'calendar' },
   { label: '\uD2F0\uCF13 \uC6B4\uC601', target: 'SalesStatus', matches: ['SalesStatus', 'TicketExplore', 'TicketIssue'], icon: 'ticket' },
   { label: '\uCCB4\uD06C\uC778', target: 'CheckInHome', matches: ['CheckInHome', 'CheckInEventList', 'CheckInManage', 'CheckInStatus', 'CheckInScan'], icon: 'qr' },
-  { label: '\uB0B4 \uC815\uBCF4', target: 'OrganizerProfile', matches: ['OrganizerProfile', 'OrganizerLogout'], icon: 'user' },
+  { label: '\uB0B4 \uC815\uBCF4', target: 'OrganizerProfile', matches: ['OrganizerProfile'], icon: 'user' },
 ];
 
 const userRoutes = new Set(userTabs.flatMap((tab) => tab.matches));
