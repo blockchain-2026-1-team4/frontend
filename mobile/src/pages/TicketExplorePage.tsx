@@ -8,12 +8,12 @@ import type { EventDetail, EventRound, TicketDetail } from '../types/api';
 
 const PAGE_SIZE = 20;
 const STATUS_FILTERS = [
-  { value: 'ALL',       label: '전체' },
-  { value: 'AVAILABLE', label: '판매 가능' },
-  { value: 'SOLD',      label: '구매 완료' },
-  { value: 'LISTED',    label: '리셀 판매중' },
-  { value: 'USED',      label: '체크인 완료' },
-  { value: 'CANCELLED', label: '취소' },
+  { value: 'ALL',        label: '전체' },
+  { value: 'AVAILABLE',  label: '미판매' },
+  { value: 'SOLD_GROUP', label: '판매됨' },
+  { value: 'LISTED',     label: '리셀 등록' },
+  { value: 'USED',       label: '입장 완료' },
+  { value: 'CANCELLED',  label: '취소' },
 ] as const;
 
 type SortMode = 'latest' | 'seat' | 'priceAsc' | 'priceDesc';
@@ -51,6 +51,12 @@ function roundLabel(round: EventRound, index: number) {
 function ticketRoundLabel(ticket: TicketDetail, event?: EventDetail | null) {
   const index = event?.rounds?.findIndex((round) => round.id && round.id === ticket.eventRoundId) ?? -1;
   return index >= 0 ? `${index + 1}회차` : '회차 미지정';
+}
+
+function matchesTicketStatusFilter(status: string, selectedStatus: (typeof STATUS_FILTERS)[number]['value']) {
+  if (selectedStatus === 'ALL') return true;
+  if (selectedStatus === 'SOLD_GROUP') return ['SOLD', 'LISTED', 'USED'].includes(status);
+  return status === selectedStatus;
 }
 
 export default function TicketExplorePage({ navigation, route }: any) {
@@ -107,7 +113,7 @@ export default function TicketExplorePage({ navigation, route }: any) {
     const base = tickets.filter((ticket) => {
       const matchesRound = selectedRound === 'ALL' || ticket.eventRoundId === selectedRound;
       const matchesSection = selectedSection === 'ALL' || sectionOf(ticket) === selectedSection;
-      const matchesStatus = selectedStatus === 'ALL' || String(ticket.status).toUpperCase() === selectedStatus;
+      const matchesStatus = matchesTicketStatusFilter(String(ticket.status).toUpperCase(), selectedStatus);
       const matchesResale =
         resaleFilter === 'ALL' ||
         (resaleFilter === 'ENABLED' && ticket.resaleEnabled) ||

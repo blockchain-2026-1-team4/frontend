@@ -19,13 +19,13 @@ import { backendApi } from '../lib/backend';
 import { formatEventCategory, getNextRoundTime, operationSortRank } from '../lib/ticketDisplay';
 import type { EventSummary } from '../types/api';
 
-type StatusFilter = 'all' | 'published' | 'draft' | 'ended' | 'cancelled';
+type StatusFilter = 'all' | 'operating' | 'inactive' | 'ended' | 'cancelled';
 type IconName = 'plus' | 'search' | 'calendar' | 'broadcast' | 'sliders';
 
 const STATUS_FILTERS: { key: StatusFilter; label: string; tone?: 'teal' | 'red' }[] = [
   { key: 'all', label: '전체' },
-  { key: 'published', label: '게시중', tone: 'teal' },
-  { key: 'draft', label: '초안' },
+  { key: 'operating', label: '운영 중', tone: 'teal' },
+  { key: 'inactive', label: '비공개' },
   { key: 'ended', label: '종료' },
   { key: 'cancelled', label: '취소', tone: 'red' },
 ];
@@ -53,6 +53,10 @@ function isEnded(event: EventSummary) {
 
 function isCancelled(event: EventSummary) {
   return String(event.status ?? '').toUpperCase() === 'CANCELLED';
+}
+
+function isInactive(event: EventSummary) {
+  return String(event.status ?? '').toUpperCase() === 'INACTIVE';
 }
 
 function formatDate(dateStr?: string | null) {
@@ -150,8 +154,8 @@ export default function MyEventsPage({ navigation }: any) {
     return events
       .filter((event) => {
         const status = String(event.status ?? '').toUpperCase();
-        if (statusFilter === 'published') return status === 'PUBLISHED' && !isEnded(event) && !isCancelled(event);
-        if (statusFilter === 'draft') return (status === 'DRAFT' || status === 'INACTIVE') && !isCancelled(event);
+        if (statusFilter === 'operating') return status === 'PUBLISHED' && !isEnded(event) && !isCancelled(event);
+        if (statusFilter === 'inactive') return isInactive(event);
         if (statusFilter === 'ended') return isEnded(event);
         if (statusFilter === 'cancelled') return isCancelled(event);
         return true;
