@@ -12,13 +12,15 @@ import type { EventDetail, EventSummary, TicketDetail } from '../types/api';
 
 type IconName = 'ticket' | 'cart' | 'search' | 'alert';
 type SalesItem = { event: EventSummary; tickets: TicketDetail[] };
-type SalesFilter = 'all' | 'selling' | 'missing' | 'ended';
+type SalesFilter = 'all' | 'available' | 'sold' | 'listed' | 'used' | 'cancelled';
 
-const FILTERS: { key: SalesFilter; label: string; tone?: 'teal' | 'amber' }[] = [
+const FILTERS: { key: SalesFilter; label: string; tone?: 'teal' | 'amber' | 'blue' | 'red' }[] = [
   { key: 'all', label: '전체' },
-  { key: 'selling', label: '판매 중', tone: 'teal' },
-  { key: 'missing', label: '미발행', tone: 'amber' },
-  { key: 'ended', label: '종료' },
+  { key: 'available', label: '미판매', tone: 'amber' },
+  { key: 'sold', label: '판매됨', tone: 'teal' },
+  { key: 'listed', label: '리셀 등록', tone: 'amber' },
+  { key: 'used', label: '입장 완료', tone: 'blue' },
+  { key: 'cancelled', label: '취소', tone: 'red' },
 ];
 
 const HeroGradient = LinearGradient as unknown as React.ComponentType<any>;
@@ -44,7 +46,30 @@ function ticketStats(event: EventSummary, tickets: TicketDetail[]) {
   const sold = Number(event.soldTicketCount ?? 0) || tickets.filter((ticket) => ['SOLD', 'LISTED', 'USED'].includes(String(ticket.status).toUpperCase())).length;
   const available = Number(event.remainingTicketCount ?? 0) || tickets.filter((ticket) => String(ticket.status).toUpperCase() === 'AVAILABLE').length;
   const listed = tickets.filter((ticket) => String(ticket.status).toUpperCase() === 'LISTED').length;
-  return { total, sold, available, listed };
+  const used = tickets.filter((ticket) => String(ticket.status).toUpperCase() === 'USED').length;
+  const cancelled = tickets.filter((ticket) => String(ticket.status).toUpperCase() === 'CANCELLED').length;
+  return { total, sold, available, listed, used, cancelled };
+}
+
+function matchesTicketFilter(ticket: TicketDetail, filter: SalesFilter) {
+  const status = String(ticket.status).toUpperCase();
+  if (filter === 'all') return true;
+  if (filter === 'available') return status === 'AVAILABLE';
+  if (filter === 'sold') return ['SOLD', 'LISTED', 'USED'].includes(status);
+  if (filter === 'listed') return status === 'LISTED';
+  if (filter === 'used') return status === 'USED';
+  if (filter === 'cancelled') return status === 'CANCELLED';
+  return true;
+}
+
+function matchesEventFilter(stat: ReturnType<typeof ticketStats>, filter: SalesFilter) {
+  if (filter === 'all') return true;
+  if (filter === 'available') return stat.available > 0;
+  if (filter === 'sold') return stat.sold > 0;
+  if (filter === 'listed') return stat.listed > 0;
+  if (filter === 'used') return stat.used > 0;
+  if (filter === 'cancelled') return stat.cancelled > 0;
+  return true;
 }
 
 function sectionOf(ticket: TicketDetail) {
@@ -152,10 +177,7 @@ export default function SalesStatusPage({ navigation, route }: any) {
     const normalized = query.trim().toLowerCase();
     return items.filter((item) => {
       const stat = ticketStats(item.event, item.tickets);
-      const ended = isEnded(item.event);
-      if (filter === 'selling' && (stat.total <= 0 || ended)) return false;
-      if (filter === 'missing' && stat.total > 0) return false;
-      if (filter === 'ended' && !ended) return false;
+      if (!matchesEventFilter(stat, filter)) return false;
       if (!normalized) return true;
       return `${eventTitle(item.event)} ${item.event.venue || ''}`.toLowerCase().includes(normalized);
     });
@@ -174,7 +196,8 @@ export default function SalesStatusPage({ navigation, route }: any) {
     const used = tickets.filter((ticket) => String(ticket.status).toUpperCase() === 'USED').length;
     const available = tickets.filter((ticket) => String(ticket.status).toUpperCase() === 'AVAILABLE').length;
     const listed = tickets.filter((ticket) => String(ticket.status).toUpperCase() === 'LISTED').length;
-    const stats = sectionStats(tickets);
+    const filteredTickets = tickets.filter((ticket) => matchesTicketFilter(ticket, filter));
+    const stats = sectionStats(filteredTickets);
 
     return (
       <ScrollView style={styles.container} contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} />}>
@@ -190,6 +213,16 @@ export default function SalesStatusPage({ navigation, route }: any) {
           <MiniStat label="리셀" value={listed} color="#854F0B" />
           <MiniStat label="체크인" value={used} color="#185FA5" />
         </View>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterWrap}>
+          {FILTERS.map((item) => {
+            const active = filter === item.key;
+            return (
+              <TouchableOpacity key={item.key} style={[styles.filterPill, active && styles.filterPillActive, !active && item.tone === 'teal' && styles.filterPillTeal, !active && item.tone === 'amber' && styles.filterPillAmber, !active && item.tone === 'blue' && styles.filterPillBlue, !active && item.tone === 'red' && styles.filterPillRed]} onPress={() => setFilter(item.key)}>
+                <Text style={[styles.filterText, active && styles.filterTextActive, !active && item.tone === 'teal' && styles.filterTextTeal, !active && item.tone === 'amber' && styles.filterTextAmber, !active && item.tone === 'blue' && styles.filterTextBlue, !active && item.tone === 'red' && styles.filterTextRed]}>{item.label}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>구역별 판매 현황</Text>
           <TouchableOpacity onPress={() => navigation.navigate('TicketExplore', { eventId })}><Text style={styles.sectionLink}>전체 티켓</Text></TouchableOpacity>
@@ -234,8 +267,8 @@ export default function SalesStatusPage({ navigation, route }: any) {
         {FILTERS.map((item) => {
           const active = filter === item.key;
           return (
-            <TouchableOpacity key={item.key} style={[styles.filterPill, active && styles.filterPillActive, !active && item.tone === 'teal' && styles.filterPillTeal, !active && item.tone === 'amber' && styles.filterPillAmber]} onPress={() => setFilter(item.key)}>
-              <Text style={[styles.filterText, active && styles.filterTextActive, !active && item.tone === 'teal' && styles.filterTextTeal, !active && item.tone === 'amber' && styles.filterTextAmber]}>{item.label}</Text>
+            <TouchableOpacity key={item.key} style={[styles.filterPill, active && styles.filterPillActive, !active && item.tone === 'teal' && styles.filterPillTeal, !active && item.tone === 'amber' && styles.filterPillAmber, !active && item.tone === 'blue' && styles.filterPillBlue, !active && item.tone === 'red' && styles.filterPillRed]} onPress={() => setFilter(item.key)}>
+              <Text style={[styles.filterText, active && styles.filterTextActive, !active && item.tone === 'teal' && styles.filterTextTeal, !active && item.tone === 'amber' && styles.filterTextAmber, !active && item.tone === 'blue' && styles.filterTextBlue, !active && item.tone === 'red' && styles.filterTextRed]}>{item.label}</Text>
             </TouchableOpacity>
           );
         })}
@@ -331,10 +364,14 @@ const styles = StyleSheet.create({
   filterPillActive: { backgroundColor: '#1A1A2E', borderColor: '#1A1A2E' },
   filterPillTeal: { backgroundColor: '#E1F5EE', borderColor: '#9FE1CB' },
   filterPillAmber: { backgroundColor: '#FAEEDA', borderColor: '#FAC775' },
+  filterPillBlue: { backgroundColor: '#E6F1FB', borderColor: '#A9CDEB' },
+  filterPillRed: { backgroundColor: '#FCEBEB', borderColor: '#F7C1C1' },
   filterText: { color: '#6B7280', fontSize: 10, fontWeight: '800' },
   filterTextActive: { color: '#FFFFFF' },
   filterTextTeal: { color: '#0F6E56' },
   filterTextAmber: { color: '#854F0B' },
+  filterTextBlue: { color: '#185FA5' },
+  filterTextRed: { color: '#A32D2D' },
   resultLabel: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 14, paddingBottom: 6 },
   resultText: { fontSize: 10, color: '#9CA3AF', fontWeight: '800' },
   sortText: { fontSize: 10, color: '#534AB7', fontWeight: '800' },
