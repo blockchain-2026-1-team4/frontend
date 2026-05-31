@@ -1288,7 +1288,9 @@ export default function TicketIssuePage({ navigation, route }: any) {
                     </View>
                   ) : null}
 
-                  <Text style={[styles.sectionTitle, currentSections.length === 0 && styles.sectionTitleRight, currentSections.length > 0 && styles.newPolicyTitle]}>새 좌석 정책 추가</Text>
+                  {currentSections.length > 0 ? (
+                    <Text style={[styles.sectionTitle, currentSections.length > 0 && styles.newPolicyTitle]}>새 좌석 정책 추가</Text>
+                  ) : null}
                   <View style={styles.builderBox}>
                     <View style={styles.stepCard}>
                       <View style={styles.policyCardHead}>
@@ -1940,7 +1942,6 @@ const styles = StyleSheet.create({
   policyRoundSelectorTitle: { color: '#1A1A2E', fontSize: 12, fontWeight: '900' },
   policyRoundSelectorMeta: { marginTop: 2, color: '#9CA3AF', fontSize: 10, fontWeight: '700' },
   sectionTitle: { color: '#1A1A2E', fontSize: 11, fontWeight: '800', marginBottom: 8 },
-  sectionTitleRight: { color: '#1A1A2E', fontSize: 11, fontWeight: '800', marginBottom: 8, textAlign: 'right', marginRight: 14 },
   savedPolicySection: { marginHorizontal: 14, marginBottom: 14, paddingBottom: 12 },
   savedZone: { marginHorizontal: 14, marginTop: 12 },
   savedZoneHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 7 },
