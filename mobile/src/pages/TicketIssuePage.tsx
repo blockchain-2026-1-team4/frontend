@@ -312,6 +312,7 @@ export default function TicketIssuePage({ navigation, route }: any) {
   const [lastIssuedTicketIds, setLastIssuedTicketIds] = useState<string[]>([]);
   const [ticketConfigConfirmed, setTicketConfigConfirmed] = useState(false);
   const [issueCompleted, setIssueCompleted] = useState(false);
+  const [prevFlowPage, setPrevFlowPage] = useState<FlowPage | null>(null);
   const [issueSeatModalVisible, setIssueSeatModalVisible] = useState(false);
   const [actionPolicy, setActionPolicy] = useState<SectionPolicy | null>(null);
 
@@ -488,6 +489,14 @@ export default function TicketIssuePage({ navigation, route }: any) {
         showError('모든 회차에 적용할 총 티켓 수를 입력해주세요.');
         return false;
       }
+      // 각 회차에 이미 발행된 수보다 작게 설정할 수 없음
+      for (const [index, round] of (rounds || []).entries()) {
+        const already = issuedCountForRound(round, index);
+        if (Number(globalTotalTicketCount || 0) < already) {
+          showError(`${index + 1}회차에 이미 ${already}장이 발행되어 있습니다. 총 티켓 수는 최소 ${already}장 이상으로 설정해야 합니다.`);
+          return false;
+        }
+      }
       if (!globalSaleStartDate || !globalSaleStartTime) {
         showError('판매 시작 날짜와 시간을 입력해주세요.');
         return false;
@@ -522,6 +531,15 @@ export default function TicketIssuePage({ navigation, route }: any) {
     if (missing) {
       showError('각 회차의 총 티켓 수를 모두 입력해주세요.');
       return false;
+    }
+    // 회차별로 이미 발행된 수보다 작게 총 수를 설정할 수 없음
+    for (const [index, round] of rounds.entries()) {
+      const rp = roundPolicies[roundKey(round, index)];
+      const already = issuedCountForRound(round, index);
+      if (rp && Number(rp.totalTicketCount || 0) < already) {
+        showError(`${index + 1}회차에 이미 ${already}장이 발행되어 있습니다. 총 티켓 수는 최소 ${already}장 이상으로 설정해야 합니다.`);
+        return false;
+      }
     }
     return true;
   };
@@ -817,6 +835,7 @@ export default function TicketIssuePage({ navigation, route }: any) {
       showError(`이번 발행 수량이 남은 수량보다 많습니다. 총 ${finalTotalCount}장 중 이미 ${finalIssuedCount}장 발행, 이번 입력 ${finalIssueCount}장, 초과 ${Math.abs(finalRemainingCount)}장입니다.`);
       return;
     }
+    setPrevFlowPage(flowPage);
     setTicketConfigConfirmed(true);
     setIssueCompleted(false);
     setFeedback({ type: 'success', message: '티켓 설정을 완료했습니다. 최종 발행 내용을 확인해주세요.' });
@@ -851,6 +870,8 @@ export default function TicketIssuePage({ navigation, route }: any) {
     }
     setTicketConfigConfirmed(false);
     setIssueCompleted(false);
+    setFlowPage(prevFlowPage ?? 2);
+    setPrevFlowPage(null);
   };
 
   const pageTitle = flowPage === 1
@@ -1267,7 +1288,7 @@ export default function TicketIssuePage({ navigation, route }: any) {
                     </View>
                   ) : null}
 
-                  <Text style={[styles.sectionTitle, currentSections.length > 0 && styles.newPolicyTitle]}>새 좌석 정책 추가</Text>
+                  <Text style={[styles.sectionTitle, currentSections.length === 0 && styles.sectionTitleRight, currentSections.length > 0 && styles.newPolicyTitle]}>새 좌석 정책 추가</Text>
                   <View style={styles.builderBox}>
                     <View style={styles.stepCard}>
                       <View style={styles.policyCardHead}>
@@ -1511,7 +1532,7 @@ export default function TicketIssuePage({ navigation, route }: any) {
               <Text style={styles.primaryButtonText}>{issueCompleted ? '발행 완료' : issuing ? '발행 중...' : '티켓 발행'}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={[styles.secondaryButton, issuing && styles.disabledButton]} disabled={issuing} onPress={() => void reopenTicketConfig()}>
-              <Text style={styles.secondaryButtonText}>{issueCompleted ? '직전 발행 취소 후 다시 설정' : '다시 티켓 설정하기'}</Text>
+              <Text style={styles.secondaryButtonText}>{issueCompleted ? '발행 취소 후 다시 설정' : '다시 티켓 설정하기'}</Text>
             </TouchableOpacity>
           </View>
         ) : null}
@@ -1919,6 +1940,7 @@ const styles = StyleSheet.create({
   policyRoundSelectorTitle: { color: '#1A1A2E', fontSize: 12, fontWeight: '900' },
   policyRoundSelectorMeta: { marginTop: 2, color: '#9CA3AF', fontSize: 10, fontWeight: '700' },
   sectionTitle: { color: '#1A1A2E', fontSize: 11, fontWeight: '800', marginBottom: 8 },
+  sectionTitleRight: { color: '#1A1A2E', fontSize: 11, fontWeight: '800', marginBottom: 8, textAlign: 'right', marginRight: 14 },
   savedPolicySection: { marginHorizontal: 14, marginBottom: 14, paddingBottom: 12 },
   savedZone: { marginHorizontal: 14, marginTop: 12 },
   savedZoneHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 7 },
