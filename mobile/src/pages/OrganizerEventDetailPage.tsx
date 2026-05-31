@@ -173,6 +173,7 @@ export default function OrganizerEventDetailPage({ navigation, route }: any) {
   }
 
   const tone = STATUS_TONE[displayStatus.tone] ?? STATUS_TONE.neutral;
+  const posterUri = resolveImageUrl(event.imageUrl);
 
   return (
     <ScrollView
@@ -180,7 +181,13 @@ export default function OrganizerEventDetailPage({ navigation, route }: any) {
       contentContainerStyle={styles.content}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} />}
     >
-      <HeroGradient colors={['#1A1A2E', '#2D2B6B']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.hero, { paddingTop: Math.max(insets.top + 20, 42) }]}>
+      <HeroGradient colors={['#1A1A2E', '#2D2B6B']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.hero, posterUri && styles.posterHero, { paddingTop: Math.max(insets.top + 20, 42) }]}>
+        {posterUri ? (
+          <>
+            <Image source={{ uri: posterUri }} style={styles.posterHeroImage} resizeMode="cover" />
+            <View style={styles.posterHeroOverlay} />
+          </>
+        ) : null}
         <View style={styles.heroTopBar}>
           <TouchableOpacity accessibilityRole="button" accessibilityLabel="뒤로가기" style={styles.backButton} onPress={goBack}>
             <BackIcon />
@@ -197,12 +204,6 @@ export default function OrganizerEventDetailPage({ navigation, route }: any) {
           <Text style={styles.heroChipText}>{roundSummary(event)}</Text>
         </View>
       </HeroGradient>
-
-      {resolveImageUrl(event.imageUrl) ? (
-        <View style={styles.posterCard}>
-          <Image source={{ uri: resolveImageUrl(event.imageUrl)! }} style={styles.poster} resizeMode="cover" />
-        </View>
-      ) : null}
 
       <View style={styles.metricGrid}>
         <MetricCard label="총 티켓" value={totalTickets} bg="#EEEDFE" color="#534AB7" />
@@ -291,7 +292,10 @@ const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20, backgroundColor: '#F5F5F5' },
   loadingText: { marginTop: 12, color: '#9CA3AF', fontSize: 14 },
   emptyTitle: { color: '#1A1A2E', fontSize: 16, fontWeight: '800', marginBottom: 16 },
-  hero: { paddingHorizontal: 20, paddingBottom: 28 },
+  hero: { paddingHorizontal: 20, paddingBottom: 28, overflow: 'hidden' },
+  posterHero: { minHeight: 155 },
+  posterHeroImage: { ...StyleSheet.absoluteFillObject, width: '100%', height: '100%' },
+  posterHeroOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(26,26,46,0.72)' },
   heroTopBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 },
   backButton: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
   statusChipHero: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
@@ -302,9 +306,7 @@ const styles = StyleSheet.create({
   heroChip: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', backgroundColor: 'rgba(255,255,255,0.12)', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.2)', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 5 },
   heroDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#6EE7B7' },
   heroChipText: { color: 'rgba(255,255,255,0.85)', fontSize: 11 },
-  posterCard: { marginHorizontal: 16, marginTop: 14, borderRadius: 14, overflow: 'hidden', borderWidth: 0.5, borderColor: '#E5E7EB' },
-  poster: { width: '100%', aspectRatio: 16 / 9, backgroundColor: '#E5E7EB' },
-  metricGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, paddingHorizontal: 16, marginTop: 14, marginBottom: 16 },
+  metricGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, paddingHorizontal: 16, marginTop: -16, marginBottom: 16 },
   metricCard: { width: '48.5%', backgroundColor: '#FFFFFF', borderRadius: 14, padding: 13, borderWidth: 0.5, borderColor: '#E5E7EB' },
   metricIconBox: { width: 26, height: 26, borderRadius: 7, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
   metricValue: { fontSize: 22, fontWeight: '800', color: '#1A1A2E' },

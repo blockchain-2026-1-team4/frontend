@@ -3,6 +3,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import {
   ActivityIndicator,
   Alert,
+  Image,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -16,6 +17,7 @@ import Svg, { Circle, Path, Rect } from 'react-native-svg';
 import { TextInput } from '../components/TextInput';
 import { errorMessage } from '../lib/account';
 import { backendApi } from '../lib/backend';
+import { resolveImageUrl } from '../lib/config';
 import { formatEventCategory, getNextRoundTime, operationSortRank } from '../lib/ticketDisplay';
 import type { EventSummary } from '../types/api';
 
@@ -90,6 +92,10 @@ function eventBadge(event: EventSummary) {
   if (status === 'DRAFT') return { label: '초안', bg: '#F3F4F6', text: '#9CA3AF', grayDate: true };
   if (status === 'INACTIVE') return { label: '비공개', bg: '#F3F4F6', text: '#9CA3AF', grayDate: true };
   return { label: status || '상태 없음', bg: '#FAEEDA', text: '#854F0B', grayDate: true };
+}
+
+function eventPosterUrl(event: EventSummary) {
+  return resolveImageUrl(event.imageUrl);
 }
 
 function AppIcon({ name, color = '#534AB7', size = 18 }: { name: IconName; color?: string; size?: number }) {
@@ -255,12 +261,17 @@ export default function MyEventsPage({ navigation }: any) {
           const dateStr = eventStart(item);
           const date = formatDate(dateStr);
           const badge = eventBadge(item);
+          const posterUrl = eventPosterUrl(item);
           return (
-            <TouchableOpacity key={item.id} style={styles.eventCard} onPress={() => navigation.navigate('OrganizerEventDetail', { eventId: item.id })}>
-              <View style={[styles.eventDate, badge.grayDate && styles.eventDateGray]}>
-                <Text style={[styles.eventMonth, badge.grayDate && styles.eventMonthGray]}>{date.month}</Text>
-                <Text style={[styles.eventDay, badge.grayDate && styles.eventDayGray]}>{date.day}</Text>
-              </View>
+            <TouchableOpacity key={item.id} style={[styles.eventCard, posterUrl && styles.eventCardWithPoster]} onPress={() => navigation.navigate('OrganizerEventDetail', { eventId: item.id })}>
+              {posterUrl ? (
+                <Image source={{ uri: posterUrl }} style={styles.eventPosterThumb} resizeMode="cover" />
+              ) : (
+                <View style={[styles.eventDate, badge.grayDate && styles.eventDateGray]}>
+                  <Text style={[styles.eventMonth, badge.grayDate && styles.eventMonthGray]}>{date.month}</Text>
+                  <Text style={[styles.eventDay, badge.grayDate && styles.eventDayGray]}>{date.day}</Text>
+                </View>
+              )}
               <View style={styles.eventInfo}>
                 <Text style={styles.eventName} numberOfLines={1}>{eventTitle(item)}</Text>
                 <Text style={styles.eventMeta} numberOfLines={1}>{item.venue || '장소 미정'} · {formatEventTime(dateStr)} · {ticketSummary(item)}</Text>
@@ -325,6 +336,8 @@ const styles = StyleSheet.create({
   resultText: { fontSize: 10, color: '#9CA3AF', fontWeight: '800' },
   sortText: { fontSize: 10, color: '#534AB7', fontWeight: '800' },
   eventCard: { backgroundColor: '#FFFFFF', borderRadius: 12, borderWidth: 0.5, borderColor: '#E5E7EB', padding: 11, marginHorizontal: 14, marginBottom: 7, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  eventCardWithPoster: { padding: 0, overflow: 'hidden', alignItems: 'stretch' },
+  eventPosterThumb: { width: 56, minHeight: 64, backgroundColor: '#F3F4F6' },
   eventDate: { width: 36, height: 36, borderRadius: 9, backgroundColor: '#EEEDFE', alignItems: 'center', justifyContent: 'center' },
   eventDateGray: { backgroundColor: '#F3F4F6' },
   eventMonth: { fontSize: 7, fontWeight: '900', color: '#534AB7', textTransform: 'uppercase', lineHeight: 9 },

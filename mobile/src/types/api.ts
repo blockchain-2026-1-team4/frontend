@@ -95,6 +95,7 @@ export type EventSummary = {
   totalTicketCount?: number;
   soldTicketCount?: number;
   remainingTicketCount?: number;
+  imageUrl?: string;
 };
 
 export type EventRound = {

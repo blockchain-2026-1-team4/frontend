@@ -201,6 +201,11 @@ export default function EventCreatePage({ navigation }: any) {
   const [invalidFields, setInvalidFields] = useState<Record<string, boolean>>({});
   const [roundMessages, setRoundMessages] = useState<Record<string, string[]>>({});
   const [submitting, setSubmitting] = useState(false);
+  const filledInputStyle = (value: string, invalid?: boolean) => [
+    styles.input,
+    value.trim() && styles.filledInput,
+    invalid && styles.invalidInput,
+  ];
 
   const updateRound = (id: string, patch: Partial<EventRoundDraft>) => {
     setRounds((current) => {
@@ -458,15 +463,15 @@ export default function EventCreatePage({ navigation }: any) {
           </View>
 
           <Text style={styles.label}>이름</Text>
-          <TextInput style={[styles.input, invalidFields.name && styles.invalidInput]} value={name} onChangeText={setName} placeholder="예: TRUST LIVE 2026" />
+          <TextInput style={filledInputStyle(name, invalidFields.name)} value={name} onChangeText={setName} placeholder="예: TRUST LIVE 2026" />
           <Text style={styles.helpText}>사용자에게 표시될 이벤트 이름을 입력해주세요.</Text>
 
           <Text style={styles.label}>장소</Text>
-          <TextInput style={[styles.input, invalidFields.venue && styles.invalidInput]} value={venue} onChangeText={setVenue} placeholder="예: 올림픽공원 KSPO DOME" />
+          <TextInput style={filledInputStyle(venue, invalidFields.venue)} value={venue} onChangeText={setVenue} placeholder="예: 올림픽공원 KSPO DOME" />
 
           <Text style={styles.label}>소개</Text>
           <TextInput
-            style={[styles.input, styles.textArea, { height: descriptionHeight }, invalidFields.description && styles.invalidInput]}
+            style={[styles.input, description.trim() && styles.filledInput, styles.textArea, { height: descriptionHeight }, invalidFields.description && styles.invalidInput]}
             value={description}
             onChangeText={setDescription}
             onContentSizeChange={(event) => setDescriptionHeight(Math.max(76, Math.min(180, event.nativeEvent.contentSize.height + 12)))}
@@ -810,10 +815,11 @@ const styles = StyleSheet.create({
   categoryChipText: { color: '#6B7280', fontWeight: '700', fontSize: 13 },
   activeCategoryChipText: { color: '#534AB7' },
   input: { borderWidth: 0.5, borderColor: '#E5E7EB', borderRadius: 10, padding: 10, backgroundColor: '#FFFFFF', color: '#1A1A2E' },
+  filledInput: { borderColor: '#CECBF6', backgroundColor: '#FAFAFE' },
   invalidInput: { borderColor: '#DC2626', backgroundColor: '#FEF2F2' },
   textArea: { minHeight: 76, maxHeight: 180, textAlignVertical: 'top' },
   posterPreview: { width: '100%', aspectRatio: 3 / 4, borderRadius: 10, backgroundColor: '#E5E7EB' },
-  posterPlaceholder: { width: '100%', minHeight: 72, borderRadius: 10, backgroundColor: '#F5F5F5', alignItems: 'center', justifyContent: 'center' },
+  posterPlaceholder: { width: '100%', minHeight: 72, borderRadius: 10, borderWidth: 1.5, borderStyle: 'dashed', borderColor: '#CECBF6', backgroundColor: '#FAFAFE', alignItems: 'center', justifyContent: 'center' },
   posterPlaceholderText: { color: '#9CA3AF', fontSize: 13, fontWeight: '700' },
   posterActionRow: { flexDirection: 'row', gap: 8, marginTop: 9 },
   posterButton: { flex: 1, borderWidth: 0.5, borderColor: '#534AB7', borderRadius: 8, padding: 11, backgroundColor: '#EEEDFE', alignItems: 'center' },

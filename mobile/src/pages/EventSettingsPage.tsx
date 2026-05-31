@@ -174,6 +174,7 @@ export default function EventSettingsPage({ navigation, route }: any) {
 
   const markedRounds = rounds.map((round, index) => ({ date: round.eventDate, label: `${index + 1}회차` }));
   const scheduleLocked = issuedTicketCount > 0;
+  const filledInputStyle = (value: string) => [styles.input, value.trim() && styles.filledInput];
 
   const load = useCallback(async () => {
     if (!eventId) {
@@ -392,15 +393,15 @@ export default function EventSettingsPage({ navigation, route }: any) {
           </View>
 
           <Text style={styles.label}>이름</Text>
-          <TextInput style={styles.input} value={name} onChangeText={setName} placeholder="예: TRUST LIVE 2026" />
+          <TextInput style={filledInputStyle(name)} value={name} onChangeText={setName} placeholder="예: TRUST LIVE 2026" />
           <Text style={styles.helpText}>사용자에게 표시될 이벤트 이름을 입력해주세요.</Text>
 
           <Text style={styles.label}>장소</Text>
-          <TextInput style={styles.input} value={venue} onChangeText={setVenue} placeholder="예: 올림픽공원 KSPO DOME" />
+          <TextInput style={filledInputStyle(venue)} value={venue} onChangeText={setVenue} placeholder="예: 올림픽공원 KSPO DOME" />
 
           <Text style={styles.label}>소개</Text>
           <TextInput
-            style={[styles.input, styles.textArea, { height: descriptionHeight }]}
+            style={[styles.input, description.trim() && styles.filledInput, styles.textArea, { height: descriptionHeight }]}
             value={description}
             onChangeText={setDescription}
             onContentSizeChange={(inputEvent) => setDescriptionHeight(Math.max(76, Math.min(180, inputEvent.nativeEvent.contentSize.height + 12)))}
@@ -664,10 +665,11 @@ const styles = StyleSheet.create({
   label: { marginTop: 9, marginBottom: 5, color: '#334155', fontSize: 13, fontWeight: '800' },
   helpText: { marginTop: 5, color: '#64748B', fontSize: 12, lineHeight: 17 },
   lockedNotice: { marginTop: 8, borderWidth: 1, borderColor: '#FDE68A', backgroundColor: '#FFFBEB', borderRadius: 8, padding: 10, color: '#92400E', fontSize: 12, fontWeight: '800', lineHeight: 18 },
-  input: { borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 8, padding: 10, backgroundColor: '#FFFFFF', color: '#0F172A' },
+  input: { borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 10, backgroundColor: '#FFFFFF', color: '#0F172A' },
+  filledInput: { borderColor: '#CECBF6', backgroundColor: '#FAFAFE' },
   textArea: { minHeight: 76, maxHeight: 180, textAlignVertical: 'top' },
   posterPreview: { width: '100%', aspectRatio: 3 / 4, borderRadius: 8, backgroundColor: '#E2E8F0' },
-  posterPlaceholder: { minHeight: 86, borderWidth: 1, borderColor: '#CBD5E1', borderStyle: 'dashed', borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F8FAFC' },
+  posterPlaceholder: { minHeight: 86, borderWidth: 1.5, borderColor: '#CECBF6', borderStyle: 'dashed', borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: '#FAFAFE' },
   posterPlaceholderText: { color: '#64748B', fontSize: 13, fontWeight: '800' },
   posterActionRow: { flexDirection: 'row', gap: 8, marginTop: 9 },
   posterButton: { flex: 1, borderWidth: 1, borderColor: '#2563EB', borderRadius: 8, paddingVertical: 11, alignItems: 'center', backgroundColor: '#EFF6FF' },
