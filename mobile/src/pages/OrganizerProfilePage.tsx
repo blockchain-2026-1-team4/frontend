@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Path } from 'react-native-svg';
 import { TextInput } from '../components/TextInput';
 import { errorMessage } from '../lib/account';
+import { showDialog } from '../lib/dialog';
 import { clearAccessToken } from '../lib/auth';
 import { backendApi } from '../lib/backend';
 import { formatRoles } from '../lib/roles';
@@ -185,7 +186,7 @@ export default function OrganizerProfilePage({ navigation }: any) {
       <Text style={styles.sectionLabel}>계정 메뉴</Text>
       <View style={styles.menuCard}>
         <MenuRow icon="home" iconBg="#EEEDFE" iconColor="#534AB7" label="사용자 홈으로" onPress={() => navigation.navigate('Main')} />
-        <MenuRow icon="bell" iconBg="#F3F4F6" iconColor="#6B7280" label="알림 설정" onPress={() => Alert.alert('알림 설정', '알림 설정 화면은 준비 중입니다.')} />
+        <MenuRow icon="bell" iconBg="#F3F4F6" iconColor="#6B7280" label="알림 설정" onPress={() => showDialog('알림 설정', '알림 설정 화면은 준비 중입니다.')} />
         <MenuRow icon="logout" iconBg="#FCEBEB" iconColor="#A32D2D" label="로그아웃" danger onPress={handleLogout} />
       </View>
     </ScrollView>
