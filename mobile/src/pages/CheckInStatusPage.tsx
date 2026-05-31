@@ -32,11 +32,11 @@ function SearchIcon() {
 const PAGE_SIZE = 20;
 const MAX_VISIBLE_PAGES = 4;
 const RESULT_FILTERS = [
-  { value: 'ALL', label: '전체' },
-  { value: 'SUCCESS', label: '입장 완료' },
-  { value: 'FAILED', label: '입장 실패' },
-  { value: 'PENDING', label: '수동 확인' },
-] as const;
+  { value: 'ALL', label: '전체', tone: undefined },
+  { value: 'SUCCESS', label: '입장 완료', tone: 'green' as const },
+  { value: 'FAILED', label: '입장 실패', tone: 'red' as const },
+  { value: 'PENDING', label: '수동 확인', tone: 'amber' as const },
+];
 const SORT_MODES = [
   { value: 'latest', label: '최신순' },
   { value: 'oldest', label: '오래된순' },
@@ -181,15 +181,19 @@ export default function CheckInStatusPage({ navigation, route }: any) {
       </View>
 
       <HScroll horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll} contentContainerStyle={styles.filterRow}>
-        {RESULT_FILTERS.map((item) => (
-          <TouchableOpacity
-            key={item.value}
-            style={[styles.filterTab, selectedResult === item.value && styles.filterTabActive]}
-            onPress={() => { setSelectedResult(item.value); setPage(1); }}
-          >
-            <Text style={[styles.filterTabText, selectedResult === item.value && styles.filterTabTextActive]}>{item.label}</Text>
-          </TouchableOpacity>
-        ))}
+        {RESULT_FILTERS.map((item) => {
+          const active = selectedResult === item.value;
+          const tone = item.tone;
+          return (
+            <TouchableOpacity
+              key={item.value}
+              style={[styles.filterTab, active && styles.filterTabActive, !active && tone === 'green' && styles.filterTabGreen, !active && tone === 'red' && styles.filterTabRed, !active && tone === 'amber' && styles.filterTabAmber]}
+              onPress={() => { setSelectedResult(item.value); setPage(1); }}
+            >
+              <Text style={[styles.filterTabText, active && styles.filterTabTextActive, !active && tone === 'green' && styles.filterTabTextGreen, !active && tone === 'red' && styles.filterTabTextRed, !active && tone === 'amber' && styles.filterTabTextAmber]}>{item.label}</Text>
+            </TouchableOpacity>
+          );
+        })}
       </HScroll>
 
       <View style={styles.toolbarRow}>
@@ -292,8 +296,14 @@ const styles = StyleSheet.create({
   filterRow: { flexDirection: 'row', gap: 6, paddingHorizontal: 14, paddingVertical: 0 },
   filterTab: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, backgroundColor: '#FFFFFF', borderWidth: 0.5, borderColor: '#E5E7EB', flexShrink: 0 },
   filterTabActive: { backgroundColor: '#1A1A2E', borderColor: '#1A1A2E' },
+  filterTabGreen: { backgroundColor: '#E1F5EE', borderColor: '#9FE1CB' },
+  filterTabRed: { backgroundColor: '#FCEBEB', borderColor: '#F7C1C1' },
+  filterTabAmber: { backgroundColor: '#FAEEDA', borderColor: '#FAC775' },
   filterTabText: { fontSize: 10, fontWeight: '700', color: '#6B7280' },
   filterTabTextActive: { color: '#FFFFFF' },
+  filterTabTextGreen: { color: '#0F6E56' },
+  filterTabTextRed: { color: '#A32D2D' },
+  filterTabTextAmber: { color: '#854F0B' },
   toolbarRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, marginBottom: 8 },
   resultHint: { fontSize: 11, color: '#9CA3AF', fontWeight: '700' },
   sortButton: { borderWidth: 0.5, borderColor: '#E5E7EB', borderRadius: 8, paddingVertical: 7, paddingHorizontal: 10, backgroundColor: '#FFFFFF' },

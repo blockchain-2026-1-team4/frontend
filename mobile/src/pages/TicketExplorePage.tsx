@@ -1,6 +1,7 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
-import { ActivityIndicator, Alert, FlatList, RefreshControl, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { TextInput } from '../components/TextInput';
 import { errorMessage } from '../lib/account';
 import { backendApi } from '../lib/backend';
 import { formatCompactDateTime, getTicketDisplayStatus, weiToEth } from '../lib/ticketDisplay';
@@ -8,13 +9,13 @@ import type { EventDetail, EventRound, TicketDetail } from '../types/api';
 
 const PAGE_SIZE = 20;
 const STATUS_FILTERS = [
-  { value: 'ALL',        label: '전체' },
-  { value: 'AVAILABLE',  label: '미판매' },
-  { value: 'SOLD_GROUP', label: '판매됨' },
-  { value: 'LISTED',     label: '리셀 등록' },
-  { value: 'USED',       label: '입장 완료' },
-  { value: 'CANCELLED',  label: '취소' },
-] as const;
+  { value: 'ALL' as const,        label: '전체',     tone: undefined },
+  { value: 'AVAILABLE' as const,  label: '판매 가능', tone: 'green' as const },
+  { value: 'SOLD_GROUP' as const, label: '판매됨',   tone: 'red' as const },
+  { value: 'LISTED' as const,     label: '리셀',     tone: 'amber' as const },
+  { value: 'USED' as const,       label: '입장 완료', tone: 'blue' as const },
+  { value: 'CANCELLED' as const,  label: '취소',     tone: undefined },
+];
 
 type SortMode = 'latest' | 'seat' | 'priceAsc' | 'priceDesc';
 
@@ -72,6 +73,7 @@ export default function TicketExplorePage({ navigation, route }: any) {
   const [selectedStatus, setSelectedStatus] = useState<(typeof STATUS_FILTERS)[number]['value']>('ALL');
   const [resaleFilter, setResaleFilter] = useState<'ALL' | 'ENABLED' | 'DISABLED'>('ALL');
   const [sortMode, setSortMode] = useState<SortMode>('latest');
+  const [query, setQuery] = useState('');
 
   const load = useCallback(async () => {
     if (!eventId) {
@@ -110,6 +112,7 @@ export default function TicketExplorePage({ navigation, route }: any) {
   }, [tickets]);
 
   const filteredTickets = useMemo(() => {
+    const normalized = query.trim().toLowerCase();
     const base = tickets.filter((ticket) => {
       const matchesRound = selectedRound === 'ALL' || ticket.eventRoundId === selectedRound;
       const matchesSection = selectedSection === 'ALL' || sectionOf(ticket) === selectedSection;
@@ -118,7 +121,8 @@ export default function TicketExplorePage({ navigation, route }: any) {
         resaleFilter === 'ALL' ||
         (resaleFilter === 'ENABLED' && ticket.resaleEnabled) ||
         (resaleFilter === 'DISABLED' && !ticket.resaleEnabled);
-      return matchesRound && matchesSection && matchesStatus && matchesResale;
+      const matchesQuery = !normalized || String(ticket.seatInfo || ticket.ticketId || ticket.id || '').toLowerCase().includes(normalized);
+      return matchesRound && matchesSection && matchesStatus && matchesResale && matchesQuery;
     });
     return [...base].sort((a, b) => {
       if (sortMode === 'priceAsc') return comparePrice(a, b);
@@ -178,6 +182,18 @@ export default function TicketExplorePage({ navigation, route }: any) {
             <Metric label="리셀 중" value={listed} tone="yellow" />
           </View>
 
+          <View style={styles.searchWrap}>
+            <View style={styles.searchBox}>
+              <Text style={styles.searchIcon}>🔍</Text>
+              <TextInput
+                style={styles.searchInput}
+                value={query}
+                onChangeText={(v) => { setQuery(v); setPage(1); }}
+                placeholder="티켓 ID로 검색 (예: 1회차-R-042)"
+              />
+            </View>
+          </View>
+
           <View style={styles.filterSection}>
           <FilterBlock title="회차">
             <FilterChip label="전체" active={selectedRound === 'ALL'} onPress={() => { setSelectedRound('ALL'); setPage(1); }} />
@@ -186,22 +202,16 @@ export default function TicketExplorePage({ navigation, route }: any) {
             ))}
           </FilterBlock>
 
-          <FilterBlock title="좌석 구역">
+          <FilterBlock title="구역">
             {sectionFilters.map((section) => (
               <FilterChip key={section} label={section === 'ALL' ? '전체' : section} active={selectedSection === section} onPress={() => { setSelectedSection(section); setPage(1); }} />
             ))}
           </FilterBlock>
 
-          <FilterBlock title="판매 상태">
+          <FilterBlock title="상태">
             {STATUS_FILTERS.map((item) => (
-              <FilterChip key={item.value} label={item.label} active={selectedStatus === item.value} onPress={() => { setSelectedStatus(item.value); setPage(1); }} />
+              <FilterChip key={item.value} label={item.label} tone={item.tone} active={selectedStatus === item.value} onPress={() => { setSelectedStatus(item.value); setPage(1); }} />
             ))}
-          </FilterBlock>
-
-          <FilterBlock title="리셀 여부">
-            <FilterChip label="전체" active={resaleFilter === 'ALL'} onPress={() => { setResaleFilter('ALL'); setPage(1); }} />
-            <FilterChip label="리셀 허용" active={resaleFilter === 'ENABLED'} onPress={() => { setResaleFilter('ENABLED'); setPage(1); }} />
-            <FilterChip label="리셀 불가" active={resaleFilter === 'DISABLED'} onPress={() => { setResaleFilter('DISABLED'); setPage(1); }} />
           </FilterBlock>
 
           <FilterBlock title="정렬">
@@ -212,38 +222,36 @@ export default function TicketExplorePage({ navigation, route }: any) {
           </View>
 
           <View style={styles.sectionHead}>
-            <Text style={styles.sectionTitle}>검색 결과</Text>
-            <Text style={styles.pageText}>{currentPage} / {totalPages}</Text>
+            <Text style={styles.sectionTitle}>결과 {filteredTickets.length}건</Text>
+            <View style={styles.paginationRow}>
+              <Text style={styles.pageInfoText}>{currentPage} / {totalPages}</Text>
+              <TouchableOpacity style={[styles.pageBtn, currentPage === 1 && styles.pageBtnDisabled]} disabled={currentPage === 1} onPress={() => setPage((v) => Math.max(v - 1, 1))}>
+                <Text style={[styles.pageBtnText, currentPage === 1 && styles.pageBtnTextDisabled]}>이전</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.pageBtn, styles.pageBtnActive, currentPage >= totalPages && styles.pageBtnDisabled]} disabled={currentPage >= totalPages} onPress={() => setPage((v) => Math.min(v + 1, totalPages))}>
+                <Text style={[styles.pageBtnText, { color: currentPage < totalPages ? '#FFFFFF' : '#B4B2A9' }]}>다음</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </>
       )}
       renderItem={({ item }) => {
         const status = getTicketDisplayStatus(item, event as any);
+        const badgeTone = BADGE_TONE[status.tone] ?? BADGE_TONE.neutral;
         return (
-          <View style={styles.row}>
-            <View style={styles.rowInfo}>
-              <View style={styles.rowTitleLine}>
-                <Text style={styles.rowTitle}>{item.seatInfo || '-'}</Text>
-                <Text style={[styles.badge, styles[`tone_${status.tone}`]]}>{status.label}</Text>
-              </View>
-              <Text style={styles.rowMeta}>{ticketRoundLabel(item, event)} · {sectionOf(item)}</Text>
-              <Text style={styles.rowMeta}>정가 {weiToEth(item.originalPriceWei || item.priceWei)}</Text>
-              <Text style={styles.rowMeta}>리셀 {item.resaleEnabled ? `허용 · 최대 ${(item.resaleCapRate ?? 10000) / 100}%` : '불가'}</Text>
+          <View style={styles.tkt}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.tktId}>{item.seatInfo || '-'}</Text>
+              <Text style={styles.tktMeta}>{sectionOf(item)} · {weiToEth(item.originalPriceWei || item.priceWei)} ETH · 리셀 {item.resaleEnabled ? '허용' : '불가'}</Text>
+            </View>
+            <View style={[styles.tktBadge, { backgroundColor: badgeTone.bg }]}>
+              <Text style={[styles.tktBadgeText, { color: badgeTone.text }]}>{status.label}</Text>
             </View>
           </View>
         );
       }}
       ListEmptyComponent={<Text style={styles.emptyText}>조건에 맞는 티켓이 없습니다.</Text>}
-      ListFooterComponent={filteredTickets.length > PAGE_SIZE ? (
-        <View style={styles.pagination}>
-          <TouchableOpacity style={[styles.pageButton, currentPage === 1 && styles.disabledButton]} disabled={currentPage === 1} onPress={() => setPage((value) => Math.max(value - 1, 1))}>
-            <Text style={styles.pageButtonText}>이전</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.pageButton, currentPage >= totalPages && styles.disabledButton]} disabled={currentPage >= totalPages} onPress={() => setPage((value) => Math.min(value + 1, totalPages))}>
-            <Text style={styles.pageButtonText}>다음</Text>
-          </TouchableOpacity>
-        </View>
-      ) : null}
+      ListFooterComponent={<View style={{ height: 8 }} />}
     />
   );
 }
@@ -268,10 +276,30 @@ function FilterBlock({ title, children, maxVisible = 8 }: { title: string; child
   );
 }
 
-function FilterChip({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
+type ChipTone = 'green' | 'red' | 'amber' | 'blue';
+
+const CHIP_TONE_STYLE: Record<ChipTone, { bg: string; border: string; text: string }> = {
+  green: { bg: '#E1F5EE', border: '#9FE1CB', text: '#0F6E56' },
+  red:   { bg: '#FCEBEB', border: '#F7C1C1', text: '#A32D2D' },
+  amber: { bg: '#FAEEDA', border: '#FAC775', text: '#854F0B' },
+  blue:  { bg: '#E6F1FB', border: '#A3C8F0', text: '#185FA5' },
+};
+
+const BADGE_TONE: Record<string, { bg: string; text: string }> = {
+  neutral: { bg: '#F3F4F6', text: '#6B7280' },
+  green:   { bg: '#E1F5EE', text: '#0F6E56' },
+  red:     { bg: '#FCEBEB', text: '#A32D2D' },
+  yellow:  { bg: '#FAEEDA', text: '#854F0B' },
+  blue:    { bg: '#E6F1FB', text: '#185FA5' },
+  gray:    { bg: '#E5E7EB', text: '#6B7280' },
+};
+
+function FilterChip({ label, active, onPress, tone }: { label: string; active: boolean; onPress: () => void; tone?: ChipTone }) {
+  const toneStyle = !active && tone ? { backgroundColor: CHIP_TONE_STYLE[tone].bg, borderColor: CHIP_TONE_STYLE[tone].border } : undefined;
+  const toneTextStyle = !active && tone ? { color: CHIP_TONE_STYLE[tone].text } : undefined;
   return (
-    <TouchableOpacity style={[styles.filterChip, active && styles.activeFilterChip]} onPress={onPress}>
-      <Text style={[styles.filterChipText, active && styles.activeFilterChipText]}>{label}</Text>
+    <TouchableOpacity style={[styles.filterChip, active && styles.activeFilterChip, toneStyle]} onPress={onPress}>
+      <Text style={[styles.filterChipText, active && styles.activeFilterChipText, toneTextStyle]}>{label}</Text>
     </TouchableOpacity>
   );
 }
@@ -318,23 +346,23 @@ const styles = StyleSheet.create({
   activeFilterChip: { borderColor: '#1A1A2E', backgroundColor: '#1A1A2E' },
   filterChipText: { color: '#6B7280', fontWeight: '800', fontSize: 10 },
   activeFilterChipText: { color: '#FFFFFF' },
-  sectionHead: { marginTop: 2, marginBottom: 6, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  searchWrap: { paddingHorizontal: 14, paddingTop: 8, paddingBottom: 0 },
+  searchBox: { flexDirection: 'row', alignItems: 'center', gap: 7, backgroundColor: '#FFFFFF', borderWidth: 0.5, borderColor: '#E5E7EB', borderRadius: 10, paddingHorizontal: 11, paddingVertical: 2 },
+  searchIcon: { fontSize: 13 },
+  searchInput: { flex: 1, fontSize: 12, color: '#1A1A2E', paddingVertical: 8 },
+  sectionHead: { marginTop: 8, marginBottom: 6, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   sectionTitle: { color: '#9CA3AF', fontSize: 10, fontWeight: '900' },
-  pageText: { color: '#64748B', fontSize: 12, fontWeight: '800' },
-  row: { backgroundColor: '#FFFFFF', borderRadius: 12, marginHorizontal: 14, marginBottom: 7, borderWidth: 0.5, borderColor: '#E5E7EB', overflow: 'hidden' },
-  rowInfo: { paddingHorizontal: 12, paddingVertical: 9 },
-  rowTitleLine: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, borderBottomWidth: 0.5, borderBottomColor: '#F3F4F6', paddingBottom: 7, marginBottom: 7 },
-  rowTitle: { color: '#1A1A2E', fontWeight: '900', fontSize: 12 },
-  rowMeta: { marginTop: 3, color: '#9CA3AF', fontSize: 10 },
-  badge: { overflow: 'hidden', borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3, minWidth: 68, textAlign: 'center', fontSize: 9, fontWeight: '900' },
-  pagination: { flexDirection: 'row', gap: 8, marginTop: 4 },
-  pageButton: { flex: 1, borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 8, paddingVertical: 12, alignItems: 'center', backgroundColor: '#FFFFFF' },
-  pageButtonText: { color: '#0F172A', fontWeight: '900' },
+  paginationRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  pageInfoText: { color: '#9CA3AF', fontSize: 10, fontWeight: '600', marginRight: 2 },
+  pageBtn: { paddingVertical: 3, paddingHorizontal: 8, borderRadius: 6, borderWidth: 0.5, borderColor: '#E5E7EB', backgroundColor: '#FFFFFF' },
+  pageBtnActive: { backgroundColor: '#1A1A2E', borderColor: '#1A1A2E' },
+  pageBtnDisabled: { opacity: 0.38 },
+  pageBtnText: { color: '#6B7280', fontSize: 10, fontWeight: '700' },
+  pageBtnTextDisabled: { color: '#B4B2A9' },
+  tkt: { backgroundColor: '#FFFFFF', borderRadius: 10, marginHorizontal: 14, marginBottom: 6, borderWidth: 0.5, borderColor: '#E5E7EB', padding: 10, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  tktId: { fontSize: 12, fontWeight: '800', color: '#1A1A2E' },
+  tktMeta: { fontSize: 10, color: '#9CA3AF', marginTop: 2 },
+  tktBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20, flexShrink: 0 },
+  tktBadgeText: { fontSize: 9, fontWeight: '700' },
   disabledButton: { opacity: 0.55 },
-  tone_neutral: { backgroundColor: '#F1F5F9', color: '#475569' },
-  tone_blue: { backgroundColor: '#DBEAFE', color: '#1D4ED8' },
-  tone_green: { backgroundColor: '#DCFCE7', color: '#15803D' },
-  tone_yellow: { backgroundColor: '#FEF3C7', color: '#A16207' },
-  tone_red: { backgroundColor: '#FEE2E2', color: '#B91C1C' },
-  tone_gray: { backgroundColor: '#E2E8F0', color: '#475569' },
 });

@@ -24,10 +24,10 @@ import type { EventSummary } from '../types/api';
 type StatusFilter = 'all' | 'operating' | 'inactive' | 'ended' | 'cancelled';
 type IconName = 'plus' | 'search' | 'calendar' | 'broadcast' | 'sliders';
 
-const STATUS_FILTERS: { key: StatusFilter; label: string; tone?: 'teal' | 'red' }[] = [
+const STATUS_FILTERS: { key: StatusFilter; label: string; tone?: 'green' | 'purple' | 'red' }[] = [
   { key: 'all', label: '전체' },
-  { key: 'operating', label: '운영 중', tone: 'teal' },
-  { key: 'inactive', label: '비공개' },
+  { key: 'operating', label: '게시중', tone: 'green' },
+  { key: 'inactive', label: '비공개', tone: 'purple' },
   { key: 'ended', label: '종료' },
   { key: 'cancelled', label: '취소', tone: 'red' },
 ];
@@ -90,7 +90,7 @@ function eventBadge(event: EventSummary) {
   if (isEnded(event)) return { label: '종료', bg: '#F3F4F6', text: '#6B7280', grayDate: true };
   if (status === 'PUBLISHED') return { label: '게시중', bg: '#E1F5EE', text: '#0F6E56', grayDate: false };
   if (status === 'DRAFT') return { label: '초안', bg: '#F3F4F6', text: '#9CA3AF', grayDate: true };
-  if (status === 'INACTIVE') return { label: '비공개', bg: '#F3F4F6', text: '#9CA3AF', grayDate: true };
+  if (status === 'INACTIVE') return { label: '비공개', bg: '#EEEDFE', text: '#534AB7', grayDate: true };
   return { label: status || '상태 없음', bg: '#FAEEDA', text: '#854F0B', grayDate: true };
 }
 
@@ -241,10 +241,10 @@ export default function MyEventsPage({ navigation }: any) {
           return (
             <TouchableOpacity
               key={filter.key}
-              style={[styles.filterPill, active && styles.filterPillActive, !active && filter.tone === 'teal' && styles.filterPillTeal, !active && filter.tone === 'red' && styles.filterPillRed]}
+              style={[styles.filterPill, active && styles.filterPillActive, !active && filter.tone === 'green' && styles.filterPillGreen, !active && filter.tone === 'purple' && styles.filterPillPurple, !active && filter.tone === 'red' && styles.filterPillRed]}
               onPress={() => setStatusFilter(filter.key)}
             >
-              <Text style={[styles.filterText, active && styles.filterTextActive, !active && filter.tone === 'teal' && styles.filterTextTeal, !active && filter.tone === 'red' && styles.filterTextRed]}>{filter.label}</Text>
+              <Text style={[styles.filterText, active && styles.filterTextActive, !active && filter.tone === 'green' && styles.filterTextGreen, !active && filter.tone === 'purple' && styles.filterTextPurple, !active && filter.tone === 'red' && styles.filterTextRed]}>{filter.label}</Text>
             </TouchableOpacity>
           );
         })}
@@ -333,11 +333,13 @@ const styles = StyleSheet.create({
   filterWrap: { paddingHorizontal: 14, paddingBottom: 8, gap: 6 },
   filterPill: { paddingHorizontal: 11, paddingVertical: 6, borderRadius: 20, borderWidth: 0.5, borderColor: '#E5E7EB', backgroundColor: '#FFFFFF' },
   filterPillActive: { backgroundColor: '#1A1A2E', borderColor: '#1A1A2E' },
-  filterPillTeal: { backgroundColor: '#E1F5EE', borderColor: '#9FE1CB' },
+  filterPillGreen: { backgroundColor: '#E1F5EE', borderColor: '#9FE1CB' },
+  filterPillPurple: { backgroundColor: '#EEEDFE', borderColor: '#CECBF6' },
   filterPillRed: { backgroundColor: '#FCEBEB', borderColor: '#F7C1C1' },
   filterText: { color: '#6B7280', fontSize: 10, fontWeight: '800' },
   filterTextActive: { color: '#FFFFFF' },
-  filterTextTeal: { color: '#0F6E56' },
+  filterTextGreen: { color: '#0F6E56' },
+  filterTextPurple: { color: '#534AB7' },
   filterTextRed: { color: '#A32D2D' },
   resultLabel: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 14, paddingBottom: 6 },
   resultText: { fontSize: 10, color: '#9CA3AF', fontWeight: '800' },

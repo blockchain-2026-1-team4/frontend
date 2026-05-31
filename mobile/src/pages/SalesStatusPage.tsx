@@ -16,9 +16,9 @@ type SalesFilter = 'all' | 'available' | 'sold' | 'listed' | 'used' | 'cancelled
 
 const FILTERS: { key: SalesFilter; label: string; tone?: 'teal' | 'amber' | 'blue' | 'red' }[] = [
   { key: 'all', label: '전체' },
-  { key: 'available', label: '미판매', tone: 'amber' },
-  { key: 'sold', label: '판매됨', tone: 'teal' },
-  { key: 'listed', label: '리셀 등록', tone: 'amber' },
+  { key: 'available', label: '판매 가능', tone: 'teal' },
+  { key: 'sold', label: '판매됨', tone: 'red' },
+  { key: 'listed', label: '리셀', tone: 'amber' },
   { key: 'used', label: '입장 완료', tone: 'blue' },
   { key: 'cancelled', label: '취소', tone: 'red' },
 ];

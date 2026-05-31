@@ -551,69 +551,77 @@ export default function EventCreatePage({ navigation }: any) {
           <Text style={styles.cardTitle}>일정</Text>
           <Text style={styles.helpText}>공연 회차별로 날짜와 시간을 설정하세요.</Text>
           <Text style={styles.helpText}>장소나 일정 차이가 큰 경우 별도 이벤트 등록을 권장합니다.</Text>
-          {rounds.map((round, index) => {
-            const expanded = expandedRoundIds.includes(round.id);
-            const canDelete = rounds.length > 1;
-            return (
-              <View key={round.id} style={styles.roundBox}>
-                <View style={styles.roundHeader}>
-                  <TouchableOpacity style={styles.roundHeaderCopy} onPress={() => toggleRound(round.id)} activeOpacity={0.82}>
-                    <Text style={styles.roundTitle}>{expanded ? '▼' : '▶'} {round.title || `${index + 1}회차`} · {formatDotDate(round.eventDate)}</Text>
-                    <Text style={styles.roundSummary}>{round.startTime} ~ {round.endTime}</Text>
+          <View style={styles.roundList}>
+            {rounds.map((round, index) => {
+              const expanded = expandedRoundIds.includes(round.id);
+              const canDelete = rounds.length > 1;
+              return (
+                <View key={round.id} style={styles.roundItem}>
+                  <TouchableOpacity style={styles.roundHead} onPress={() => toggleRound(round.id)} activeOpacity={0.82}>
+                    <View style={styles.roundNum}>
+                      <Text style={styles.roundNumText}>{index + 1}</Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.roundTitle}>{round.title || `${index + 1}회차`} · {formatDotDate(round.eventDate)}</Text>
+                      <Text style={styles.roundTime}>{round.startTime} ~ {round.endTime}</Text>
+                    </View>
+                    <Text style={[styles.roundChev, expanded && styles.roundChevOpen]}>›</Text>
                   </TouchableOpacity>
-                  {canDelete ? (
-                    <TouchableOpacity style={styles.compactDeleteButton} onPress={() => removeRound(round.id)}>
-                      <Text style={styles.compactDeleteText}>삭제</Text>
-                    </TouchableOpacity>
+
+                  {expanded ? (
+                    <View style={styles.roundBody}>
+                      <View style={styles.fieldRow}>
+                        <View style={styles.fieldBox}>
+                          <Text style={styles.fieldLbl}>시작 시간</Text>
+                          <TimeWheelPicker label="공연 시작 시간" value={round.startTime} onChange={(value) => updateRound(round.id, { startTime: value })} />
+                        </View>
+                        <View style={styles.fieldBox}>
+                          <Text style={styles.fieldLbl}>종료 시간</Text>
+                          <TimeWheelPicker label="공연 종료 시간" value={round.endTime} onChange={(value) => updateRound(round.id, { endTime: value })} />
+                        </View>
+                      </View>
+                      <View style={styles.flatField}>
+                        <Text style={styles.fieldLbl}>이벤트 날짜</Text>
+                        <SingleDatePicker
+                          value={round.eventDate}
+                          onChange={(value) => updateRound(round.id, { eventDate: value })}
+                          markedRounds={rounds.map((item, itemIndex) => ({ date: item.eventDate, label: `${itemIndex + 1}회차` }))}
+                        />
+                      </View>
+                      <View style={styles.flatField}>
+                        <Text style={styles.fieldLbl}>회차 제목 (선택)</Text>
+                        <TextInput
+                          style={styles.input}
+                          value={round.title}
+                          onChangeText={(value) => updateRound(round.id, { title: value })}
+                          placeholder={`${index + 1}회차`}
+                        />
+                      </View>
+                      {roundMessages[round.id]?.length ? (
+                        <View style={styles.inlineWarningBox}>
+                          {roundMessages[round.id].map((message) => <Text key={message} style={styles.inlineWarningText}>· {message}</Text>)}
+                          <TouchableOpacity style={styles.warningAgreeButton} onPress={() => setRoundAcknowledgedIds((current) => ({ ...current, [round.id]: true }))}>
+                            <Text style={styles.warningAgreeText}>{roundAcknowledgedIds[round.id] ? '동의됨' : '동의'}</Text>
+                          </TouchableOpacity>
+                        </View>
+                      ) : null}
+                      <TouchableOpacity style={styles.roundSaveBtn} onPress={() => void saveRound(round.id)}>
+                        <Text style={styles.roundSaveBtnText}>회차 저장</Text>
+                      </TouchableOpacity>
+                      {canDelete ? (
+                        <TouchableOpacity style={styles.roundDelBtn} onPress={() => removeRound(round.id)}>
+                          <Text style={styles.roundDelBtnText}>이 회차 삭제</Text>
+                        </TouchableOpacity>
+                      ) : null}
+                    </View>
                   ) : null}
                 </View>
+              );
+            })}
+          </View>
 
-                {expanded ? (
-                  <View style={styles.roundBody}>
-                    <View style={styles.flatField}>
-                      <Text style={styles.flatLabel}>회차 제목 (선택)</Text>
-                      <TextInput
-                        style={styles.input}
-                        value={round.title}
-                        onChangeText={(value) => updateRound(round.id, { title: value })}
-                        placeholder={`${index + 1}회차`}
-                      />
-                    </View>
-                    <View style={styles.flatField}>
-                      <Text style={styles.flatLabel}>이벤트 날짜</Text>
-                      <SingleDatePicker
-                        value={round.eventDate}
-                        onChange={(value) => updateRound(round.id, { eventDate: value })}
-                        markedRounds={rounds.map((item, itemIndex) => ({ date: item.eventDate, label: `${itemIndex + 1}회차` }))}
-                      />
-                    </View>
-                    <View style={styles.flatField}>
-                      <Text style={styles.flatLabel}>공연 시작 시간</Text>
-                      <TimeWheelPicker label="공연 시작 시간" value={round.startTime} onChange={(value) => updateRound(round.id, { startTime: value })} />
-                    </View>
-                    <View style={styles.flatField}>
-                      <Text style={styles.flatLabel}>공연 종료 시간</Text>
-                      <TimeWheelPicker label="공연 종료 시간" value={round.endTime} onChange={(value) => updateRound(round.id, { endTime: value })} />
-                    </View>
-                    {roundMessages[round.id]?.length ? (
-                      <View style={styles.inlineWarningBox}>
-                        {roundMessages[round.id].map((message) => <Text key={message} style={styles.inlineWarningText}>· {message}</Text>)}
-                        <TouchableOpacity style={styles.warningAgreeButton} onPress={() => setRoundAcknowledgedIds((current) => ({ ...current, [round.id]: true }))}>
-                          <Text style={styles.warningAgreeText}>{roundAcknowledgedIds[round.id] ? '동의됨' : '동의'}</Text>
-                        </TouchableOpacity>
-                      </View>
-                    ) : null}
-                    <TouchableOpacity style={styles.applyRoundButton} onPress={() => void saveRound(round.id)}>
-                      <Text style={styles.applyRoundText}>회차 저장</Text>
-                    </TouchableOpacity>
-                  </View>
-                ) : null}
-              </View>
-            );
-          })}
-
-          <TouchableOpacity style={styles.addRoundButton} onPress={addRound}>
-            <Text style={styles.addRoundButtonText}>+ 회차 추가</Text>
+          <TouchableOpacity style={styles.addRoundBtn} onPress={addRound}>
+            <Text style={styles.addRoundBtnText}>+ 회차 추가</Text>
           </TouchableOpacity>
         </View>
 
@@ -878,15 +886,32 @@ const styles = StyleSheet.create({
   posterButtonText: { color: '#534AB7', fontWeight: '800' },
   posterDeleteButton: { borderColor: '#FECACA', backgroundColor: '#FEF2F2' },
   posterDeleteText: { color: '#B91C1C', fontWeight: '800' },
+  roundList: { gap: 6 },
+  roundItem: { borderWidth: 0.5, borderColor: '#E5E7EB', borderRadius: 10, overflow: 'hidden' },
+  roundHead: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 11, paddingVertical: 9, backgroundColor: '#FFFFFF' },
+  roundNum: { width: 22, height: 22, borderRadius: 6, backgroundColor: '#EEEDFE', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  roundNumText: { fontSize: 10, fontWeight: '800', color: '#534AB7' },
+  roundTime: { fontSize: 10, color: '#9CA3AF', marginTop: 1 },
+  roundChev: { fontSize: 13, color: '#B4B2A9' },
+  roundChevOpen: { transform: [{ rotate: '180deg' }] },
+  fieldRow: { flexDirection: 'row', gap: 8, marginBottom: 8 },
+  fieldBox: { flex: 1 },
+  fieldLbl: { fontSize: 9, fontWeight: '700', color: '#9CA3AF', textTransform: 'uppercase', marginBottom: 4 },
+  roundSaveBtn: { backgroundColor: '#1A1A2E', borderRadius: 8, paddingVertical: 9, alignItems: 'center' },
+  roundSaveBtnText: { color: '#FFFFFF', fontSize: 11, fontWeight: '700' },
+  roundDelBtn: { backgroundColor: '#FCEBEB', borderRadius: 8, paddingVertical: 9, alignItems: 'center', marginTop: 6 },
+  roundDelBtnText: { color: '#A32D2D', fontSize: 11, fontWeight: '700' },
+  addRoundBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, borderWidth: 1.5, borderStyle: 'dashed', borderColor: '#CECBF6', borderRadius: 10, paddingVertical: 10, backgroundColor: '#FAFAFE', marginTop: 6 },
+  addRoundBtnText: { fontSize: 11, fontWeight: '700', color: '#534AB7' },
   roundBox: { marginTop: 9, borderWidth: 0.5, borderColor: '#E5E7EB', borderRadius: 10, backgroundColor: '#FFFFFF' },
   invalidRound: { borderWidth: 0.5, borderColor: '#FECACA', backgroundColor: '#FEF2F2' },
   roundHeader: { padding: 12, flexDirection: 'row', alignItems: 'center', gap: 8 },
   roundHeaderCopy: { flex: 1 },
-  roundTitle: { color: '#1A1A2E', fontSize: 14, fontWeight: '800' },
+  roundTitle: { color: '#1A1A2E', fontSize: 11, fontWeight: '700' },
   roundSummary: { marginTop: 4, color: '#9CA3AF', fontSize: 12, fontWeight: '700' },
   compactDeleteButton: { borderWidth: 0.5, borderColor: '#FECACA', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, backgroundColor: '#FEF2F2' },
   compactDeleteText: { color: '#B91C1C', fontWeight: '700', fontSize: 12 },
-  roundBody: { borderTopWidth: 0.5, borderTopColor: '#E5E7EB', paddingHorizontal: 10, paddingVertical: 8 },
+  roundBody: { backgroundColor: '#FAFAFA', borderTopWidth: 0.5, borderTopColor: '#F3F4F6', padding: 12 },
   flatField: { marginTop: 7 },
   flatLabel: { color: '#1A1A2E', fontSize: 12, fontWeight: '700', marginBottom: 5 },
   inlineWarningBox: { marginTop: 8, borderWidth: 0.5, borderColor: '#FDE68A', backgroundColor: '#FFFBEB', borderRadius: 8, padding: 10 },

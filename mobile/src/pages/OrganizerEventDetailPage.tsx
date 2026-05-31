@@ -331,18 +331,22 @@ export default function OrganizerEventDetailPage({ navigation, route }: any) {
         ) : null}
       </View>
 
-      <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>티켓 운영</Text>
-      </View>
-      <TouchableOpacity style={styles.primaryAction} onPress={() => navigation.navigate('TicketIssue', { eventId: event.id, returnTo: 'detail' })}>
-        <View style={styles.primaryActionIcon}>
-          <DetailIcon name="ticket" color="#FFFFFF" size={17} />
+      <View style={styles.sectionDivider} />
+
+      <View style={styles.ticketZone}>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>티켓 운영</Text>
         </View>
-        <View>
-          <Text style={styles.primaryActionText}>티켓 발행</Text>
-          <Text style={styles.primaryActionSub}>좌석과 판매 정책을 설정합니다.</Text>
-        </View>
-      </TouchableOpacity>
+        <TouchableOpacity style={styles.primaryAction} onPress={() => navigation.navigate('TicketIssue', { eventId: event.id, returnTo: 'detail' })}>
+          <View style={styles.primaryActionIcon}>
+            <DetailIcon name="ticket" color="#FFFFFF" size={17} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.primaryActionText}>티켓 발행</Text>
+            <Text style={styles.primaryActionSub}>좌석과 판매 정책을 설정합니다.</Text>
+          </View>
+          <DetailIcon name="chart" color="rgba(255,255,255,0.4)" size={16} />
+        </TouchableOpacity>
       <View style={styles.actionRow}>
         <TouchableOpacity style={styles.actionBtn} onPress={() => navigation.navigate('SalesStatus', { eventId: event.id })}>
           <View style={[styles.actionIcon, { backgroundColor: '#E6F1FB' }]}>
@@ -360,6 +364,8 @@ export default function OrganizerEventDetailPage({ navigation, route }: any) {
           <Text style={[styles.actionBtnValue, { color: '#0F6E56' }]}>{usedTickets.toLocaleString()}<Text style={styles.actionBtnTotal}>/{totalTickets.toLocaleString()}</Text></Text>
           <Text style={styles.actionBtnSub}>입장 처리</Text>
         </TouchableOpacity>
+      </View>
+      <View style={{ height: 12 }} />
       </View>
     </ScrollView>
   );
@@ -402,6 +408,8 @@ const styles = StyleSheet.create({
   metricIconBox: { width: 22, height: 22, borderRadius: 6, alignItems: 'center', justifyContent: 'center', marginBottom: 5 },
   metricValue: { fontSize: 17, fontWeight: '900', color: '#1A1A2E', lineHeight: 19 },
   metricLabel: { fontSize: 9, color: '#9CA3AF', marginTop: 2, fontWeight: '700' },
+  sectionDivider: { height: 12, backgroundColor: '#F5F5F5', marginTop: 12 },
+  ticketZone: { backgroundColor: '#F5F5F5', paddingBottom: 0 },
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 14, marginBottom: 6, marginTop: 4 },
   sectionTitle: { fontSize: 10, fontWeight: '900', color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: 0.5 },
   primaryAction: { marginHorizontal: 16, backgroundColor: '#1A1A2E', borderRadius: 12, paddingVertical: 14, paddingHorizontal: 16, alignItems: 'center', marginBottom: 8, flexDirection: 'row', gap: 12 },

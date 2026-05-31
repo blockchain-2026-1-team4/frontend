@@ -511,47 +511,58 @@ export default function EventSettingsPage({ navigation, route }: any) {
           <Text style={styles.helpText}>공연 회차별로 날짜와 시간을 설정하세요.</Text>
           <Text style={styles.helpText}>장소나 일정 차이가 큰 경우 별도 이벤트 등록을 권장합니다.</Text>
           {scheduleLocked ? (
-            <Text style={styles.lockedNotice}>이미 발행된 티켓 {issuedTicketCount}장이 있어 공연 일정은 수정할 수 없습니다. 카테고리, 이름, 장소, 소개, 포스터만 저장됩니다.</Text>
+            <View style={styles.warnBox}>
+              <Text style={styles.warnText}>이미 발행된 티켓 {issuedTicketCount}장이 있어 일정을 수정할 수 없습니다.</Text>
+            </View>
           ) : null}
-          {rounds.map((round, index) => {
-            const expanded = expandedRoundIds.includes(round.id);
-            return (
-              <View key={round.id} style={styles.roundBox}>
-                <View style={styles.roundHeader}>
-                  <TouchableOpacity style={styles.roundHeaderCopy} onPress={() => setExpandedRoundIds((current) => current.includes(round.id) ? current.filter((item) => item !== round.id) : [...current, round.id])}>
-                    <Text style={styles.roundTitle}>{expanded ? '▼' : '▶'} {index + 1}회차 · {formatDotDate(round.eventDate)}</Text>
-                    <Text style={styles.roundSummary}>{round.startTime} ~ {round.endTime}</Text>
+          <View style={styles.roundList}>
+            {rounds.map((round, index) => {
+              const expanded = expandedRoundIds.includes(round.id);
+              return (
+                <View key={round.id} style={styles.roundItem}>
+                  <TouchableOpacity style={styles.roundHead} onPress={() => setExpandedRoundIds((current) => current.includes(round.id) ? current.filter((item) => item !== round.id) : [...current, round.id])}>
+                    <View style={styles.roundNum}>
+                      <Text style={styles.roundNumText}>{index + 1}</Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.roundTitle}>{index + 1}회차 · {formatDotDate(round.eventDate)}</Text>
+                      <Text style={styles.roundTime}>{round.startTime} ~ {round.endTime}</Text>
+                    </View>
+                    <Text style={[styles.roundChev, expanded && styles.roundChevOpen]}>›</Text>
                   </TouchableOpacity>
-                  {rounds.length > 1 && !scheduleLocked ? (
-                    <TouchableOpacity style={styles.deleteButton} onPress={() => confirmRemoveRound(round.id, index)}>
-                      <Text style={styles.deleteButtonText}>삭제</Text>
-                    </TouchableOpacity>
+                  {expanded ? (
+                    <View style={styles.roundBody}>
+                      <TouchableOpacity style={styles.fieldFull} disabled={scheduleLocked} onPress={() => {}}>
+                        <Text style={styles.fieldVal}>{formatDotDate(round.eventDate)}</Text>
+                        <Text style={styles.fieldUnit}>공연일</Text>
+                      </TouchableOpacity>
+                      <SingleDatePicker value={round.eventDate} onChange={(value) => updateRound(round.id, { eventDate: value })} markedRounds={markedRounds} disabled={scheduleLocked} />
+                      <View style={styles.fieldRow}>
+                        <View style={styles.fieldBox}>
+                          <Text style={styles.fieldLbl}>시작 시간</Text>
+                          <TimeWheelPicker label="공연 시작 시간" value={round.startTime} onChange={(value) => updateRound(round.id, { startTime: value })} disabled={scheduleLocked} />
+                        </View>
+                        <View style={styles.fieldBox}>
+                          <Text style={styles.fieldLbl}>종료 시간</Text>
+                          <TimeWheelPicker label="공연 종료 시간" value={round.endTime} onChange={(value) => updateRound(round.id, { endTime: value })} disabled={scheduleLocked} />
+                        </View>
+                      </View>
+                      <TouchableOpacity style={styles.roundSaveBtn} onPress={() => setExpandedRoundIds((current) => current.filter((item) => item !== round.id))}>
+                        <Text style={styles.roundSaveBtnText}>회차 저장</Text>
+                      </TouchableOpacity>
+                      {rounds.length > 1 && !scheduleLocked ? (
+                        <TouchableOpacity style={styles.roundDelBtn} onPress={() => confirmRemoveRound(round.id, index)}>
+                          <Text style={styles.roundDelBtnText}>이 회차 삭제</Text>
+                        </TouchableOpacity>
+                      ) : null}
+                    </View>
                   ) : null}
                 </View>
-                {expanded ? (
-                  <View style={styles.roundBody}>
-                    <Text style={styles.label}>공연일</Text>
-                    <SingleDatePicker value={round.eventDate} onChange={(value) => updateRound(round.id, { eventDate: value })} markedRounds={markedRounds} disabled={scheduleLocked} />
-                    <View style={styles.timeRow}>
-                      <View style={styles.timeCol}>
-                        <Text style={styles.label}>공연 시작 시간</Text>
-                        <TimeWheelPicker label="공연 시작 시간" value={round.startTime} onChange={(value) => updateRound(round.id, { startTime: value })} disabled={scheduleLocked} />
-                      </View>
-                      <View style={styles.timeCol}>
-                        <Text style={styles.label}>공연 종료 시간</Text>
-                        <TimeWheelPicker label="공연 종료 시간" value={round.endTime} onChange={(value) => updateRound(round.id, { endTime: value })} disabled={scheduleLocked} />
-                      </View>
-                    </View>
-                    <TouchableOpacity style={styles.secondaryButton} onPress={() => setExpandedRoundIds((current) => current.filter((item) => item !== round.id))}>
-                      <Text style={styles.secondaryButtonText}>회차 저장</Text>
-                    </TouchableOpacity>
-                  </View>
-                ) : null}
-              </View>
-            );
-          })}
-          <TouchableOpacity style={[styles.addButton, scheduleLocked && styles.disabledButton]} disabled={scheduleLocked} onPress={addRound}>
-            <Text style={styles.addButtonText}>+ 회차 추가</Text>
+              );
+            })}
+          </View>
+          <TouchableOpacity style={[styles.addRoundBtn, scheduleLocked && styles.disabledButton]} disabled={scheduleLocked} onPress={addRound}>
+            <Text style={styles.addRoundBtnText}>+ 회차 추가</Text>
           </TouchableOpacity>
         </View>
 
@@ -756,12 +767,34 @@ const styles = StyleSheet.create({
   activeCategoryChip: { borderColor: '#534AB7', backgroundColor: '#EEEDFE' },
   categoryChipText: { color: '#475569', fontWeight: '800', fontSize: 13 },
   activeCategoryChipText: { color: '#534AB7' },
+  warnBox: { backgroundColor: '#FAEEDA', borderRadius: 8, padding: 10, flexDirection: 'row', alignItems: 'flex-start', gap: 5, marginBottom: 8 },
+  warnText: { fontSize: 10, color: '#854F0B', fontWeight: '600', lineHeight: 15, flex: 1 },
+  roundList: { gap: 6 },
+  roundItem: { borderWidth: 0.5, borderColor: '#E5E7EB', borderRadius: 10, overflow: 'hidden' },
+  roundHead: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 11, paddingVertical: 9, backgroundColor: '#FFFFFF' },
+  roundNum: { width: 22, height: 22, borderRadius: 6, backgroundColor: '#EEEDFE', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  roundNumText: { fontSize: 10, fontWeight: '800', color: '#534AB7' },
+  roundTitle: { fontSize: 11, fontWeight: '700', color: '#1A1A2E' },
+  roundTime: { fontSize: 10, color: '#9CA3AF', marginTop: 1 },
+  roundChev: { fontSize: 13, color: '#B4B2A9' },
+  roundChevOpen: { transform: [{ rotate: '180deg' }] },
+  roundBody: { backgroundColor: '#FAFAFA', borderTopWidth: 0.5, borderTopColor: '#F3F4F6', padding: 12 },
+  fieldFull: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderWidth: 0.5, borderColor: '#E5E7EB', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, backgroundColor: '#FFFFFF', marginBottom: 8 },
+  fieldVal: { fontSize: 12, fontWeight: '700', color: '#1A1A2E' },
+  fieldUnit: { fontSize: 10, color: '#9CA3AF' },
+  fieldRow: { flexDirection: 'row', gap: 8, marginBottom: 8 },
+  fieldBox: { flex: 1 },
+  fieldLbl: { fontSize: 9, fontWeight: '700', color: '#9CA3AF', textTransform: 'uppercase', marginBottom: 3 },
+  roundSaveBtn: { backgroundColor: '#1A1A2E', borderRadius: 8, paddingVertical: 9, alignItems: 'center' },
+  roundSaveBtnText: { color: '#FFFFFF', fontSize: 11, fontWeight: '700' },
+  roundDelBtn: { backgroundColor: '#FCEBEB', borderRadius: 8, paddingVertical: 9, alignItems: 'center', marginTop: 6 },
+  roundDelBtnText: { color: '#A32D2D', fontSize: 11, fontWeight: '700' },
+  addRoundBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, borderWidth: 1.5, borderStyle: 'dashed', borderColor: '#CECBF6', borderRadius: 10, paddingVertical: 10, backgroundColor: '#FAFAFE', marginTop: 6 },
+  addRoundBtnText: { fontSize: 11, fontWeight: '700', color: '#534AB7' },
   roundBox: { marginTop: 9, borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, backgroundColor: '#FFFFFF' },
   roundHeader: { padding: 12, flexDirection: 'row', alignItems: 'center', gap: 8 },
   roundHeaderCopy: { flex: 1 },
-  roundTitle: { color: '#0F172A', fontSize: 15, fontWeight: '900' },
   roundSummary: { marginTop: 4, color: '#64748B', fontSize: 13, fontWeight: '800' },
-  roundBody: { borderTopWidth: 1, borderTopColor: '#F1F5F9', padding: 10 },
   deleteButton: { borderWidth: 1, borderColor: '#FECACA', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, backgroundColor: '#FFF7F7' },
   deleteButtonText: { color: '#B91C1C', fontWeight: '800', fontSize: 12 },
   addButton: { borderWidth: 1, borderColor: '#2563EB', borderRadius: 8, paddingVertical: 12, alignItems: 'center', marginTop: 11, backgroundColor: '#EFF6FF' },
