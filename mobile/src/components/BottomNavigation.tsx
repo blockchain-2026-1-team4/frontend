@@ -17,7 +17,7 @@ type BottomNavigationProps = {
   onNavigate: (routeName: string) => void;
 };
 
-const HIDDEN_ROUTES = new Set(['Landing', 'Auth', 'CheckInScan']);
+const HIDDEN_ROUTES = new Set(['Auth', 'CheckInScan']);
 
 const userTabs: TabItem[] = [
   { label: '\uD648', target: 'Main', matches: ['Main'], icon: 'home' },

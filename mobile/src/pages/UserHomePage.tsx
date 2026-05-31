@@ -1,13 +1,14 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import { ActivityIndicator, Alert, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
 import { accountStatusMessage, errorMessage, routeForEntry } from '../lib/account';
-import { getAccessToken } from '../lib/auth';
+import { clearAccessToken, getAccessToken } from '../lib/auth';
 import { backendApi } from '../lib/backend';
 import { resolveImageUrl } from '../lib/config';
 import { hasOrganizerAccess } from '../lib/roles';
 import { formatEventCategory, formatNextRoundLabel, getNextRoundTime, getUserEventDisplayStatus, userSortRank, weiToEth } from '../lib/ticketDisplay';
-import type { EventSummary } from '../types/api';
+import type { EventSummary, UserProfile } from '../types/api';
 
 type IconName = 'grid' | 'mic' | 'music' | 'laptop' | 'trophy' | 'photo' | 'sparkles' | 'arrow' | 'calendar' | 'wallet';
 
@@ -80,6 +81,18 @@ export default function UserHomePage({ navigation }: any) {
   const [selectedCategory, setSelectedCategory] = useState('ALL');
   const [loading, setLoading] = useState(false);
   const [startingRole, setStartingRole] = useState<'USER' | 'ORGANIZER' | null>(null);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+
+  const loadProfile = useCallback(async () => {
+    const token = await getAccessToken();
+    if (!token) {
+      setProfile(null);
+      return;
+    }
+    setProfile(await backendApi.getMe().catch(() => null));
+  }, []);
+
+  useFocusEffect(useCallback(() => { void loadProfile(); }, [loadProfile]));
 
   useEffect(() => {
     let mounted = true;
@@ -133,6 +146,15 @@ export default function UserHomePage({ navigation }: any) {
     }
   };
 
+  const handleLoginButton = async () => {
+    if (!profile) {
+      await startWithWallet('USER');
+      return;
+    }
+    await clearAccessToken();
+    setProfile(null);
+  };
+
   const openEvent = (event?: EventSummary) => {
     if (event?.id) navigation.navigate('EventDetail', { eventId: event.id });
     else navigation.navigate('EventList', { category: selectedCategory === 'ALL' ? undefined : selectedCategory });
@@ -146,8 +168,8 @@ export default function UserHomePage({ navigation }: any) {
           <TouchableOpacity onPress={() => void startWithWallet('ORGANIZER')} disabled={startingRole !== null}>
             <Text style={styles.organizerLink}>주최자</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.loginButton} onPress={() => void startWithWallet('USER')} disabled={startingRole !== null}>
-            <Text style={styles.loginButtonText}>{startingRole === 'USER' ? '연결 중' : '로그인'}</Text>
+          <TouchableOpacity style={styles.loginButton} onPress={() => void handleLoginButton()} disabled={startingRole !== null}>
+            <Text style={styles.loginButtonText}>{startingRole === 'USER' ? '연결 중' : profile ? '로그아웃' : '로그인'}</Text>
           </TouchableOpacity>
         </View>
       </View>

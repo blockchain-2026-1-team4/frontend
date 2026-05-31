@@ -6,7 +6,6 @@ import { createStackNavigator } from '@react-navigation/stack';
 import { Alert, Platform, StyleSheet, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
-import LandingPage from './src/pages/LandingPage';
 import AuthPage from './src/pages/AuthPage';
 import UserHomePage from './src/pages/UserHomePage';
 import EventListPage from './src/pages/EventListPage';
@@ -134,7 +133,6 @@ export default function App() {
                     headerShown: false,
                   }}
                 >
-          <Stack.Screen name="Landing" component={LandingPage} options={{ headerShown: false }} />
           <Stack.Screen name="Auth" component={AuthPage} options={{ title: '인증' }} />
 
           <Stack.Screen name="Main" component={UserHomePage} options={{ title: 'Trust Ticket' }} />

@@ -109,7 +109,7 @@ export default function OrganizerProfilePage({ navigation }: any) {
   const handleLogout = async () => {
     try {
       await clearAccessToken();
-      navigation.reset({ index: 0, routes: [{ name: 'Landing' }] });
+      navigation.reset({ index: 0, routes: [{ name: 'Main' }] });
     } catch (error: any) {
       Alert.alert('로그아웃 실패', errorMessage(error, '세션을 종료하지 못했습니다.'));
     }
