@@ -8,7 +8,7 @@ import { TextInput } from '../components/TextInput';
 import { errorMessage } from '../lib/account';
 import { backendApi } from '../lib/backend';
 import { formatEventDate, formatEventStatus, formatTicketEntryStatus } from '../lib/ticketDisplay';
-import type { EventDetail, TicketDetail, UserAdminRecord } from '../types/api';
+import type { EventDetail, EventValidatorRecord, TicketDetail, UserAdminRecord } from '../types/api';
 
 const HeroGradient = LinearGradient as unknown as React.ComponentType<any>;
 
@@ -80,7 +80,7 @@ export default function CheckInManagePage({ navigation, route }: any) {
   const insets = useSafeAreaInsets();
   const eventId = route?.params?.eventId as string;
   const scannedPayload = route?.params?.scannedPayload as string | undefined;
-  const [validators, setValidators] = useState<Record<string, unknown>[]>([]);
+  const [validators, setValidators] = useState<EventValidatorRecord[]>([]);
   const [validatorQuery, setValidatorQuery] = useState('');
   const [validatorResults, setValidatorResults] = useState<UserAdminRecord[]>([]);
   const [searching, setSearching] = useState(false);
@@ -371,17 +371,25 @@ export default function CheckInManagePage({ navigation, route }: any) {
         {validatorOpen ? (
           <View style={styles.mcBody}>
             <Text style={styles.mcHint}>이 이벤트의 체크인을 처리할 수 있는 검증자를 등록하세요.</Text>
-            {validators.map((validator, index) => {
-              const nested = (validator.user ?? validator.validator ?? validator) as Record<string, unknown>;
+            {validators.map((validatorRecord, index) => {
+              const validator = validatorRecord as EventValidatorRecord & Record<string, unknown>;
+              const nested = (validator.user ?? validator.validator ?? {}) as Record<string, unknown>;
+              const walletRaw = String(
+                validator.walletAddress ?? validator.validatorWalletAddress ??
+                nested.walletAddress ?? ''
+              ).trim();
+              const walletShort = walletRaw.length > 10
+                ? `${walletRaw.slice(0, 6)}...${walletRaw.slice(-4)}`
+                : walletRaw;
               const nameLabel = [
                 validator.validatorDisplayName, validator.displayName,
                 validator.name, validator.userName, validator.validatorName,
                 validator.nickname, validator.validatorNickname,
                 nested.displayName, nested.name, nested.nickname, nested.userName,
                 validator.email, validator.validatorEmail, nested.email,
-              ].map((v) => String(v ?? '').trim()).find(Boolean) || String(validator.id ?? validator.userId ?? index + 1);
-              const walletRaw = String(validator.walletAddress ?? validator.validatorWalletAddress ?? (nested as any).walletAddress ?? '').trim();
-              const walletShort = walletRaw.length > 10 ? `${walletRaw.slice(0, 6)}...${walletRaw.slice(-4)}` : walletRaw;
+              ].map((v) => String(v ?? '').trim()).find(Boolean)
+                ?? walletShort
+                ?? `검증자 ${index + 1}`;
               return (
                 <View key={String(validator.id ?? index)} style={styles.vRow}>
                   <View style={styles.vAvatar}>

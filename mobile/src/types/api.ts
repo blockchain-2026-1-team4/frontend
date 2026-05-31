@@ -176,6 +176,16 @@ export type UserAdminRecord = UserProfile & {
   updatedAt?: string;
 };
 
+export type EventValidatorRecord = {
+  id: string;
+  eventId: string;
+  validatorId: string;
+  validatorDisplayName?: string;
+  validatorWalletAddress?: string;
+  validatorEmail?: string;
+  createdAt?: string;
+};
+
 export type DisputeRecord = {
   id?: string;
   status?: string;

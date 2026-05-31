@@ -4,6 +4,7 @@ import type {
   CheckInRecord,
   DisputeRecord,
   EventDetail,
+  EventValidatorRecord,
   EventSummary,
   OrganizerApplication,
   PageResult,
@@ -68,7 +69,7 @@ export const backendApi = {
   },
 
   async getEventValidators(eventId: string) {
-    return unwrap<Record<string, unknown>[]>(http.get(`/events/${eventId}/validators`));
+    return unwrap<EventValidatorRecord[]>(http.get(`/events/${eventId}/validators`));
   },
 
   async getMyEvents(params?: { page?: number; size?: number }) {
