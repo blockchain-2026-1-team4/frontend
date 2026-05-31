@@ -107,8 +107,7 @@ export default function CheckInHomePage({ navigation }: any) {
       <View style={styles.statStrip}>
         <MiniStat label="오늘 일정" value={grouped.today.length} color="#1D9E75" />
         <MiniStat label="향후 일정" value={grouped.upcoming.length} color="#534AB7" />
-        <MiniStat label="종료됨" value={grouped.ended.length} color="#9CA3AF" />
-        <MiniStat label="미발행" value={missingTickets} color="#854F0B" />
+        <MiniStat label="티켓 미발행" value={missingTickets} color="#854F0B" />
       </View>
 
       <CheckInSection
@@ -213,7 +212,7 @@ const styles = StyleSheet.create({
   heroDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.3)' },
   heroDotGreen: { backgroundColor: '#6EE7B7' },
   heroChipText: { color: 'rgba(255,255,255,0.85)', fontSize: 10, fontWeight: '700' },
-  statStrip: { flexDirection: 'row', gap: 7, paddingHorizontal: 14, paddingTop: 14, paddingBottom: 10 },
+  statStrip: { flexDirection: 'row', gap: 7, paddingHorizontal: 14, marginTop: -14, marginBottom: 12 },
   statMini: { flex: 1, backgroundColor: '#FFFFFF', borderRadius: 10, borderWidth: 0.5, borderColor: '#E5E7EB', paddingVertical: 9, alignItems: 'center' },
   statValue: { fontSize: 17, fontWeight: '900', lineHeight: 19 },
   statLabel: { fontSize: 9, color: '#9CA3AF', marginTop: 2, fontWeight: '700' },

@@ -3,7 +3,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { Alert, ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Svg, { Path, Circle } from 'react-native-svg';
+import Svg, { Path } from 'react-native-svg';
 import { TextInput } from '../components/TextInput';
 import { errorMessage } from '../lib/account';
 import { backendApi } from '../lib/backend';
@@ -22,9 +22,33 @@ function BackIcon() {
 
 function QrIcon() {
   return (
-    <Svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+    <Svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
       <Path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4z" />
       <Path d="M14 14h2v2h-2zM18 14h2v6h-6v-2h4zM14 18h2" />
+    </Svg>
+  );
+}
+
+function KeyboardIcon() {
+  return (
+    <Svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <Path d="M2 6a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6zM6 10h.01M10 10h.01M14 10h.01M18 10h.01M8 14h8M6 14h.01M18 14h.01" />
+    </Svg>
+  );
+}
+
+function UserCheckIcon() {
+  return (
+    <Svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="#185FA5" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <Path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8m7 2 2 2 4-4" />
+    </Svg>
+  );
+}
+
+function ArrowRightIcon() {
+  return (
+    <Svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.35)" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <Path d="M5 12h14m-7-7 7 7-7 7" />
     </Svg>
   );
 }
@@ -49,6 +73,11 @@ function checkInErrorDetail(error: unknown) {
   if (message.includes('만료') || message.includes('EXPIRED')) return { title: '만료 QR', message: '만료된 QR입니다. 관람객에게 QR 새로고침을 요청해주세요.' };
   if (message.includes('서명') || message.includes('유효하지') || message.includes('SIGNATURE')) return { title: '서명 오류', message: 'QR 서명 또는 티켓 상태가 유효하지 않습니다.' };
   return { title: '처리 실패', message };
+}
+
+function validatorFirstChar(validator: Record<string, unknown>) {
+  const name = String(validator.validatorDisplayName ?? validator.displayName ?? '').trim();
+  return name ? name[0] : '?';
 }
 
 export default function CheckInManagePage({ navigation, route }: any) {
@@ -217,6 +246,9 @@ export default function CheckInManagePage({ navigation, route }: any) {
     else navigation.navigate('CheckInHome');
   };
 
+  const canScan = checkInAvailability.canCheckIn;
+  const canManageValidators = checkInAvailability.reason !== '종료된 공연';
+
   const feedbackBg = feedback?.type === 'error' ? '#FEF2F2' : feedback?.type === 'success' ? '#ECFDF5' : '#EEEDFE';
   const feedbackBorder = feedback?.type === 'error' ? '#FECACA' : feedback?.type === 'success' ? '#BBF7D0' : '#C4C0F5';
   const feedbackColor = feedback?.type === 'error' ? '#B91C1C' : feedback?.type === 'success' ? '#047857' : '#534AB7';
@@ -227,17 +259,14 @@ export default function CheckInManagePage({ navigation, route }: any) {
       contentContainerStyle={styles.content}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} />}
     >
-      <HeroGradient colors={['#1A1A2E', '#2D2B6B']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.hero, { paddingTop: Math.max(insets.top + 20, 42) }]}>
+      <HeroGradient colors={['#1A1A2E', '#2D2B6B']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.hero, { paddingTop: Math.max(insets.top + 14, 36) }]}>
         <View style={styles.heroTopBar}>
           <TouchableOpacity accessibilityRole="button" accessibilityLabel="뒤로가기" style={styles.backButton} onPress={goBack}>
             <BackIcon />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.scanHeroButton} onPress={() => navigation.navigate('CheckInScan', { eventId })}>
-            <QrIcon />
-            <Text style={styles.scanHeroButtonText}>QR 스캔</Text>
-          </TouchableOpacity>
+          <Text style={styles.eyebrow}>Check-in Manage</Text>
+          <View style={{ width: 28 }} />
         </View>
-        <Text style={styles.eyebrow}>CHECK-IN MANAGE</Text>
         <Text style={styles.heroTitle}>체크인 관리</Text>
         <Text style={styles.heroSub}>QR을 검증하고 실제 입장 처리를 진행합니다.</Text>
         {event ? (
@@ -248,6 +277,31 @@ export default function CheckInManagePage({ navigation, route }: any) {
         ) : null}
       </HeroGradient>
 
+      {event ? (
+        <View style={styles.ectx}>
+          <Text style={styles.ectl}>선택된 이벤트</Text>
+          <Text style={styles.ecn}>{event.name || event.title || '이벤트'}</Text>
+          <Text style={styles.ecm}>{event.venue || '-'} · {formatEventDate(event.eventAt || event.eventDateTime)}</Text>
+        </View>
+      ) : null}
+
+      <TouchableOpacity
+        style={[styles.qrScanCard, !canScan && styles.qrScanCardDisabled]}
+        onPress={() => navigation.navigate('CheckInScan', { eventId })}
+        disabled={!canScan}
+      >
+        <View style={[styles.qrScanIconBox, !canScan && styles.qrScanIconBoxDisabled]}>
+          <QrIcon />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.qrScanTitle}>QR 스캐너로 입장 처리</Text>
+          <Text style={styles.qrScanSub}>
+            {canScan ? '카메라로 관람객 QR을 스캔하세요.' : `${checkInAvailability.reason} · QR 스캔 불가`}
+          </Text>
+        </View>
+        <ArrowRightIcon />
+      </TouchableOpacity>
+
       {feedback ? (
         <View style={[styles.feedbackBox, { backgroundColor: feedbackBg, borderColor: feedbackBorder }]}>
           <Text style={[styles.feedbackTitle, { color: feedbackColor }]}>{feedback.title}</Text>
@@ -255,117 +309,147 @@ export default function CheckInManagePage({ navigation, route }: any) {
         </View>
       ) : null}
 
-      {event ? (
-        <View style={styles.eventBanner}>
-          <Text style={styles.bannerLabel}>선택된 이벤트</Text>
-          <Text style={styles.bannerTitle}>{event.name || event.title || '이벤트를 불러오는 중'}</Text>
-          <Text style={styles.bannerMeta}>장소 {event.venue || '-'} · {formatEventDate(event.eventAt || event.eventDateTime)}</Text>
-        </View>
-      ) : null}
-
       {hasQrInfo ? (
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>QR 스캔 결과</Text>
+        <View style={styles.qrResultCard}>
+          <Text style={styles.qrResultTitle}>QR 스캔 결과</Text>
           <InfoRow label="좌석" value={ticket?.seatInfo || `티켓 ${ticketId}`} />
           <InfoRow label="만료 여부" value={expired ? '만료됨' : '유효'} />
           <InfoRow label="상태" value={ticket ? formatTicketEntryStatus(ticket.status) : qrState} />
-          <Text style={styles.label}>운영 메모</Text>
-          <TextInput style={styles.input} value={memo} onChangeText={setMemo} placeholder="선택 입력" />
+          <Text style={styles.inputLabel}>운영 메모</Text>
+          <TextInput style={styles.memoInput} value={memo} onChangeText={setMemo} placeholder="선택 입력" />
           {checkInAvailability.reason ? (
             <View style={styles.blockedBox}>
               <Text style={styles.blockedText}>{checkInAvailability.reason}</Text>
             </View>
           ) : null}
           <TouchableOpacity
-            style={[styles.primaryButton, (checkingIn || !checkInAvailability.canCheckIn) && styles.disabledButton]}
+            style={[styles.checkInButton, (checkingIn || !checkInAvailability.canCheckIn) && styles.disabledButton]}
             disabled={checkingIn || !checkInAvailability.canCheckIn}
             onPress={checkIn}
           >
-            <Text style={styles.primaryButtonText}>{checkingIn ? '처리 중...' : checkInAvailability.reason || '입장 처리'}</Text>
+            <Text style={styles.checkInButtonText}>{checkingIn ? '처리 중...' : checkInAvailability.reason || '입장 처리'}</Text>
           </TouchableOpacity>
         </View>
-      ) : (
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>입장 처리</Text>
-          <Text style={styles.cardText}>우측 상단 QR 스캔 버튼으로 관람객의 체크인 QR을 읽어주세요.</Text>
-        </View>
-      )}
+      ) : null}
 
-      <View style={styles.card}>
-        <TouchableOpacity style={styles.collapseHeader} onPress={() => setManualOpen((v) => !v)}>
-          <Text style={styles.cardTitle}>수동 입력</Text>
-          <Text style={styles.chevron}>{manualOpen ? '⌃' : '⌄'}</Text>
+      {/* 수동 입력 */}
+      <View style={[styles.mc, !canScan && styles.mcDisabled]}>
+        <TouchableOpacity style={styles.mch} onPress={() => canScan && setManualOpen((v) => !v)} disabled={!canScan}>
+          <View style={[styles.mcIcon, { backgroundColor: '#F3F4F6' }]}>
+            <KeyboardIcon />
+          </View>
+          <Text style={[styles.mcTitle, { color: canScan ? '#6B7280' : '#B4B2A9', flex: 1 }]}>
+            수동 입력{'  '}<Text style={styles.mcSubLabel}>(QR 불가 시)</Text>
+          </Text>
+          <Text style={[styles.mcChev, manualOpen && styles.mcChevOpen]}>›</Text>
         </TouchableOpacity>
         {manualOpen ? (
-          <>
-            <Text style={styles.cardText}>스캔이 어려운 경우에만 QR payload를 붙여넣어 사용합니다.</Text>
-            <TextInput style={[styles.input, styles.textArea]} value={qrPayload} onChangeText={setQrPayload} placeholder='{"ticketId":"...","claimedOwner":"0x...","expiresAt":"...","signature":"..."}' multiline />
-            <TouchableOpacity style={styles.secondaryButton} onPress={applyPayload}>
-              <Text style={styles.secondaryButtonText}>QR 내용 반영</Text>
+          <View style={styles.mcBody}>
+            <Text style={styles.mcHint}>QR 스캔이 어려운 경우에만 payload를 직접 붙여넣어 사용합니다.</Text>
+            <TextInput
+              style={styles.payloadInput}
+              value={qrPayload}
+              onChangeText={setQrPayload}
+              placeholder={'{"ticketId":"...","claimedOwner":"0x...","expiresAt":"...","signature":"..."}'}
+              multiline
+            />
+            <TouchableOpacity style={styles.applyBtn} onPress={applyPayload}>
+              <Text style={styles.applyBtnText}>QR 내용 반영</Text>
             </TouchableOpacity>
-          </>
+          </View>
         ) : null}
       </View>
 
-      <View style={styles.card}>
-        <TouchableOpacity style={styles.collapseHeader} onPress={() => setValidatorOpen((v) => !v)}>
-          <Text style={styles.cardTitle}>검증자 관리</Text>
-          <Text style={styles.chevron}>{validatorOpen ? '⌃' : '⌄'}</Text>
+      {/* 검증자 관리 */}
+      <View style={[styles.mc, !canManageValidators && styles.mcDisabled]}>
+        <TouchableOpacity style={styles.mch} onPress={() => canManageValidators && setValidatorOpen((v) => !v)} disabled={!canManageValidators}>
+          <View style={[styles.mcIcon, { backgroundColor: canManageValidators ? '#E6F1FB' : '#F3F4F6' }]}>
+            <UserCheckIcon />
+          </View>
+          <Text style={[styles.mcTitle, { color: canManageValidators ? '#185FA5' : '#B4B2A9', flex: 1 }]}>검증자 관리</Text>
+          {canManageValidators ? (
+            <View style={styles.validatorCountBadge}>
+              <Text style={styles.validatorCountText}>{validators.length}명</Text>
+            </View>
+          ) : (
+            <Text style={styles.mcDisabledLabel}>종료됨</Text>
+          )}
+          <Text style={[styles.mcChev, validatorOpen && styles.mcChevOpen]}>›</Text>
         </TouchableOpacity>
         {validatorOpen ? (
-          <>
-            <Text style={styles.cardText}>이메일 또는 이름으로 검색하거나, ID를 직접 입력해 등록하세요.</Text>
+          <View style={styles.mcBody}>
+            <Text style={styles.mcHint}>이 이벤트의 체크인을 처리할 수 있는 검증자를 등록하세요.</Text>
+            {validators.map((validator, index) => {
+              const displayName = String(validator.validatorDisplayName ?? validator.displayName ?? '').trim();
+              const email = String(validator.validatorEmail ?? validator.email ?? '').trim();
+              const nameLabel = displayName || email || '-';
+              const emailLabel = displayName ? email : '';
+              return (
+                <View key={String(validator.id ?? index)} style={styles.vRow}>
+                  <View style={styles.vAvatar}>
+                    <Text style={styles.vAvatarText}>{validatorFirstChar(validator)}</Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.vName}>{nameLabel}</Text>
+                    <Text style={styles.vMeta}>{emailLabel ? `검증자 · ${emailLabel}` : '검증자'}</Text>
+                  </View>
+                </View>
+              );
+            })}
             {!directIdMode ? (
               <>
-                <TextInput style={styles.input} value={validatorQuery} onChangeText={handleValidatorQueryChange} placeholder="이메일 또는 이름으로 검색" autoCapitalize="none" autoCorrect={false} />
-                {searching ? <ActivityIndicator style={styles.searchSpinner} color="#534AB7" /> : null}
-                {searchError ? <View style={styles.errorBox}><Text style={styles.errorText}>{searchError}</Text></View> : null}
+                <TextInput
+                  style={styles.vInput}
+                  value={validatorQuery}
+                  onChangeText={handleValidatorQueryChange}
+                  placeholder="이메일 또는 이름으로 검색"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+                {searching ? <ActivityIndicator style={{ marginTop: 8 }} color="#534AB7" /> : null}
+                {searchError ? <Text style={styles.searchErrorText}>{searchError}</Text> : null}
                 {validatorResults.length > 0 ? (
                   <View style={styles.searchResultList}>
                     {validatorResults.map((user) => (
-                      <TouchableOpacity key={String(user.id)} style={[styles.searchResultItem, saving && styles.disabledButton]} disabled={saving} onPress={() => void registerValidator(String(user.id), user.displayName || user.email || String(user.id))}>
-                        <View style={styles.searchResultInfo}>
-                          <Text style={styles.searchResultName}>{user.displayName || '-'}</Text>
-                          <Text style={styles.searchResultSub}>{user.email || String(user.id)}</Text>
-                        </View>
+                      <TouchableOpacity
+                        key={String(user.id)}
+                        style={[styles.searchResultItem, saving && styles.disabledButton]}
+                        disabled={saving}
+                        onPress={() => void registerValidator(String(user.id), user.displayName || user.email || String(user.id))}
+                      >
+                        <Text style={styles.searchResultName}>{user.displayName || '-'}</Text>
                         <Text style={styles.searchResultAction}>{saving ? '등록 중' : '+ 등록'}</Text>
                       </TouchableOpacity>
                     ))}
                   </View>
-                ) : validatorQuery.trim() && !searching ? <Text style={styles.emptyText}>검색 결과가 없습니다.</Text> : null}
-                <TouchableOpacity style={styles.fallbackToggle} onPress={() => setDirectIdMode(true)}>
-                  <Text style={styles.fallbackToggleText}>ID 직접 입력으로 전환</Text>
+                ) : null}
+                <TouchableOpacity onPress={() => setDirectIdMode(true)}>
+                  <Text style={styles.vAdd}>+ ID 직접 입력으로 추가</Text>
                 </TouchableOpacity>
               </>
             ) : (
               <>
-                <TextInput style={styles.input} value={directId} onChangeText={setDirectId} placeholder="사용자 ID 입력" autoCapitalize="none" autoCorrect={false} />
-                <TouchableOpacity style={[styles.secondaryButton, saving && styles.disabledButton]} disabled={saving} onPress={() => void registerValidator(directId.trim(), directId.trim())}>
-                  <Text style={styles.secondaryButtonText}>{saving ? '등록 중...' : '검증자 등록'}</Text>
+                <TextInput
+                  style={styles.vInput}
+                  value={directId}
+                  onChangeText={setDirectId}
+                  placeholder="사용자 ID 입력"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+                <TouchableOpacity style={[styles.applyBtn, saving && styles.disabledButton]} disabled={saving} onPress={() => void registerValidator(directId.trim(), directId.trim())}>
+                  <Text style={styles.applyBtnText}>{saving ? '등록 중...' : '검증자 등록'}</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.fallbackToggle} onPress={() => { setDirectIdMode(false); setSearchError(''); }}>
-                  <Text style={styles.fallbackToggleText}>검색으로 전환</Text>
+                <TouchableOpacity onPress={() => { setDirectIdMode(false); setSearchError(''); }}>
+                  <Text style={styles.vAdd}>검색으로 전환</Text>
                 </TouchableOpacity>
               </>
             )}
-            <Text style={styles.sectionLabel}>등록된 검증자</Text>
-            {validators.length === 0 ? <Text style={styles.emptyText}>등록된 검증자가 없습니다.</Text> : (
-              validators.map((validator, index) => {
-                const displayName = String(validator.validatorDisplayName ?? validator.displayName ?? '').trim();
-                const email = String(validator.validatorEmail ?? validator.email ?? '').trim();
-                const nameLabel = displayName || email || '-';
-                const emailLabel = displayName ? email : '';
-                return (
-                  <View key={String(validator.id ?? index)} style={styles.validatorRow}>
-                    <Text style={styles.validatorName}>{nameLabel}</Text>
-                    {emailLabel ? <Text style={styles.validatorEmail}>{emailLabel}</Text> : null}
-                  </View>
-                );
-              })
-            )}
-          </>
+          </View>
         ) : null}
       </View>
+
+      <View style={{ height: 8 }} />
     </ScrollView>
   );
 }
@@ -381,57 +465,67 @@ function InfoRow({ label, value }: { label: string; value: string }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F5F5F5' },
-  content: { paddingBottom: 96 },
-  hero: { paddingHorizontal: 20, paddingBottom: 28 },
-  heroTopBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 },
-  backButton: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
-  scanHeroButton: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: 'rgba(255,255,255,0.12)', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.2)', borderRadius: 20, paddingHorizontal: 14, paddingVertical: 7 },
-  scanHeroButtonText: { color: '#FFFFFF', fontWeight: '800', fontSize: 13 },
-  eyebrow: { color: '#A89CF7', fontSize: 10, fontWeight: '700', letterSpacing: 1.2, textTransform: 'uppercase' },
-  heroTitle: { color: '#FFFFFF', fontSize: 22, fontWeight: '800', marginTop: 4, marginBottom: 4 },
-  heroSub: { color: 'rgba(255,255,255,0.58)', fontSize: 12, lineHeight: 18, marginBottom: 14 },
-  heroChip: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', backgroundColor: 'rgba(255,255,255,0.12)', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.2)', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 5 },
+  content: { paddingBottom: 80 },
+  hero: { paddingHorizontal: 18, paddingBottom: 26 },
+  heroTopBar: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 },
+  backButton: { width: 28, height: 28, borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.1)', alignItems: 'center', justifyContent: 'center' },
+  eyebrow: { color: '#A89CF7', fontSize: 10, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase', flex: 1, textAlign: 'center' },
+  heroTitle: { color: '#FFFFFF', fontSize: 19, fontWeight: '800', lineHeight: 24, marginBottom: 3 },
+  heroSub: { color: 'rgba(255,255,255,0.45)', fontSize: 11, marginTop: 3 },
+  heroChip: { flexDirection: 'row', alignItems: 'center', gap: 5, alignSelf: 'flex-start', backgroundColor: 'rgba(255,255,255,0.1)', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.2)', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4, marginTop: 10 },
   heroDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#6EE7B7' },
-  heroChipText: { color: 'rgba(255,255,255,0.85)', fontSize: 11 },
-  feedbackBox: { marginHorizontal: 16, marginTop: 14, borderRadius: 12, padding: 12, borderWidth: 0.5 },
+  heroChipText: { color: 'rgba(255,255,255,0.85)', fontSize: 10 },
+  ectx: { backgroundColor: '#EEEDFE', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, marginHorizontal: 14, marginTop: 10 },
+  ectl: { fontSize: 9, fontWeight: '700', color: '#534AB7', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 3 },
+  ecn: { fontSize: 13, fontWeight: '800', color: '#1A1A2E' },
+  ecm: { fontSize: 10, color: '#534AB7', marginTop: 2 },
+  qrScanCard: { marginHorizontal: 14, marginTop: 10, backgroundColor: '#1A1A2E', borderRadius: 14, padding: 18, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  qrScanCardDisabled: { opacity: 0.42 },
+  qrScanIconBox: { width: 44, height: 44, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.12)', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  qrScanIconBoxDisabled: { backgroundColor: 'rgba(255,255,255,0.06)' },
+  qrScanTitle: { color: '#FFFFFF', fontSize: 15, fontWeight: '800' },
+  qrScanSub: { color: 'rgba(255,255,255,0.5)', fontSize: 10, marginTop: 2 },
+  feedbackBox: { marginHorizontal: 14, marginTop: 10, borderRadius: 12, padding: 12, borderWidth: 0.5 },
   feedbackTitle: { fontWeight: '800', marginBottom: 4, fontSize: 13 },
   feedbackText: { fontWeight: '700', lineHeight: 18, fontSize: 13 },
-  eventBanner: { marginHorizontal: 16, marginTop: 14, borderRadius: 14, padding: 14, backgroundColor: '#EEEDFE', borderWidth: 0.5, borderColor: '#C4C0F5' },
-  bannerLabel: { color: '#534AB7', fontSize: 10, fontWeight: '800', letterSpacing: 0.5, textTransform: 'uppercase', marginBottom: 4 },
-  bannerTitle: { color: '#1A1A2E', fontSize: 16, fontWeight: '800' },
-  bannerMeta: { marginTop: 4, color: '#534AB7', fontSize: 11, fontWeight: '700' },
-  card: { marginHorizontal: 16, marginTop: 14, backgroundColor: '#FFFFFF', borderRadius: 14, padding: 16, borderWidth: 0.5, borderColor: '#E5E7EB' },
-  cardTitle: { color: '#1A1A2E', fontSize: 15, fontWeight: '800' },
-  cardText: { marginTop: 8, color: '#6B7280', lineHeight: 19, fontSize: 13 },
-  collapseHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  chevron: { color: '#9CA3AF', fontSize: 18, fontWeight: '800' },
-  infoRow: { paddingVertical: 10, borderBottomWidth: 0.5, borderBottomColor: '#E5E7EB' },
-  infoLabel: { color: '#9CA3AF', fontSize: 11, fontWeight: '700', marginBottom: 3 },
-  infoValue: { color: '#1A1A2E', fontWeight: '800', fontSize: 13 },
-  label: { marginTop: 12, marginBottom: 6, color: '#1A1A2E', fontSize: 12, fontWeight: '700' },
-  input: { borderWidth: 0.5, borderColor: '#E5E7EB', borderRadius: 10, padding: 12, backgroundColor: '#FFFFFF', color: '#1A1A2E' },
-  textArea: { minHeight: 100, textAlignVertical: 'top', marginTop: 10 },
-  primaryButton: { backgroundColor: '#1A1A2E', borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 14 },
-  primaryButtonText: { color: '#FFFFFF', fontSize: 14, fontWeight: '800' },
-  secondaryButton: { borderWidth: 0.5, borderColor: '#CBD5E1', backgroundColor: '#FFFFFF', borderRadius: 12, paddingVertical: 13, alignItems: 'center', marginTop: 12 },
-  secondaryButtonText: { color: '#1A1A2E', fontSize: 14, fontWeight: '700' },
-  disabledButton: { opacity: 0.55 },
-  blockedBox: { marginTop: 10, backgroundColor: '#F5F5F5', borderWidth: 0.5, borderColor: '#E5E7EB', borderRadius: 10, padding: 10 },
+  qrResultCard: { marginHorizontal: 14, marginTop: 10, backgroundColor: '#FFFFFF', borderRadius: 14, padding: 14, borderWidth: 0.5, borderColor: '#E5E7EB' },
+  qrResultTitle: { color: '#1A1A2E', fontSize: 14, fontWeight: '800', marginBottom: 4 },
+  infoRow: { paddingVertical: 9, borderBottomWidth: 0.5, borderBottomColor: '#E5E7EB' },
+  infoLabel: { color: '#9CA3AF', fontSize: 10, fontWeight: '700', marginBottom: 2 },
+  infoValue: { color: '#1A1A2E', fontWeight: '800', fontSize: 12 },
+  inputLabel: { marginTop: 12, marginBottom: 5, color: '#1A1A2E', fontSize: 11, fontWeight: '700' },
+  memoInput: { borderWidth: 0.5, borderColor: '#E5E7EB', borderRadius: 9, padding: 10, backgroundColor: '#FFFFFF', color: '#1A1A2E', fontSize: 12 },
+  blockedBox: { marginTop: 8, backgroundColor: '#F5F5F5', borderWidth: 0.5, borderColor: '#E5E7EB', borderRadius: 9, padding: 10 },
   blockedText: { color: '#6B7280', fontSize: 12, fontWeight: '700', textAlign: 'center' },
-  searchSpinner: { marginTop: 12 },
-  errorBox: { marginTop: 10, backgroundColor: '#FEF2F2', borderWidth: 0.5, borderColor: '#FECACA', borderRadius: 10, padding: 10 },
-  errorText: { color: '#B91C1C', fontSize: 12, fontWeight: '700', lineHeight: 17 },
-  fallbackToggle: { marginTop: 10, alignItems: 'center', paddingVertical: 8 },
-  fallbackToggleText: { color: '#534AB7', fontSize: 12, fontWeight: '800' },
-  searchResultList: { marginTop: 10, borderWidth: 0.5, borderColor: '#E5E7EB', borderRadius: 12, overflow: 'hidden' },
-  searchResultItem: { flexDirection: 'row', alignItems: 'center', padding: 12, borderBottomWidth: 0.5, borderBottomColor: '#E5E7EB', backgroundColor: '#FFFFFF' },
-  searchResultInfo: { flex: 1 },
-  searchResultName: { color: '#1A1A2E', fontWeight: '800', fontSize: 13 },
-  searchResultSub: { marginTop: 2, color: '#9CA3AF', fontSize: 11, fontWeight: '700' },
-  searchResultAction: { color: '#534AB7', fontWeight: '800', fontSize: 12 },
-  sectionLabel: { marginTop: 16, marginBottom: 6, color: '#9CA3AF', fontSize: 11, fontWeight: '700' },
-  emptyText: { color: '#9CA3AF', paddingTop: 12, textAlign: 'center', fontSize: 12 },
-  validatorRow: { paddingVertical: 8, borderBottomWidth: 0.5, borderBottomColor: '#E5E7EB' },
-  validatorName: { color: '#1A1A2E', fontWeight: '800', fontSize: 13 },
-  validatorEmail: { marginTop: 2, color: '#9CA3AF', fontSize: 11, fontWeight: '700' },
+  checkInButton: { marginTop: 12, backgroundColor: '#1A1A2E', borderRadius: 10, paddingVertical: 13, alignItems: 'center' },
+  checkInButtonText: { color: '#FFFFFF', fontSize: 13, fontWeight: '800' },
+  mc: { backgroundColor: '#FFFFFF', borderRadius: 12, borderWidth: 0.5, borderColor: '#E5E7EB', marginHorizontal: 14, marginTop: 10, overflow: 'hidden' },
+  mcDisabled: { opacity: 0.45 },
+  mcDisabledLabel: { fontSize: 9, fontWeight: '700', color: '#B4B2A9', marginRight: 6 },
+  mch: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 13, paddingVertical: 10, borderBottomWidth: 0.5, borderBottomColor: '#F3F4F6', backgroundColor: '#FAFAFA' },
+  mcIcon: { width: 24, height: 24, borderRadius: 7, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  mcTitle: { fontSize: 11, fontWeight: '700' },
+  mcSubLabel: { fontSize: 9, color: '#B4B2A9' },
+  mcChev: { fontSize: 13, color: '#B4B2A9' },
+  mcChevOpen: { transform: [{ rotate: '90deg' }] },
+  mcBody: { padding: 13 },
+  mcHint: { fontSize: 10, color: '#9CA3AF', marginBottom: 9, lineHeight: 15 },
+  payloadInput: { borderWidth: 0.5, borderColor: '#E5E7EB', borderRadius: 8, paddingHorizontal: 11, paddingVertical: 9, fontSize: 11, color: '#B4B2A9', backgroundColor: '#FAFAFA', minHeight: 70, textAlignVertical: 'top' },
+  applyBtn: { marginTop: 8, backgroundColor: '#1A1A2E', borderRadius: 9, paddingVertical: 10, alignItems: 'center' },
+  applyBtnText: { fontSize: 12, fontWeight: '700', color: '#FFFFFF' },
+  validatorCountBadge: { backgroundColor: '#E6F1FB', paddingHorizontal: 7, paddingVertical: 2, borderRadius: 20, marginRight: 6 },
+  validatorCountText: { fontSize: 10, fontWeight: '700', color: '#185FA5' },
+  vRow: { flexDirection: 'row', alignItems: 'center', gap: 9, paddingVertical: 8, paddingHorizontal: 10, borderWidth: 0.5, borderColor: '#E5E7EB', borderRadius: 9, marginBottom: 6, backgroundColor: '#FFFFFF' },
+  vAvatar: { width: 28, height: 28, borderRadius: 14, backgroundColor: '#EEEDFE', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  vAvatarText: { fontSize: 11, fontWeight: '800', color: '#534AB7' },
+  vName: { fontSize: 11, fontWeight: '700', color: '#1A1A2E' },
+  vMeta: { fontSize: 9, color: '#9CA3AF', marginTop: 1 },
+  vInput: { borderWidth: 0.5, borderColor: '#E5E7EB', borderRadius: 8, paddingVertical: 8, paddingHorizontal: 11, fontSize: 12, color: '#1A1A2E', backgroundColor: '#FFFFFF', marginBottom: 4 },
+  vAdd: { fontSize: 11, fontWeight: '700', color: '#534AB7', textAlign: 'center', paddingVertical: 6 },
+  searchErrorText: { color: '#B91C1C', fontSize: 11, fontWeight: '700', marginTop: 6, marginBottom: 4 },
+  searchResultList: { marginTop: 6, marginBottom: 4, borderWidth: 0.5, borderColor: '#E5E7EB', borderRadius: 9, overflow: 'hidden' },
+  searchResultItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 10, borderBottomWidth: 0.5, borderBottomColor: '#E5E7EB', backgroundColor: '#FFFFFF' },
+  searchResultName: { color: '#1A1A2E', fontWeight: '700', fontSize: 12 },
+  searchResultAction: { color: '#534AB7', fontWeight: '800', fontSize: 11 },
+  disabledButton: { opacity: 0.55 },
 });

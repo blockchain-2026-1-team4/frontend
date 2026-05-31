@@ -1,6 +1,6 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
-import { ActivityIndicator, Alert, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View, ScrollView as HScroll } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path, Circle } from 'react-native-svg';
@@ -180,7 +180,7 @@ export default function CheckInStatusPage({ navigation, route }: any) {
         </View>
       </View>
 
-      <View style={styles.filterRow}>
+      <HScroll horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll} contentContainerStyle={styles.filterRow}>
         {RESULT_FILTERS.map((item) => (
           <TouchableOpacity
             key={item.value}
@@ -190,7 +190,7 @@ export default function CheckInStatusPage({ navigation, route }: any) {
             <Text style={[styles.filterTabText, selectedResult === item.value && styles.filterTabTextActive]}>{item.label}</Text>
           </TouchableOpacity>
         ))}
-      </View>
+      </HScroll>
 
       <View style={styles.toolbarRow}>
         <Text style={styles.resultHint}>결과 {filteredRecords.length}건</Text>
@@ -280,18 +280,19 @@ const styles = StyleSheet.create({
   heroChip: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', backgroundColor: 'rgba(255,255,255,0.12)', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.2)', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 5 },
   heroDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#6EE7B7' },
   heroChipText: { color: 'rgba(255,255,255,0.85)', fontSize: 11 },
-  metricGrid: { flexDirection: 'row', gap: 10, paddingHorizontal: 16, marginTop: -20, marginBottom: 14 },
-  metricCard: { flex: 1, backgroundColor: '#FFFFFF', borderRadius: 14, padding: 12, borderWidth: 0.5, borderColor: '#E5E7EB' },
-  metricIconBox: { width: 26, height: 26, borderRadius: 7, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
-  metricValue: { fontSize: 22, fontWeight: '800' },
-  metricLabel: { fontSize: 10, color: '#9CA3AF', marginTop: 2 },
+  metricGrid: { flexDirection: 'row', gap: 7, paddingHorizontal: 14, marginTop: -14, marginBottom: 12 },
+  metricCard: { flex: 1, backgroundColor: '#FFFFFF', borderRadius: 10, borderWidth: 0.5, borderColor: '#E5E7EB', paddingVertical: 10, paddingHorizontal: 8, alignItems: 'center' },
+  metricIconBox: { width: 22, height: 22, borderRadius: 6, alignItems: 'center', justifyContent: 'center', marginBottom: 5 },
+  metricValue: { fontSize: 18, fontWeight: '800', lineHeight: 20 },
+  metricLabel: { fontSize: 9, color: '#9CA3AF', marginTop: 2, fontWeight: '700' },
   searchSection: { paddingHorizontal: 16, marginBottom: 10 },
   searchBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: 12, borderWidth: 0.5, borderColor: '#E5E7EB', paddingHorizontal: 12, gap: 8 },
   searchInput: { flex: 1, paddingVertical: 12, color: '#1A1A2E', fontSize: 13 },
-  filterRow: { flexDirection: 'row', gap: 8, paddingHorizontal: 16, marginBottom: 10 },
-  filterTab: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, backgroundColor: '#FFFFFF', borderWidth: 0.5, borderColor: '#E5E7EB' },
+  filterScroll: { marginBottom: 8 },
+  filterRow: { flexDirection: 'row', gap: 6, paddingHorizontal: 14, paddingVertical: 0 },
+  filterTab: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, backgroundColor: '#FFFFFF', borderWidth: 0.5, borderColor: '#E5E7EB', flexShrink: 0 },
   filterTabActive: { backgroundColor: '#1A1A2E', borderColor: '#1A1A2E' },
-  filterTabText: { fontSize: 11, fontWeight: '700', color: '#6B7280' },
+  filterTabText: { fontSize: 10, fontWeight: '700', color: '#6B7280' },
   filterTabTextActive: { color: '#FFFFFF' },
   toolbarRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, marginBottom: 8 },
   resultHint: { fontSize: 11, color: '#9CA3AF', fontWeight: '700' },

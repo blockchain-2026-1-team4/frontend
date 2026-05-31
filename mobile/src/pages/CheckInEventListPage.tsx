@@ -182,6 +182,17 @@ export default function CheckInEventListPage({ navigation, route }: any) {
         </View>
       </HeroGradient>
 
+      <View style={styles.statGrid}>
+        <View style={styles.statCard}>
+          <Text style={[styles.statValue, { color: '#534AB7' }]}>{filteredEvents.length}</Text>
+          <Text style={styles.statLabel}>전체</Text>
+        </View>
+        <View style={styles.statCard}>
+          <Text style={[styles.statValue, { color: '#854F0B' }]}>{filteredEvents.filter(({ status }) => !status.actionable && status.label === '티켓 미발행').length}</Text>
+          <Text style={styles.statLabel}>티켓 미발행</Text>
+        </View>
+      </View>
+
       <View style={styles.resultRow}>
         <Text style={styles.resultHint}>결과 {filteredEvents.length}건</Text>
         {filteredEvents.length > PAGE_SIZE && (
@@ -197,29 +208,42 @@ export default function CheckInEventListPage({ navigation, route }: any) {
         pagedEvents.map(({ item, status }) => {
           const badge = STATUS_BADGE[status.label] ?? { bg: '#F3F4F6', text: '#6B7280' };
           return (
-            <TouchableOpacity key={item.event.id} style={styles.eventCard} onPress={() => navigation.navigate('CheckInManage', { eventId: item.event.id })}>
-              <View style={styles.cardTop}>
-                <Text style={styles.eventName} numberOfLines={1}>{eventTitle(item.event)}</Text>
+            <View key={item.event.id} style={styles.eventCard}>
+              <View style={styles.cardHead}>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={styles.eventName} numberOfLines={1}>{eventTitle(item.event)}</Text>
+                  <Text style={styles.eventMeta}>{status.startSummary} · {item.event.venue || '장소 미정'}</Text>
+                </View>
                 <View style={[styles.statusBadge, { backgroundColor: badge.bg }]}>
                   <Text style={[styles.statusBadgeText, { color: badge.text }]}>{status.label}</Text>
                 </View>
               </View>
-              <Text style={styles.eventMeta}>{status.startSummary}</Text>
-              <Text style={styles.eventMeta}>입장 완료 {status.usedCount} / {status.ticketCount}</Text>
+              <View style={styles.metaRow}>
+                <View style={styles.metaItem}>
+                  <Text style={styles.metaItemLabel}>입장 완료</Text>
+                  <Text style={[styles.metaItemValue, { color: '#0F6E56' }]}>{status.usedCount}</Text>
+                </View>
+                <View style={styles.metaItem}>
+                  <Text style={styles.metaItemLabel}>전체 티켓</Text>
+                  <Text style={styles.metaItemValue}>{status.ticketCount > 0 ? status.ticketCount : '–'}</Text>
+                </View>
+                <View style={styles.metaItem}>
+                  <Text style={styles.metaItemLabel}>판매 완료</Text>
+                  <Text style={styles.metaItemValue}>{status.ticketCount > 0 ? status.usedCount : '–'}</Text>
+                </View>
+              </View>
               <View style={styles.actionRow}>
                 <TouchableOpacity
-                  style={[styles.primaryBtn, !status.actionable && styles.primaryBtnMuted]}
+                  style={styles.primaryBtn}
                   onPress={() => navigation.navigate('CheckInManage', { eventId: item.event.id })}
                 >
-                  <Text style={[styles.primaryBtnText, !status.actionable && styles.primaryBtnTextMuted]}>
-                    {status.actionable ? '체크인 하기' : status.buttonLabel}
-                  </Text>
+                  <Text style={styles.primaryBtnText}>체크인 관리</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.secondaryBtn} onPress={() => navigation.navigate('CheckInStatus', { eventId: item.event.id })}>
                   <Text style={styles.secondaryBtnText}>체크인 현황</Text>
                 </TouchableOpacity>
               </View>
-            </TouchableOpacity>
+            </View>
           );
         })
       )}
@@ -252,21 +276,29 @@ const styles = StyleSheet.create({
   heroChip: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', backgroundColor: 'rgba(255,255,255,0.12)', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.2)', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 5 },
   heroDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#6EE7B7' },
   heroChipText: { color: 'rgba(255,255,255,0.85)', fontSize: 11 },
-  resultRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, marginTop: 14, marginBottom: 10 },
-  resultHint: { fontSize: 11, color: '#9CA3AF', fontWeight: '700' },
-  eventCard: { backgroundColor: '#FFFFFF', borderRadius: 14, padding: 14, borderWidth: 0.5, borderColor: '#E5E7EB', marginHorizontal: 16, marginBottom: 8 },
-  cardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 10, marginBottom: 8 },
-  eventName: { flex: 1, fontSize: 13, fontWeight: '800', color: '#1A1A2E' },
-  statusBadge: { paddingHorizontal: 9, paddingVertical: 4, borderRadius: 20 },
-  statusBadgeText: { fontSize: 10, fontWeight: '800' },
-  eventMeta: { fontSize: 11, color: '#9CA3AF', marginTop: 3 },
-  actionRow: { flexDirection: 'row', gap: 8, marginTop: 12 },
-  primaryBtn: { flex: 1, backgroundColor: '#1A1A2E', borderRadius: 10, paddingVertical: 11, alignItems: 'center' },
-  primaryBtnMuted: { backgroundColor: '#F3F4F6', borderWidth: 0.5, borderColor: '#E5E7EB' },
-  primaryBtnText: { color: '#FFFFFF', fontWeight: '800', fontSize: 13 },
-  primaryBtnTextMuted: { color: '#9CA3AF' },
-  secondaryBtn: { flex: 1, borderWidth: 0.5, borderColor: '#E5E7EB', borderRadius: 10, paddingVertical: 11, alignItems: 'center', backgroundColor: '#FFFFFF' },
-  secondaryBtnText: { color: '#1A1A2E', fontWeight: '700', fontSize: 13 },
+  statGrid: { flexDirection: 'row', gap: 7, paddingHorizontal: 14, marginTop: -14, marginBottom: 12 },
+  statCard: { flex: 1, backgroundColor: '#FFFFFF', borderRadius: 10, borderWidth: 0.5, borderColor: '#E5E7EB', paddingVertical: 10, paddingHorizontal: 8, alignItems: 'center' },
+  statValue: { fontSize: 18, fontWeight: '800', lineHeight: 20 },
+  statLabel: { fontSize: 9, color: '#9CA3AF', marginTop: 2, fontWeight: '700' },
+  resultRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 14, marginBottom: 8 },
+  resultHint: { fontSize: 10, color: '#9CA3AF', fontWeight: '700' },
+  eventCard: { backgroundColor: '#FFFFFF', borderRadius: 12, borderWidth: 0.5, borderColor: '#E5E7EB', marginHorizontal: 14, marginBottom: 8, overflow: 'hidden' },
+  cardHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', padding: 12, borderBottomWidth: 0.5, borderBottomColor: '#F3F4F6' },
+  eventName: { fontSize: 12, fontWeight: '800', color: '#1A1A2E' },
+  eventMeta: { fontSize: 10, color: '#9CA3AF', marginTop: 2 },
+  statusBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20, flexShrink: 0, marginLeft: 8 },
+  statusBadgeText: { fontSize: 9, fontWeight: '700' },
+  metaRow: { flexDirection: 'row', gap: 14, paddingHorizontal: 12, paddingVertical: 10, borderBottomWidth: 0.5, borderBottomColor: '#F3F4F6' },
+  metaItem: { gap: 1 },
+  metaItemLabel: { fontSize: 9, color: '#9CA3AF' },
+  metaItemValue: { fontSize: 11, fontWeight: '700', color: '#1A1A2E' },
+  actionRow: { flexDirection: 'row', gap: 7, padding: 12 },
+  primaryBtn: { flex: 1, backgroundColor: '#1A1A2E', borderRadius: 9, paddingVertical: 9, alignItems: 'center' },
+  primaryBtnDisabled: { backgroundColor: '#F5F5F5', borderWidth: 0.5, borderColor: '#E5E7EB' },
+  primaryBtnText: { color: '#FFFFFF', fontWeight: '700', fontSize: 11 },
+  primaryBtnTextDisabled: { color: '#B4B2A9' },
+  secondaryBtn: { flex: 1, borderWidth: 0.5, borderColor: '#E5E7EB', borderRadius: 9, paddingVertical: 9, alignItems: 'center', backgroundColor: '#F5F5F5' },
+  secondaryBtnText: { color: '#534AB7', fontWeight: '700', fontSize: 11 },
   emptyBox: { backgroundColor: '#FFFFFF', borderRadius: 14, padding: 24, borderWidth: 0.5, borderColor: '#E5E7EB', marginHorizontal: 16, alignItems: 'center' },
   emptyTitle: { color: '#6B7280', fontSize: 13, fontWeight: '800' },
   pagination: { flexDirection: 'row', gap: 10, paddingHorizontal: 16, marginTop: 8 },
