@@ -155,18 +155,30 @@ export default function TicketExplorePage({ navigation, route }: any) {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} />}
       ListHeaderComponent={(
         <>
-          <TouchableOpacity style={styles.backButton} onPress={() => eventId ? navigation.navigate('OrganizerEventDetail', { eventId }) : navigation.navigate('MyEvents')}>
-            <Text style={styles.backButtonText}>이벤트 상세로 돌아가기</Text>
-          </TouchableOpacity>
-          <Text style={styles.eyebrow}>Ticket Explorer</Text>
-          <Text style={styles.title}>전체 티켓 탐색</Text>
-          <Text style={styles.subtitle}>{event?.name || event?.title || '이벤트'}의 개별 티켓 상태를 회차와 좌석 기준으로 확인합니다.</Text>
-          <View style={styles.metricGrid}>
-            <Metric label="판매 완료" value={sold} />
-            <Metric label="판매 가능" value={available} />
-            <Metric label="리셀 중" value={listed} />
+          <View style={styles.hero}>
+            <View style={styles.heroTop}>
+              <TouchableOpacity style={styles.backButton} onPress={() => eventId ? navigation.navigate('OrganizerEventDetail', { eventId }) : navigation.navigate('MyEvents')}>
+                <Text style={styles.backButtonText}>‹</Text>
+              </TouchableOpacity>
+              <Text style={styles.eyebrow}>Ticket Explorer</Text>
+            </View>
+            <Text style={styles.title}>전체 티켓 탐색</Text>
+            <Text style={styles.subtitle}>{event?.name || event?.title || '이벤트'}</Text>
+            <View style={styles.eventContext}>
+              <View style={styles.eventContextIcon} />
+              <View>
+                <Text style={styles.eventContextName}>개별 티켓 상태 확인</Text>
+                <Text style={styles.eventContextMeta}>회차 · 좌석 · 판매 상태 기준</Text>
+              </View>
+            </View>
+          </View>
+          <View style={styles.statStrip}>
+            <Metric label="판매 완료" value={sold} tone="red" />
+            <Metric label="판매 가능" value={available} tone="green" />
+            <Metric label="리셀 중" value={listed} tone="yellow" />
           </View>
 
+          <View style={styles.filterSection}>
           <FilterBlock title="회차">
             <FilterChip label="전체" active={selectedRound === 'ALL'} onPress={() => { setSelectedRound('ALL'); setPage(1); }} />
             {(event?.rounds ?? []).map((round, index) => (
@@ -197,6 +209,7 @@ export default function TicketExplorePage({ navigation, route }: any) {
               <FilterChip key={item.value} label={item.label} active={sortMode === item.value} onPress={() => { setSortMode(item.value); setPage(1); }} />
             ))}
           </FilterBlock>
+          </View>
 
           <View style={styles.sectionHead}>
             <Text style={styles.sectionTitle}>검색 결과</Text>
@@ -263,46 +276,57 @@ function FilterChip({ label, active, onPress }: { label: string; active: boolean
   );
 }
 
-function Metric({ label, value }: { label: string; value: number }) {
-  return <View style={styles.metricCard}><Text style={styles.metricLabel}>{label}</Text><Text style={styles.metricValue}>{value}</Text></View>;
+function Metric({ label, value, tone = 'neutral' }: { label: string; value: number; tone?: 'neutral' | 'red' | 'green' | 'yellow' }) {
+  return <View style={styles.metricCard}><Text style={[styles.metricValue, styles[`metric_${tone}`]]}>{value}</Text><Text style={styles.metricLabel}>{label}</Text></View>;
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F4F7FB' },
-  content: { padding: 18, paddingBottom: 96 },
+  container: { flex: 1, backgroundColor: '#F5F5F5' },
+  content: { paddingBottom: 96 },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F4F7FB' },
   emptyTitle: { color: '#0F172A', fontSize: 18, fontWeight: '900', textAlign: 'center' },
   emptyText: { color: '#94A3B8', paddingVertical: 48, textAlign: 'center' },
   errorText: { marginTop: 8, color: '#64748B', fontSize: 13, textAlign: 'center', lineHeight: 19 },
-  backButton: { borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 8, paddingVertical: 10, alignItems: 'center', backgroundColor: '#FFFFFF', marginBottom: 14 },
-  backButtonText: { color: '#2563EB', fontWeight: '900' },
+  hero: { backgroundColor: '#1A1A2E', paddingHorizontal: 18, paddingTop: 16, paddingBottom: 28 },
+  heroTop: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 },
+  backButton: { width: 28, height: 28, borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.1)' },
+  backButtonText: { color: 'rgba(255,255,255,0.75)', fontWeight: '900', fontSize: 20, lineHeight: 22 },
   primaryButton: { marginTop: 14, backgroundColor: '#2563EB', borderRadius: 8, paddingHorizontal: 18, paddingVertical: 13, alignItems: 'center' },
   primaryButtonText: { color: '#FFFFFF', fontSize: 15, fontWeight: '900' },
-  eyebrow: { color: '#2563EB', fontWeight: '800', fontSize: 12 },
-  title: { marginTop: 4, fontSize: 28, fontWeight: '900', color: '#0F172A' },
-  subtitle: { marginTop: 8, color: '#64748B', fontSize: 14, lineHeight: 21 },
-  metricGrid: { flexDirection: 'row', gap: 8, marginTop: 16 },
-  metricCard: { flex: 1, backgroundColor: '#FFFFFF', borderRadius: 8, padding: 13, borderWidth: 1, borderColor: '#E2E8F0' },
-  metricLabel: { color: '#64748B', fontSize: 12, fontWeight: '800' },
-  metricValue: { marginTop: 8, color: '#0F172A', fontSize: 24, fontWeight: '900' },
-  filterBlock: { marginTop: 12 },
-  filterTitleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 7 },
-  filterTitle: { color: '#334155', fontSize: 12, fontWeight: '900' },
-  filterExpand: { color: '#2563EB', fontSize: 12, fontWeight: '800' },
-  filterList: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingBottom: 4 },
-  filterChip: { borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: '#FFFFFF' },
-  activeFilterChip: { borderColor: '#2563EB', backgroundColor: '#EFF6FF' },
-  filterChipText: { color: '#475569', fontWeight: '800', fontSize: 12 },
-  activeFilterChipText: { color: '#2563EB' },
-  sectionHead: { marginTop: 16, marginBottom: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  sectionTitle: { color: '#0F172A', fontSize: 17, fontWeight: '900' },
+  eyebrow: { color: '#A89CF7', fontWeight: '800', fontSize: 10, letterSpacing: 1, textTransform: 'uppercase' },
+  title: { color: '#FFFFFF', fontSize: 19, fontWeight: '900', lineHeight: 24 },
+  subtitle: { marginTop: 3, color: 'rgba(255,255,255,0.5)', fontSize: 11 },
+  eventContext: { marginTop: 12, flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9, backgroundColor: 'rgba(255,255,255,0.07)', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.12)' },
+  eventContextIcon: { width: 26, height: 26, borderRadius: 7, backgroundColor: 'rgba(255,255,255,0.1)' },
+  eventContextName: { color: '#FFFFFF', fontSize: 11, fontWeight: '800' },
+  eventContextMeta: { marginTop: 1, color: 'rgba(255,255,255,0.45)', fontSize: 10 },
+  statStrip: { flexDirection: 'row', gap: 7, paddingHorizontal: 14, marginTop: -14, marginBottom: 10 },
+  metricCard: { flex: 1, backgroundColor: '#FFFFFF', borderRadius: 10, paddingVertical: 10, paddingHorizontal: 8, alignItems: 'center', borderWidth: 0.5, borderColor: '#E5E7EB' },
+  metricLabel: { color: '#9CA3AF', fontSize: 9, fontWeight: '800', marginTop: 2 },
+  metricValue: { fontSize: 17, fontWeight: '900', lineHeight: 20 },
+  metric_neutral: { color: '#1A1A2E' },
+  metric_red: { color: '#A32D2D' },
+  metric_green: { color: '#0F6E56' },
+  metric_yellow: { color: '#854F0B' },
+  filterSection: { marginHorizontal: 14, marginBottom: 8, backgroundColor: '#FFFFFF', borderRadius: 12, borderWidth: 0.5, borderColor: '#E5E7EB', overflow: 'hidden' },
+  filterBlock: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 8, borderBottomWidth: 0.5, borderBottomColor: '#F3F4F6' },
+  filterTitleRow: { width: 36, flexShrink: 0 },
+  filterTitle: { color: '#6B7280', fontSize: 10, fontWeight: '900' },
+  filterExpand: { color: '#534AB7', fontSize: 10, fontWeight: '800' },
+  filterList: { flex: 1, flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
+  filterChip: { borderWidth: 0.5, borderColor: '#E5E7EB', borderRadius: 20, paddingHorizontal: 9, paddingVertical: 3, backgroundColor: '#FFFFFF' },
+  activeFilterChip: { borderColor: '#1A1A2E', backgroundColor: '#1A1A2E' },
+  filterChipText: { color: '#6B7280', fontWeight: '800', fontSize: 10 },
+  activeFilterChipText: { color: '#FFFFFF' },
+  sectionHead: { marginTop: 2, marginBottom: 6, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  sectionTitle: { color: '#9CA3AF', fontSize: 10, fontWeight: '900' },
   pageText: { color: '#64748B', fontSize: 12, fontWeight: '800' },
-  row: { backgroundColor: '#FFFFFF', borderRadius: 8, padding: 14, borderWidth: 1, borderColor: '#E2E8F0', marginBottom: 10 },
-  rowInfo: { flex: 1 },
-  rowTitleLine: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
-  rowTitle: { color: '#0F172A', fontWeight: '900', fontSize: 16 },
-  rowMeta: { marginTop: 5, color: '#64748B', fontSize: 12 },
-  badge: { overflow: 'hidden', borderRadius: 999, paddingHorizontal: 9, paddingVertical: 5, minWidth: 68, textAlign: 'center', fontSize: 11, fontWeight: '900' },
+  row: { backgroundColor: '#FFFFFF', borderRadius: 12, marginHorizontal: 14, marginBottom: 7, borderWidth: 0.5, borderColor: '#E5E7EB', overflow: 'hidden' },
+  rowInfo: { paddingHorizontal: 12, paddingVertical: 9 },
+  rowTitleLine: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, borderBottomWidth: 0.5, borderBottomColor: '#F3F4F6', paddingBottom: 7, marginBottom: 7 },
+  rowTitle: { color: '#1A1A2E', fontWeight: '900', fontSize: 12 },
+  rowMeta: { marginTop: 3, color: '#9CA3AF', fontSize: 10 },
+  badge: { overflow: 'hidden', borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3, minWidth: 68, textAlign: 'center', fontSize: 9, fontWeight: '900' },
   pagination: { flexDirection: 'row', gap: 8, marginTop: 4 },
   pageButton: { flex: 1, borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 8, paddingVertical: 12, alignItems: 'center', backgroundColor: '#FFFFFF' },
   pageButtonText: { color: '#0F172A', fontWeight: '900' },

@@ -29,6 +29,36 @@ function BackIcon({ color = 'rgba(255,255,255,0.78)' }: { color?: string }) {
   );
 }
 
+type TicketIconName = 'settings' | 'list' | 'ticket' | 'calendar' | 'seat' | 'hash' | 'eth' | 'repeat' | 'adjust' | 'check' | 'plus' | 'rocket';
+
+function TicketIcon({ name, color = '#534AB7', size = 14 }: { name: TicketIconName; color?: string; size?: number }) {
+  const common = { fill: 'none', stroke: color, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const, strokeWidth: 2 };
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24">
+      {name === 'settings' ? <Path {...common} d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm0-13v3m0 14v3M4.2 4.2l2.1 2.1m11.4 11.4 2.1 2.1M2 12h3m14 0h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1" /> : null}
+      {name === 'list' ? <Path {...common} d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" /> : null}
+      {name === 'ticket' ? <Path {...common} d="M4 7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v3a2 2 0 0 0 0 4v3a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-3a2 2 0 0 0 0-4V7Zm8-1v12" /> : null}
+      {name === 'calendar' ? <Path {...common} d="M7 3v4m10-4v4M4 9h16M5 5h14a1 1 0 0 1 1 1v14H4V6a1 1 0 0 1 1-1Z" /> : null}
+      {name === 'seat' ? <Path {...common} d="M7 11V7a5 5 0 0 1 10 0v4M5 11h14v8H5v-8Zm2 8v2m10-2v2" /> : null}
+      {name === 'hash' ? <Path {...common} d="M4 9h16M4 15h16M10 3 8 21M16 3l-2 18" /> : null}
+      {name === 'eth' ? <Path {...common} d="m12 2 6 10-6 4-6-4 6-10Zm0 14 6-4-6 10-6-10 6 4Z" /> : null}
+      {name === 'repeat' ? <Path {...common} d="m17 2 4 4-4 4M3 11V9a3 3 0 0 1 3-3h15M7 22l-4-4 4-4m14-1v2a3 3 0 0 1-3 3H3" /> : null}
+      {name === 'adjust' ? <Path {...common} d="M4 6h16M4 12h16M4 18h16M8 6v0M14 12v0M10 18v0" /> : null}
+      {name === 'check' ? <Path {...common} d="m5 12 4 4L19 6" /> : null}
+      {name === 'plus' ? <Path {...common} d="M12 5v14M5 12h14" /> : null}
+      {name === 'rocket' ? <Path {...common} d="M4.5 16.5 3 21l4.5-1.5M9 15l-4-4s4-7 13-8c1 9-8 13-8 13l-4-4m7-5h.01" /> : null}
+    </Svg>
+  );
+}
+
+function CardIcon({ name, bg, color }: { name: TicketIconName; bg: string; color: string }) {
+  return (
+    <View style={[styles.cardHeadIcon, { backgroundColor: bg }]}>
+      <TicketIcon name={name} color={color} size={13} />
+    </View>
+  );
+}
+
 const SECTION_PRESETS = ['VIP', 'R', 'S', 'A', 'B', 'C', '스탠딩'];
 const RESALE_RATE_PRESETS = ['100', '110', '120', '150'];
 const SALE_END_HOURS_OPTIONS = [
@@ -39,6 +69,7 @@ const SALE_END_HOURS_OPTIONS = [
   { value: '6', label: '6시간 전' },
   { value: '12', label: '12시간 전' },
   { value: '24', label: '1일 전' },
+  { value: 'custom', label: '직접 입력' },
 ];
 const HOUR_OPTIONS = Array.from({ length: 24 }, (_, index) => pad(index));
 const MINUTE_OPTIONS = Array.from({ length: 12 }, (_, index) => pad(index * 5));
@@ -70,6 +101,7 @@ type RoundPolicy = {
   saleStartDate: string;
   saleStartTime: string;
   saleEndHoursBefore: string;
+  customSaleEndHoursBefore: string;
   showAdvancedSaleStart: boolean;
   expanded: boolean;
   sections: SectionPolicy[];
@@ -227,6 +259,10 @@ function isPositiveNumber(value: string) {
   return Number.isFinite(number) && number > 0;
 }
 
+function effectiveSaleEndHours(value: string, customValue?: string) {
+  return value === 'custom' ? customValue || '' : value;
+}
+
 function ticketIdentifier(ticket: TicketDetail) {
   return ticket.id ? String(ticket.id) : ticket.ticketId != null ? String(ticket.ticketId) : '';
 }
@@ -264,6 +300,7 @@ export default function TicketIssuePage({ navigation, route }: any) {
   const [globalSaleStartDate, setGlobalSaleStartDate] = useState(localDate(new Date()));
   const [globalSaleStartTime, setGlobalSaleStartTime] = useState('10:00');
   const [globalSaleEndHoursBefore, setGlobalSaleEndHoursBefore] = useState('1');
+  const [globalCustomSaleEndHoursBefore, setGlobalCustomSaleEndHoursBefore] = useState('');
   const [globalShowAdvancedSaleStart, setGlobalShowAdvancedSaleStart] = useState(false);
   const [globalSections, setGlobalSections] = useState<SectionPolicy[]>([]);
   const [roundPolicies, setRoundPolicies] = useState<Record<string, RoundPolicy>>({});
@@ -325,6 +362,7 @@ export default function TicketIssuePage({ navigation, route }: any) {
             saleStartDate: localDate(new Date()),
             saleStartTime: '10:00',
             saleEndHoursBefore: '1',
+            customSaleEndHoursBefore: '',
             showAdvancedSaleStart: false,
             expanded: index === 0,
             sections: [],
@@ -458,6 +496,10 @@ export default function TicketIssuePage({ navigation, route }: any) {
         showError('판매 종료 시점을 선택해주세요.');
         return false;
       }
+      if (globalSaleEndHoursBefore === 'custom' && !isPositiveNumber(globalCustomSaleEndHoursBefore)) {
+        showError('판매 종료 직접 입력값을 시간 단위로 입력해주세요.');
+        return false;
+      }
       return true;
     }
     const missingSale = rounds.find((round, index) => {
@@ -466,6 +508,14 @@ export default function TicketIssuePage({ navigation, route }: any) {
     });
     if (missingSale) {
       showError('각 회차의 판매 기간을 모두 설정해주세요.');
+      return false;
+    }
+    const missingCustomSale = rounds.find((round, index) => {
+      const rp = roundPolicies[roundKey(round, index)];
+      return rp?.saleEndHoursBefore === 'custom' && !isPositiveNumber(rp.customSaleEndHoursBefore || '');
+    });
+    if (missingCustomSale) {
+      showError('직접 입력한 판매 종료 시간을 모두 입력해주세요.');
       return false;
     }
     const missing = rounds.find((round, index) => !isPositiveInteger(roundPolicies[roundKey(round, index)]?.totalTicketCount || ''));
@@ -635,7 +685,7 @@ export default function TicketIssuePage({ navigation, route }: any) {
     const payload = policyMode === 'global'
       ? rounds.flatMap((round, index) =>
           globalSections.map((section) =>
-            sectionToPayload(section, round, index, globalSections, globalSaleStartDate, globalSaleStartTime, globalSaleEndHoursBefore)
+            sectionToPayload(section, round, index, globalSections, globalSaleStartDate, globalSaleStartTime, effectiveSaleEndHours(globalSaleEndHoursBefore, globalCustomSaleEndHoursBefore))
           )
         )
       : rounds.flatMap((round, index) => {
@@ -643,7 +693,7 @@ export default function TicketIssuePage({ navigation, route }: any) {
           const rp = roundPolicies[key];
           const sections = rp?.sections || [];
           return sections.map((section) =>
-            sectionToPayload(section, round, index, sections, rp?.saleStartDate || '', rp?.saleStartTime || '', rp?.saleEndHoursBefore || '1')
+            sectionToPayload(section, round, index, sections, rp?.saleStartDate || '', rp?.saleStartTime || '', effectiveSaleEndHours(rp?.saleEndHoursBefore || '1', rp?.customSaleEndHoursBefore))
           );
         });
     if (payload.length === 0) {
@@ -816,9 +866,25 @@ export default function TicketIssuePage({ navigation, route }: any) {
         : '전 회차에 공통으로 적용할 총 티켓 수와 판매 기간을 설정하세요.'
       : '좌석 구역별로 가격과 수량을 설정하세요. 판매 기간은 2단계에서 설정한 값이 적용됩니다.';
   const topSubtitle = '티켓 발행과 판매 정책을 단계별로 설정합니다.';
+  const finalConfirming = flowPage === 3 && ticketConfigConfirmed;
+  const savedOverviewMode = flowPage === 3 && !ticketConfigConfirmed && currentSections.length > 0 && !sectionNameOf(currentDraft);
+  const eventName = event?.name || event?.title || '이벤트';
+  const eventMeta = `${event?.venue || '장소 미정'} · ${event?.category || '이벤트'}`;
+  const heroTitle = finalConfirming ? '최종 발행 확인' : '티켓 발행';
+  const heroSubtitle = finalConfirming
+    ? '아래 내용을 확인하고 티켓을 발행하세요.'
+    : savedOverviewMode
+      ? '좌석 정책을 저장하고 추가하거나 발행을 완료하세요.'
+      : topSubtitle;
+  const headerIcon: TicketIconName = flowPage === 1 ? 'settings' : flowPage === 2 ? 'ticket' : 'seat';
+  const headerColor = flowPage === 1 ? '#534AB7' : flowPage === 2 ? '#534AB7' : '#534AB7';
   const canRevealQuantity = !!sectionNameOf(currentDraft);
   const canRevealPrice = canRevealQuantity && isPositiveInteger(currentDraft.quantity);
   const canRevealResale = canRevealPrice && isPositiveNumber(currentDraft.priceEth);
+  const showPolicySaveBar = flowPage === 3 && !ticketConfigConfirmed && !savedOverviewMode && canRevealResale;
+  const showSavedBackBar = savedOverviewMode;
+  const showPostIssueBar = finalConfirming && issueCompleted;
+  const showBottomBar = flowPage === 1 || flowPage === 2 || showPolicySaveBar || showSavedBackBar || showPostIssueBar;
 
   if (loading) {
     return (
@@ -848,19 +914,32 @@ export default function TicketIssuePage({ navigation, route }: any) {
         contentContainerStyle={styles.content}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} />}
       >
-        <HeroGradient colors={['#1A1A2E', '#2D2B6B']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.hero, { paddingTop: Math.max(insets.top + 20, 42) }]}>
+        <HeroGradient colors={['#1A1A2E', '#2D2B6B']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.hero, { paddingTop: Math.max(insets.top + 14, 36) }]}>
           <View style={styles.heroTopBar}>
             <TouchableOpacity accessibilityRole="button" accessibilityLabel="뒤로가기" style={styles.heroBackButton} onPress={goBackToEventFlow}>
               <BackIcon />
             </TouchableOpacity>
+            <Text style={styles.heroEyebrow}>TICKET ISSUE</Text>
           </View>
-          <Text style={styles.heroEyebrow}>TICKET ISSUE</Text>
-          <Text style={styles.heroTitle}>티켓 발행</Text>
-          <Text style={styles.heroSub}>{topSubtitle}</Text>
+          <Text style={styles.heroTitle}>{heroTitle}</Text>
+          <Text style={styles.heroSub}>{heroSubtitle}</Text>
+          {!finalConfirming ? <StepProgress page={flowPage} /> : null}
+          <View style={styles.eventContext}>
+            <View style={styles.eventContextIcon}>
+              <TicketIcon name={finalConfirming ? 'ticket' : flowPage === 1 ? 'calendar' : flowPage === 2 ? 'settings' : 'seat'} color="#A89CF7" size={13} />
+            </View>
+            <View style={styles.eventContextCopy}>
+              <Text style={styles.eventContextName} numberOfLines={1}>{finalConfirming ? eventName : flowPage === 1 ? eventName : flowPage === 2 ? (policyMode === 'round' ? '회차별 설정' : '전체 설정 적용') : `${sectionNameOf(currentDraft) || '좌석'} 구역 설정 중`}</Text>
+              <Text style={styles.eventContextMeta} numberOfLines={1}>{finalConfirming ? `이번에 발행할 좌석: ${issueSeatSummary || '-'}` : flowPage === 1 ? eventMeta : flowPage === 2 ? `${rounds.length}회차 ${policyMode === 'round' ? '개별 적용' : '공통 적용'}` : `${activeRoundIndex + 1}회차 기준 · 총 ${currentTotalTicketCount || 0}장 · 이미 발행 ${activeIssuedCount}장`}</Text>
+            </View>
+            {flowPage === 1 ? (
+              <View style={styles.eventContextRight}>
+                <Text style={styles.eventContextValue}>{rounds.length}</Text>
+                <Text style={styles.eventContextLabel}>회차</Text>
+              </View>
+            ) : null}
+          </View>
         </HeroGradient>
-        <View style={styles.stepProgressWrap}>
-          <StepProgress page={flowPage} />
-        </View>
 
         {feedback ? (
           <View style={[styles.messageBox, feedback.type === 'success' ? styles.successBox : styles.errorBox]}>
@@ -868,291 +947,512 @@ export default function TicketIssuePage({ navigation, route }: any) {
           </View>
         ) : null}
 
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>{pageTitle}</Text>
-          <Text style={styles.pageDescription}>{pageDescription}</Text>
+        <View style={flowPage === 1 ? styles.card : styles.flowStack}>
+          {flowPage === 1 ? (
+            <>
+              <View style={styles.cardHead}>
+                <CardIcon name={headerIcon} bg="#EEEDFE" color={headerColor} />
+                <Text style={[styles.cardTitle, { color: headerColor }]}>{pageTitle}</Text>
+              </View>
+              <Text style={styles.pageDescription}>{pageDescription}</Text>
+            </>
+          ) : null}
 
           {flowPage === 1 ? (
             <View style={styles.modeStack}>
               <TouchableOpacity style={[styles.modeCard, policyMode === 'global' && styles.activeModeCard]} onPress={() => selectPolicyMode('global')}>
-                <Text style={[styles.modeTitle, policyMode === 'global' && styles.activeModeText]}>{policyMode === 'global' ? '✓ ' : ''}전체 설정 적용</Text>
-                <Text style={styles.modeHint}>모든 회차에 같은 규칙을 일괄 적용합니다.</Text>
+                <View style={[styles.optionRadio, policyMode === 'global' && styles.optionRadioOn]}>
+                  {policyMode === 'global' ? <View style={styles.optionRadioDot} /> : null}
+                </View>
+                <View style={styles.optionCopy}>
+                  <Text style={[styles.modeTitle, policyMode === 'global' && styles.activeModeText]}>전체 설정 적용</Text>
+                  <Text style={styles.modeHint}>모든 회차에 같은 규칙을 일괄 적용합니다.</Text>
+                </View>
               </TouchableOpacity>
               <TouchableOpacity style={[styles.modeCard, policyMode === 'round' && styles.activeModeCard]} onPress={() => selectPolicyMode('round')}>
-                <Text style={[styles.modeTitle, policyMode === 'round' && styles.activeModeText]}>{policyMode === 'round' ? '✓ ' : ''}회차별 설정</Text>
-                <Text style={styles.modeHint}>회차마다 다른 규칙을 적용합니다.</Text>
+                <View style={[styles.optionRadio, policyMode === 'round' && styles.optionRadioOn]}>
+                  {policyMode === 'round' ? <View style={styles.optionRadioDot} /> : null}
+                </View>
+                <View style={styles.optionCopy}>
+                  <Text style={[styles.modeTitle, policyMode === 'round' && styles.activeModeText]}>회차별 설정</Text>
+                  <Text style={styles.modeHint}>회차마다 다른 규칙을 적용합니다.</Text>
+                </View>
               </TouchableOpacity>
             </View>
           ) : null}
 
           {flowPage === 2 && policyMode === 'global' ? (
             <View style={styles.sectionBlock}>
-              <Text style={styles.sectionTitle}>총 티켓 수 (회차당)</Text>
-              <View style={styles.unitInputWrap}>
-                <TextInput
-                  style={styles.unitInput}
-                  value={globalTotalTicketCount}
-                  onChangeText={updateGlobalTotalTicketCount}
-                  keyboardType="number-pad"
-                  inputMode="numeric"
-                  placeholder="예: 500"
-                />
-                <Text style={styles.unitText}>장</Text>
-              </View>
-              <View style={styles.roundSummaryList}>
-                {rounds.map((round, index) => (
-                  <View key={roundKey(round, index)} style={styles.selectableRoundRow}>
-                    <Text style={styles.roundSummaryTitle}>{roundLabel(round, index)}</Text>
-                    <Text style={[styles.roundSummaryStatus, globalTotalTicketCount && styles.roundSummaryStatusSet]}>
-                      {globalTotalTicketCount ? `총 ${globalTotalTicketCount}장` : '미설정'}
-                    </Text>
+              <View style={styles.issueCard}>
+                <View style={styles.cardHead}>
+                  <CardIcon name="ticket" bg="#EEEDFE" color="#534AB7" />
+                  <Text style={[styles.cardTitle, { color: '#534AB7' }]}>총 티켓 수 (회차당)</Text>
+                </View>
+                <View style={styles.cardBody}>
+                  <View style={styles.unitInputWrap}>
+                    <TextInput
+                      style={styles.unitInput}
+                      value={globalTotalTicketCount}
+                      onChangeText={updateGlobalTotalTicketCount}
+                      keyboardType="number-pad"
+                      inputMode="numeric"
+                      placeholder="예: 500"
+                    />
+                    <Text style={styles.unitText}>장</Text>
                   </View>
-                ))}
+                  <View style={styles.roundSummaryListPlain}>
+                    {rounds.map((round, index) => (
+                      <View key={roundKey(round, index)} style={styles.roundItemCompact}>
+                        <View style={styles.roundNumberBox}>
+                          <Text style={styles.roundNumberText}>{index + 1}</Text>
+                        </View>
+                        <View style={styles.roundCompactCopy}>
+                          <Text style={styles.roundSummaryTitle}>{roundLabel(round, index)}</Text>
+                        </View>
+                        <Text style={[styles.roundSummaryMeta, globalTotalTicketCount && styles.roundSummaryStatusSet]}>
+                          {globalTotalTicketCount ? `${globalTotalTicketCount}장` : '미설정'}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                </View>
               </View>
-              <Text style={styles.sectionTitle}>판매 기간 (전 회차 공통)</Text>
-              <Text style={styles.label}>판매 시작</Text>
-              <View style={styles.dateTimeGrid}>
-                <DatePickerField label="판매 시작 날짜" value={globalSaleStartDate} onChange={(v) => { setGlobalSaleStartDate(v); setTicketConfigConfirmed(false); }} />
-                <TimePickerField label="시작 시간" value={globalSaleStartTime} onChange={(v) => { setGlobalSaleStartTime(v); setTicketConfigConfirmed(false); }} />
-              </View>
-              <Text style={styles.label}>판매 종료 (각 공연 시작 기준)</Text>
-              <View style={styles.chipGrid}>
-                {SALE_END_HOURS_OPTIONS.map((opt) => (
-                  <TouchableOpacity
-                    key={opt.value}
-                    style={[styles.choiceChip, globalSaleEndHoursBefore === opt.value && styles.activeChip]}
-                    onPress={() => { setGlobalSaleEndHoursBefore(opt.value); setTicketConfigConfirmed(false); }}
-                  >
-                    <Text style={[styles.choiceChipText, globalSaleEndHoursBefore === opt.value && styles.activeChipText]}>{opt.label}</Text>
-                  </TouchableOpacity>
-                ))}
+              <View style={styles.issueCard}>
+                <View style={styles.cardHead}>
+                  <CardIcon name="calendar" bg="#E6F1FB" color="#185FA5" />
+                  <Text style={[styles.cardTitle, { color: '#185FA5' }]}>판매 기간 (전 회차 공통)</Text>
+                </View>
+                <View style={styles.cardBody}>
+                  <Text style={styles.label}>판매 시작</Text>
+                  <View style={styles.dateTimeGrid}>
+                    <DatePickerField label="판매 시작 날짜" value={globalSaleStartDate} onChange={(v) => { setGlobalSaleStartDate(v); setTicketConfigConfirmed(false); }} />
+                    <TimePickerField label="시작 시간" value={globalSaleStartTime} onChange={(v) => { setGlobalSaleStartTime(v); setTicketConfigConfirmed(false); }} />
+                  </View>
+                  <Text style={styles.label}>판매 종료 (각 공연 시작 기준)</Text>
+                  <View style={styles.chipGrid}>
+                    {SALE_END_HOURS_OPTIONS.map((opt) => (
+                      <TouchableOpacity
+                        key={opt.value}
+                        style={[styles.choiceChip, globalSaleEndHoursBefore === opt.value && styles.activeChip]}
+                        onPress={() => { setGlobalSaleEndHoursBefore(opt.value); setTicketConfigConfirmed(false); }}
+                      >
+                        <Text style={[styles.choiceChipText, globalSaleEndHoursBefore === opt.value && styles.activeChipText]}>{opt.label}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                  {globalSaleEndHoursBefore === 'custom' ? (
+                    <View style={styles.directInputWrap}>
+                      <TextInput
+                        style={styles.directInput}
+                        value={globalCustomSaleEndHoursBefore}
+                        onChangeText={(value) => { setGlobalCustomSaleEndHoursBefore(value); setTicketConfigConfirmed(false); }}
+                        keyboardType="decimal-pad"
+                        inputMode="decimal"
+                        placeholder="예: 4"
+                      />
+                      <Text style={styles.unitText}>시간 전</Text>
+                    </View>
+                  ) : null}
+                </View>
               </View>
             </View>
           ) : null}
 
           {flowPage === 2 && policyMode === 'round' ? (
             <View style={styles.sectionBlock}>
-              <RoundSelector rounds={rounds} activeRoundKey={activeKey} onSelect={setActiveRoundKey} disabled={false} />
-              <Text style={styles.sectionTitle}>총 티켓 수</Text>
-              <View style={styles.unitInputWrap}>
-                <TextInput
-                  style={styles.unitInput}
-                  value={activeRoundTotalCount}
-                  onChangeText={(value) => updateRoundPolicy(activeKey, { totalTicketCount: value })}
-                  keyboardType="number-pad"
-                  inputMode="numeric"
-                  placeholder="예: 300"
-                />
-                <Text style={styles.unitText}>장</Text>
+              <View style={styles.issueCard}>
+                <View style={styles.cardHead}>
+                  <CardIcon name="list" bg="#E6F1FB" color="#185FA5" />
+                  <Text style={[styles.cardTitle, { color: '#185FA5' }]}>회차 선택</Text>
+                </View>
+                <View style={styles.cardBody}>
+                  <RoundSelector rounds={rounds} activeRoundKey={activeKey} onSelect={setActiveRoundKey} disabled={false} />
+                  <Text style={styles.label}>총 티켓 수</Text>
+                  <View style={styles.unitInputWrap}>
+                    <TextInput
+                      style={styles.unitInput}
+                      value={activeRoundTotalCount}
+                      onChangeText={(value) => updateRoundPolicy(activeKey, { totalTicketCount: value })}
+                      keyboardType="number-pad"
+                      inputMode="numeric"
+                      placeholder="예: 300"
+                    />
+                    <Text style={styles.unitText}>장</Text>
+                  </View>
+                </View>
               </View>
-              <Text style={styles.sectionTitle}>판매 기간 (선택 회차)</Text>
-              <Text style={styles.label}>판매 시작</Text>
-              <View style={styles.dateTimeGrid}>
-                <DatePickerField label="판매 시작 날짜" value={roundPolicies[activeKey]?.saleStartDate || ''} onChange={(v) => updateRoundPolicy(activeKey, { saleStartDate: v })} />
-                <TimePickerField label="시작 시간" value={roundPolicies[activeKey]?.saleStartTime || ''} onChange={(v) => updateRoundPolicy(activeKey, { saleStartTime: v })} />
+              <View style={styles.issueCard}>
+                <View style={styles.cardHead}>
+                  <CardIcon name="calendar" bg="#E6F1FB" color="#185FA5" />
+                  <Text style={[styles.cardTitle, { color: '#185FA5' }]}>판매 기간 (선택 회차)</Text>
+                </View>
+                <View style={styles.cardBody}>
+                  <Text style={styles.label}>판매 시작</Text>
+                  <View style={styles.dateTimeGrid}>
+                    <DatePickerField label="판매 시작 날짜" value={roundPolicies[activeKey]?.saleStartDate || ''} onChange={(v) => updateRoundPolicy(activeKey, { saleStartDate: v })} />
+                    <TimePickerField label="시작 시간" value={roundPolicies[activeKey]?.saleStartTime || ''} onChange={(v) => updateRoundPolicy(activeKey, { saleStartTime: v })} />
+                  </View>
+                  <Text style={styles.label}>판매 종료 (공연 시작 기준)</Text>
+                  <View style={styles.chipGrid}>
+                    {SALE_END_HOURS_OPTIONS.map((opt) => {
+                      const active = (roundPolicies[activeKey]?.saleEndHoursBefore || '1') === opt.value;
+                      return (
+                        <TouchableOpacity
+                          key={opt.value}
+                          style={[styles.choiceChip, active && styles.activeChip]}
+                          onPress={() => updateRoundPolicy(activeKey, { saleEndHoursBefore: opt.value })}
+                        >
+                          <Text style={[styles.choiceChipText, active && styles.activeChipText]}>{opt.label}</Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                  {(roundPolicies[activeKey]?.saleEndHoursBefore || '1') === 'custom' ? (
+                    <View style={styles.directInputWrap}>
+                      <TextInput
+                        style={styles.directInput}
+                        value={roundPolicies[activeKey]?.customSaleEndHoursBefore || ''}
+                        onChangeText={(value) => updateRoundPolicy(activeKey, { customSaleEndHoursBefore: value })}
+                        keyboardType="decimal-pad"
+                        inputMode="decimal"
+                        placeholder="예: 4"
+                      />
+                      <Text style={styles.unitText}>시간 전</Text>
+                    </View>
+                  ) : null}
+                </View>
               </View>
-              <Text style={styles.label}>판매 종료 (공연 시작 기준)</Text>
-              <View style={styles.chipGrid}>
-                {SALE_END_HOURS_OPTIONS.map((opt) => {
-                  const active = (roundPolicies[activeKey]?.saleEndHoursBefore || '1') === opt.value;
-                  return (
-                    <TouchableOpacity
-                      key={opt.value}
-                      style={[styles.choiceChip, active && styles.activeChip]}
-                      onPress={() => updateRoundPolicy(activeKey, { saleEndHoursBefore: opt.value })}
-                    >
-                      <Text style={[styles.choiceChipText, active && styles.activeChipText]}>{opt.label}</Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-              <View style={styles.roundSummaryList}>
-                {rounds.map((round, index) => {
-                  const key = roundKey(round, index);
-                  const rp = roundPolicies[key];
-                  const isActive = activeKey === key;
-                  const set = rp?.totalTicketCount && rp?.saleStartDate && rp?.saleEndHoursBefore;
-                  return (
-                    <TouchableOpacity key={key} style={[styles.selectableRoundRow, isActive && styles.selectableRoundRowActive]} onPress={() => setActiveRoundKey(key)}>
-                      <Text style={styles.roundSummaryTitle}>{roundLabel(round, index)}</Text>
-                      <Text style={[styles.roundSummaryStatus, set && styles.roundSummaryStatusSet]}>
-                        {set ? `${rp.totalTicketCount}장 · 설정완료` : '미설정'}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
+              <View style={styles.issueCard}>
+                <View style={styles.cardHead}>
+                  <CardIcon name="check" bg="#E1F5EE" color="#0F6E56" />
+                  <Text style={[styles.cardTitle, { color: '#0F6E56' }]}>회차 설정 상태</Text>
+                </View>
+                <View style={styles.cardBody}>
+                  {rounds.map((round, index) => {
+                    const key = roundKey(round, index);
+                    const rp = roundPolicies[key];
+                    const isActive = activeKey === key;
+                    const set = rp?.totalTicketCount && rp?.saleStartDate && rp?.saleEndHoursBefore;
+                    return (
+                      <TouchableOpacity key={key} style={[styles.roundItemCompact, isActive && styles.selectableRoundRowActive]} onPress={() => setActiveRoundKey(key)}>
+                        <View style={styles.roundNumberBox}>
+                          <Text style={styles.roundNumberText}>{index + 1}</Text>
+                        </View>
+                        <View style={styles.roundCompactCopy}>
+                          <Text style={styles.roundSummaryTitle}>{roundLabel(round, index)}</Text>
+                          <Text style={[styles.roundSummaryStatus, set && styles.roundSummaryStatusSet]}>
+                            {set ? `${rp.totalTicketCount}장 · 설정완료` : '미설정'}
+                          </Text>
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
               </View>
             </View>
           ) : null}
 
-          {flowPage === 3 && policyMode ? (
+          {flowPage === 3 && policyMode && !ticketConfigConfirmed ? (
             <View style={styles.sectionBlock}>
-              <RoundSelector
-                rounds={rounds}
-                activeRoundKey={activeKey}
-                onSelect={setActiveRoundKey}
-                disabled={policyMode === 'global'}
-              />
-
-              {currentSections.length > 0 ? (
-                <View style={styles.savedPolicySection}>
-                  <Text style={styles.sectionTitle}>저장된 좌석 정책</Text>
-                  <View style={styles.savedPolicyList}>
+              {savedOverviewMode ? (
+                <>
+                  <View style={styles.savedZone}>
+                    <View style={styles.savedZoneHeader}>
+                      <TicketIcon name="check" color="#0F6E56" size={15} />
+                      <Text style={styles.savedZoneTitle}>저장 완료된 좌석 정책</Text>
+                      <View style={styles.savedCountPill}>
+                        <Text style={styles.savedCountText}>{currentSections.length}개</Text>
+                      </View>
+                    </View>
                     {currentSections.map((policy) => (
-                      <View key={policy.id} style={styles.savedPolicyCard}>
-                        <View style={styles.savedPolicyHeader}>
-                          <View style={styles.savedPolicyHeaderTop}>
-                            <Text style={styles.savedBadge}>저장됨</Text>
-                            <TouchableOpacity style={styles.kebabButton} onPress={() => openSavedPolicyActions(policy)}>
-                              <Text style={styles.kebabText}>⋮</Text>
-                            </TouchableOpacity>
-                          </View>
+                      <View key={policy.id} style={styles.savedSummaryCard}>
+                        <View style={styles.savedSummaryCopy}>
+                          <Text style={styles.savedBadge}>저장됨</Text>
                           <Text style={styles.savedPolicyText}>{savedPolicyTitle(policy)}</Text>
-                          <Text style={styles.savedPolicyMeta}>{savedPolicySaleSummary(policy)}</Text>
-                          <Text style={styles.savedPolicyMeta}>{savedPolicyResaleSummary(policy)}</Text>
+                          <Text style={styles.savedPolicyMeta}>{savedPolicySaleSummary(policy)} · {savedPolicyResaleSummary(policy)}</Text>
                         </View>
+                        <TouchableOpacity style={styles.moreButton} onPress={() => openSavedPolicyActions(policy)}>
+                          <Text style={styles.kebabText}>⋮</Text>
+                        </TouchableOpacity>
                       </View>
                     ))}
                   </View>
-                </View>
-              ) : null}
 
-              {!ticketConfigConfirmed ? (
+                  <View style={styles.dividerRow}>
+                    <View style={styles.dividerLine} />
+                    <Text style={styles.dividerText}>추가 구역 설정 (선택)</Text>
+                    <View style={styles.dividerLine} />
+                  </View>
+
+                  <View style={styles.addPolicyCard}>
+                    <View style={styles.addPolicyHead}>
+                      <View style={styles.addPolicyIcon}>
+                        <TicketIcon name="plus" color="#534AB7" size={13} />
+                      </View>
+                      <Text style={styles.addPolicyTitle}>새 좌석 구역 추가</Text>
+                    </View>
+                    <View style={styles.addPolicyBody}>
+                      <Text style={styles.addPolicyHint}>다른 구역을 추가로 설정할 수 있습니다. 구역을 선택하면 설정 화면으로 이동하고, 저장하면 이 화면으로 돌아옵니다.</Text>
+                      <View style={styles.addChipRow}>
+                        {SECTION_PRESETS.filter((section) => !currentSections.some((policy) => sectionNameOf(policy) === section)).map((section) => (
+                          <TouchableOpacity key={section} style={styles.addChip} onPress={() => updateDraft({ sectionName: section, useCustomSectionName: false })}>
+                            <Text style={styles.addChipText}>{section}</Text>
+                          </TouchableOpacity>
+                        ))}
+                        <TouchableOpacity style={styles.addChip} onPress={() => updateDraft({ useCustomSectionName: true })}>
+                          <Text style={styles.addChipText}>+ 직접 추가</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  </View>
+
+                  <View style={styles.completionZone}>
+                    <View style={styles.completionTop}>
+                      <View style={styles.completionEyebrowRow}>
+                        <View style={styles.completionDot} />
+                        <Text style={styles.completionEyebrow}>추가 구역이 없다면</Text>
+                      </View>
+                      <Text style={styles.completionTitle}>모든 좌석 정책을{'\n'}설정했나요?</Text>
+                      <Text style={styles.completionSub}>아래 버튼을 누르면 저장된 정책을 바탕으로 최종 발행 확인 페이지로 이동합니다.</Text>
+                    </View>
+                    <TouchableOpacity style={styles.completionButton} onPress={confirmTicketConfig}>
+                      <TicketIcon name="rocket" color="#534AB7" size={14} />
+                      <Text style={styles.completionButtonText}>티켓 설정 완료 · 최종 발행으로</Text>
+                      <Text style={styles.completionArrow}>→</Text>
+                    </TouchableOpacity>
+                  </View>
+                </>
+              ) : (
                 <>
-              <Text style={[styles.sectionTitle, currentSections.length > 0 && styles.newPolicyTitle]}>새 좌석 정책 추가</Text>
-              <View style={styles.builderBox}>
-                <View style={styles.stepCard}>
-                <Text style={styles.builderTitle}>STEP 1 · 좌석 구역 선택</Text>
-                <Text style={styles.helpText}>좌석 구역을 선택해 판매 정보를 설정하세요.</Text>
-                <View style={styles.chipGrid}>
-                  {SECTION_PRESETS.map((section) => (
-                    <TouchableOpacity
-                      key={section}
-                      style={[styles.choiceChip, !currentDraft.useCustomSectionName && currentDraft.sectionName === section && styles.activeChip]}
-                      onPress={() => updateDraft({ sectionName: section, useCustomSectionName: false })}
-                    >
-                      <Text style={[styles.choiceChipText, !currentDraft.useCustomSectionName && currentDraft.sectionName === section && styles.activeChipText]}>{section}</Text>
-                    </TouchableOpacity>
-                  ))}
-                  <TouchableOpacity style={[styles.choiceChip, currentDraft.useCustomSectionName && styles.activeChip]} onPress={() => updateDraft({ useCustomSectionName: true })}>
-                    <Text style={[styles.choiceChipText, currentDraft.useCustomSectionName && styles.activeChipText]}>직접 추가</Text>
-                  </TouchableOpacity>
-                </View>
-                {currentDraft.useCustomSectionName ? (
-                  <TextInput
-                    style={styles.input}
-                    value={currentDraft.customSectionName}
-                    onChangeText={(value) => updateDraft({ customSectionName: value })}
-                    placeholder="예: BOX, 2층"
-                    autoCapitalize="characters"
-                  />
-                ) : null}
-                </View>
-
-                {canRevealQuantity ? (
-                  <View style={[styles.stepCard, styles.activeStepCard]}>
-                    <Text style={styles.builderTitle}>STEP 2 · {sectionNameOf(currentDraft)} 좌석 발행 수량 설정</Text>
-                    <View style={styles.unitInputWrap}>
-                      <TextInput style={styles.unitInput} value={currentDraft.quantity} onChangeText={(value) => updateDraft({ quantity: value })} keyboardType="number-pad" inputMode="numeric" placeholder="예: 10" />
-                      <Text style={styles.unitText}>장</Text>
-                    </View>
-                    <View style={styles.issuePreviewBox}>
-                      <Text style={styles.previewLabel}>발행 예정</Text>
-                      <Text style={styles.previewTextStrong}>{seatRange(currentDraft, currentDraftStartNumber)}</Text>
-                      {currentCapacityStatus ? (
-                        <Text style={styles.previewText}>
-                          {currentCapacityStatus.index + 1}회차 기준 · 총 {currentCapacityStatus.total}장 · 이미 발행 {currentCapacityStatus.alreadyIssued}장 · 저장됨 {currentCapacityStatus.saved}장 · 남은 수량 {currentCapacityStatus.remaining}장
+                  <View style={styles.policyRoundSelectorCard}>
+                    <View style={styles.policyRoundSelectorHead}>
+                      <View style={styles.policyRoundSelectorIcon}>
+                        <TicketIcon name="calendar" color="#534AB7" size={13} />
+                      </View>
+                      <View style={styles.policyRoundSelectorCopy}>
+                        <Text style={styles.policyRoundSelectorTitle}>좌석 정책 적용 회차</Text>
+                        <Text style={styles.policyRoundSelectorMeta}>
+                          {policyMode === 'global' ? '전체 회차에 공통 적용됩니다.' : '설정할 회차를 선택하세요.'}
                         </Text>
-                      ) : null}
+                      </View>
                     </View>
+                    <RoundSelector
+                      rounds={rounds}
+                      activeRoundKey={activeKey}
+                      onSelect={setActiveRoundKey}
+                      disabled={policyMode === 'global'}
+                    />
                   </View>
-                ) : null}
 
-                {canRevealPrice ? (
-                  <View style={[styles.stepCard, styles.formStepCard]}>
-                    <Text style={styles.builderTitle}>STEP 3 · 가격 설정</Text>
-                    <Text style={styles.label}>가격</Text>
-                    <View style={styles.unitInputWrap}>
-                      <TextInput style={styles.unitInput} value={currentDraft.priceEth} onChangeText={(value) => updateDraft({ priceEth: value })} keyboardType="decimal-pad" inputMode="decimal" placeholder="예: 0.2" />
-                      <Text style={styles.unitText}>ETH</Text>
+                  {currentSections.length > 0 ? (
+                    <View style={styles.savedPolicySection}>
+                      <Text style={styles.sectionTitle}>저장된 좌석 정책</Text>
+                      <View style={styles.savedPolicyList}>
+                        {currentSections.map((policy) => (
+                          <View key={policy.id} style={styles.savedPolicyCard}>
+                            <View style={styles.savedPolicyHeader}>
+                              <View style={styles.savedPolicyHeaderTop}>
+                                <Text style={styles.savedBadge}>저장됨</Text>
+                                <TouchableOpacity style={styles.kebabButton} onPress={() => openSavedPolicyActions(policy)}>
+                                  <Text style={styles.kebabText}>⋮</Text>
+                                </TouchableOpacity>
+                              </View>
+                              <Text style={styles.savedPolicyText}>{savedPolicyTitle(policy)}</Text>
+                              <Text style={styles.savedPolicyMeta}>{savedPolicySaleSummary(policy)}</Text>
+                              <Text style={styles.savedPolicyMeta}>{savedPolicyResaleSummary(policy)}</Text>
+                            </View>
+                          </View>
+                        ))}
+                      </View>
                     </View>
-                  </View>
-                ) : null}
+                  ) : null}
 
-                {canRevealResale ? (
-                  <View style={[styles.stepCard, styles.formStepCard]}>
-                    <Text style={styles.builderTitle}>STEP 4 · 리셀 정책 설정</Text>
-                    <TouchableOpacity style={styles.toggleRow} onPress={() => updateDraft({ resaleEnabled: !currentDraft.resaleEnabled })}>
-                      <Text style={styles.toggleLabel}>리셀 허용</Text>
-                      <Text style={[styles.toggleBadge, currentDraft.resaleEnabled ? styles.toggleOn : styles.toggleOff]}>{currentDraft.resaleEnabled ? 'ON' : 'OFF'}</Text>
-                    </TouchableOpacity>
-                    {currentDraft.resaleEnabled ? (
-                      <>
-                        <Text style={styles.label}>최대 리셀가</Text>
+                  <Text style={[styles.sectionTitle, currentSections.length > 0 && styles.newPolicyTitle]}>새 좌석 정책 추가</Text>
+                  <View style={styles.builderBox}>
+                    <View style={styles.stepCard}>
+                      <View style={styles.policyCardHead}>
+                        <CardIcon name="seat" bg="#EEEDFE" color="#534AB7" />
+                        <Text style={[styles.policyCardTitle, { color: '#534AB7' }]}>1 · 좌석 구역 선택</Text>
+                      </View>
+                      <View style={styles.policyCardBody}>
+                        <Text style={styles.helpText}>좌석 구역을 선택해 판매 정보를 설정하세요.</Text>
                         <View style={styles.chipGrid}>
-                          {RESALE_RATE_PRESETS.map((rate) => (
+                          {SECTION_PRESETS.map((section) => (
                             <TouchableOpacity
-                              key={rate}
-                              style={[styles.choiceChip, !currentDraft.useCustomResaleRate && currentDraft.resaleCapRate === rate && styles.activeChip]}
-                              onPress={() => updateDraft({ resaleCapRate: rate, useCustomResaleRate: false })}
+                              key={section}
+                              style={[styles.choiceChip, !currentDraft.useCustomSectionName && currentDraft.sectionName === section && styles.activeChip]}
+                              onPress={() => updateDraft({ sectionName: section, useCustomSectionName: false })}
                             >
-                              <Text style={[styles.choiceChipText, !currentDraft.useCustomResaleRate && currentDraft.resaleCapRate === rate && styles.activeChipText]}>{rate}%</Text>
+                              <Text style={[styles.choiceChipText, !currentDraft.useCustomSectionName && currentDraft.sectionName === section && styles.activeChipText]}>{section}</Text>
                             </TouchableOpacity>
                           ))}
-                          <TouchableOpacity style={[styles.choiceChip, currentDraft.useCustomResaleRate && styles.activeChip]} onPress={() => updateDraft({ useCustomResaleRate: true })}>
-                            <Text style={[styles.choiceChipText, currentDraft.useCustomResaleRate && styles.activeChipText]}>직접 입력</Text>
+                          <TouchableOpacity style={[styles.choiceChip, currentDraft.useCustomSectionName && styles.activeChip]} onPress={() => updateDraft({ useCustomSectionName: true })}>
+                            <Text style={[styles.choiceChipText, currentDraft.useCustomSectionName && styles.activeChipText]}>직접 추가</Text>
                           </TouchableOpacity>
                         </View>
-                        {currentDraft.useCustomResaleRate ? (
-                          <View style={styles.unitInputWrap}>
-                            <TextInput style={styles.unitInput} value={currentDraft.customResaleCapRate} onChangeText={(value) => updateDraft({ customResaleCapRate: value })} keyboardType="number-pad" inputMode="numeric" placeholder="예: 130" />
-                            <Text style={styles.unitText}>%</Text>
-                          </View>
+                        {currentDraft.useCustomSectionName ? (
+                          <TextInput
+                            style={styles.input}
+                            value={currentDraft.customSectionName}
+                            onChangeText={(value) => updateDraft({ customSectionName: value })}
+                            placeholder="예: BOX, 2층"
+                            autoCapitalize="characters"
+                          />
                         ) : null}
-                      </>
-                    ) : null}
-                  </View>
-                ) : null}
+                      </View>
+                    </View>
 
-                {canRevealResale ? (
-                  <View style={[styles.stepCard, styles.formStepCard]}>
-                    <Text style={styles.builderTitle}>STEP 5 · 고급: 이 구역 판매 시작 별도 설정</Text>
-                    <TouchableOpacity style={styles.toggleRow} onPress={() => updateDraft({ useCustomSaleStart: !currentDraft.useCustomSaleStart })}>
-                      <Text style={styles.toggleLabel}>구역별 판매 시작 별도 설정</Text>
-                      <Text style={[styles.toggleBadge, currentDraft.useCustomSaleStart ? styles.toggleOn : styles.toggleOff]}>{currentDraft.useCustomSaleStart ? 'ON' : 'OFF'}</Text>
-                    </TouchableOpacity>
-                    {currentDraft.useCustomSaleStart ? (
-                      <>
-                        <Text style={styles.helpText}>이 구역만 별도 판매 시작 시각을 적용합니다. 종료는 회차 공통 정책을 따릅니다.</Text>
-                        <View style={styles.dateTimeGrid}>
-                          <DatePickerField label="판매 시작 날짜" value={currentDraft.customSaleStartDate} onChange={(v) => updateDraft({ customSaleStartDate: v })} />
-                          <TimePickerField label="시작 시간" value={currentDraft.customSaleStartTime} onChange={(v) => updateDraft({ customSaleStartTime: v })} />
+                    {canRevealQuantity ? (
+                      <View style={[styles.stepCard, styles.activeStepCard]}>
+                        <View style={styles.policyCardHead}>
+                          <CardIcon name="hash" bg="#E6F1FB" color="#185FA5" />
+                          <Text style={[styles.policyCardTitle, { color: '#185FA5' }]}>2 · {sectionNameOf(currentDraft)} 발행 수량</Text>
                         </View>
-                      </>
+                        <View style={styles.policyCardBody}>
+                          <View style={styles.unitInputWrap}>
+                            <TextInput style={styles.unitInput} value={currentDraft.quantity} onChangeText={(value) => updateDraft({ quantity: value })} keyboardType="number-pad" inputMode="numeric" placeholder="예: 10" />
+                            <Text style={styles.unitText}>장</Text>
+                          </View>
+                          <View style={styles.issuePreviewBox}>
+                            <View style={styles.previewRow}>
+                              <Text style={styles.previewInlineLabel}>발행 예정</Text>
+                              <Text style={styles.previewInlineValuePurple}>{seatRange(currentDraft, currentDraftStartNumber)}</Text>
+                            </View>
+                            {currentCapacityStatus ? (
+                              <>
+                                <View style={styles.previewRow}>
+                                  <Text style={styles.previewInlineLabel}>총 {currentCapacityStatus.total}장 중 이미 발행</Text>
+                                  <Text style={styles.previewInlineValue}>{currentCapacityStatus.alreadyIssued + currentCapacityStatus.saved}장</Text>
+                                </View>
+                                <View style={styles.previewRow}>
+                                  <Text style={styles.previewInlineLabel}>남은 수량</Text>
+                                  <Text style={styles.previewInlineValueGreen}>{currentCapacityStatus.remaining}장</Text>
+                                </View>
+                              </>
+                            ) : null}
+                          </View>
+                        </View>
+                      </View>
                     ) : null}
-                  </View>
-                ) : null}
 
-                {canRevealResale ? (
-                  <View style={styles.stepCard}>
-                    <Text style={styles.builderTitle}>STEP 6 · 좌석 정책 저장</Text>
-                    <Text style={styles.helpText}>저장하면 요약 카드로 접히고, 다시 눌러 수정할 수 있습니다.</Text>
-                    <TouchableOpacity style={styles.savePolicyButton} onPress={saveCurrentPolicy}>
-                      <Text style={styles.savePolicyButtonText}>{sectionNameOf(currentDraft) ? `${sectionNameOf(currentDraft)} 정책 저장` : '좌석 정책 저장'}</Text>
-                    </TouchableOpacity>
+                    {canRevealPrice ? (
+                      <View style={[styles.stepCard, styles.formStepCard]}>
+                        <View style={styles.policyCardHead}>
+                          <CardIcon name="eth" bg="#E1F5EE" color="#0F6E56" />
+                          <Text style={[styles.policyCardTitle, { color: '#0F6E56' }]}>3 · 가격 설정</Text>
+                        </View>
+                        <View style={styles.policyCardBody}>
+                          <View style={styles.unitInputWrap}>
+                            <TextInput style={styles.unitInput} value={currentDraft.priceEth} onChangeText={(value) => updateDraft({ priceEth: value })} keyboardType="decimal-pad" inputMode="decimal" placeholder="예: 0.2" />
+                            <Text style={styles.unitText}>ETH</Text>
+                          </View>
+                        </View>
+                      </View>
+                    ) : null}
+
+                    {canRevealResale ? (
+                      <View style={[styles.stepCard, styles.formStepCard]}>
+                        <View style={styles.policyCardHead}>
+                          <CardIcon name="repeat" bg="#FAEEDA" color="#854F0B" />
+                          <Text style={[styles.policyCardTitle, { color: '#854F0B' }]}>4 · 리셀 정책</Text>
+                        </View>
+                        <View style={styles.policyCardBody}>
+                          <TouchableOpacity style={styles.toggleRow} onPress={() => updateDraft({ resaleEnabled: !currentDraft.resaleEnabled })}>
+                            <Text style={styles.toggleLabel}>리셀 허용</Text>
+                            <View style={[styles.switchTrack, !currentDraft.resaleEnabled && styles.switchTrackOff]}>
+                              <View style={[styles.switchKnob, !currentDraft.resaleEnabled && styles.switchKnobOff]} />
+                            </View>
+                          </TouchableOpacity>
+                          {currentDraft.resaleEnabled ? (
+                            <>
+                              <Text style={styles.label}>최대 리셀가</Text>
+                              <View style={styles.resaleChipRow}>
+                                {RESALE_RATE_PRESETS.map((rate) => (
+                                  <TouchableOpacity
+                                    key={rate}
+                                    style={[styles.resaleChip, !currentDraft.useCustomResaleRate && currentDraft.resaleCapRate === rate && styles.activeChip]}
+                                    onPress={() => updateDraft({ resaleCapRate: rate, useCustomResaleRate: false })}
+                                  >
+                                    <Text style={[styles.resaleChipText, !currentDraft.useCustomResaleRate && currentDraft.resaleCapRate === rate && styles.activeChipText]}>{rate}%</Text>
+                                  </TouchableOpacity>
+                                ))}
+                                <TouchableOpacity style={[styles.resaleChip, currentDraft.useCustomResaleRate && styles.activeChip]} onPress={() => updateDraft({ useCustomResaleRate: true })}>
+                                  <Text style={[styles.resaleChipText, currentDraft.useCustomResaleRate && styles.activeChipText]}>직접 입력</Text>
+                                </TouchableOpacity>
+                              </View>
+                              {currentDraft.useCustomResaleRate ? (
+                                <View style={styles.unitInputWrap}>
+                                  <TextInput style={styles.unitInput} value={currentDraft.customResaleCapRate} onChangeText={(value) => updateDraft({ customResaleCapRate: value })} keyboardType="number-pad" inputMode="numeric" placeholder="예: 130" />
+                                  <Text style={styles.unitText}>%</Text>
+                                </View>
+                              ) : null}
+                            </>
+                          ) : null}
+                        </View>
+                      </View>
+                    ) : null}
+
+                    {canRevealResale ? (
+                      <View style={[styles.stepCard, styles.formStepCard]}>
+                        <View style={styles.policyCardHead}>
+                          <CardIcon name="adjust" bg="#F3F4F6" color="#6B7280" />
+                          <Text style={[styles.policyCardTitle, { color: '#6B7280' }]}>5 · 고급: 구역별 판매 시작 별도 설정</Text>
+                        </View>
+                        <View style={styles.policyCardBody}>
+                          <TouchableOpacity style={styles.toggleRow} onPress={() => updateDraft({ useCustomSaleStart: !currentDraft.useCustomSaleStart })}>
+                            <View style={styles.toggleCopy}>
+                              <Text style={styles.toggleLabel}>구역별 판매 시작 별도 설정</Text>
+                              <Text style={styles.toggleSub}>설정 시 2단계 기간을 덮어씁니다.</Text>
+                            </View>
+                            <View style={[styles.switchTrack, !currentDraft.useCustomSaleStart && styles.switchTrackOff]}>
+                              <View style={[styles.switchKnob, !currentDraft.useCustomSaleStart && styles.switchKnobOff]} />
+                            </View>
+                          </TouchableOpacity>
+                          {currentDraft.useCustomSaleStart ? (
+                            <View style={styles.dateTimeGrid}>
+                              <DatePickerField label="판매 시작 날짜" value={currentDraft.customSaleStartDate} onChange={(v) => updateDraft({ customSaleStartDate: v })} />
+                              <TimePickerField label="시작 시간" value={currentDraft.customSaleStartTime} onChange={(v) => updateDraft({ customSaleStartTime: v })} />
+                            </View>
+                          ) : null}
+                        </View>
+                      </View>
+                    ) : null}
+
                   </View>
-                ) : null}
-              </View>
-              {hasSavedPolicies && !ticketConfigConfirmed ? (
-                <TouchableOpacity style={styles.completeConfigButton} onPress={confirmTicketConfig}>
-                  <Text style={styles.completeConfigButtonText}>티켓 설정 완료</Text>
-                </TouchableOpacity>
-              ) : null}
                 </>
-              ) : null}
+              )}
             </View>
           ) : null}
         </View>
+
+        {flowPage === 1 ? (
+          <View style={styles.card}>
+            <View style={styles.cardHead}>
+              <CardIcon name="list" bg="#E6F1FB" color="#185FA5" />
+              <Text style={[styles.cardTitle, { color: '#185FA5' }]}>이 이벤트의 회차</Text>
+              <View style={styles.countPillBlue}>
+                <Text style={styles.countPillBlueText}>{rounds.length}회차</Text>
+              </View>
+            </View>
+            <Text style={styles.pageDescription}>선택한 방식은 아래 모든 회차에 적용됩니다.</Text>
+            <View style={styles.roundSummaryList}>
+              {rounds.map((round, index) => (
+                <View key={roundKey(round, index)} style={styles.roundItemCompact}>
+                  <View style={styles.roundNumberBox}>
+                    <Text style={styles.roundNumberText}>{index + 1}</Text>
+                  </View>
+                  <View style={styles.roundCompactCopy}>
+                    <Text style={styles.roundSummaryTitle}>{round.title || `${index + 1}회차`} · {formatDateDot(round.eventDate)}</Text>
+                    <Text style={styles.roundSummaryStatus}>{round.startTime} ~ {round.endTime}</Text>
+                  </View>
+                  <View style={styles.commonApplyPill}>
+                    <Text style={styles.commonApplyPillText}>{policyMode === 'round' ? '개별 설정' : '공통 적용'}</Text>
+                  </View>
+                </View>
+              ))}
+            </View>
+          </View>
+        ) : null}
 
         {flowPage === 3 && ticketConfigConfirmed ? (
           <View style={styles.statusBand}>
@@ -1173,10 +1473,22 @@ export default function TicketIssuePage({ navigation, route }: any) {
               </View>
             ) : (
               <View style={styles.finalCountList}>
-                <Text style={styles.finalCountText}>총 티켓 수: {finalTotalCount}장</Text>
-                <Text style={styles.finalCountText}>{issueCompleted ? '현재 발행됨' : '이미 발행됨'}: {finalDisplayIssuedCount}장</Text>
-                <Text style={styles.finalCountText}>{issueCompleted ? '방금 발행됨' : '이번에 발행됨'}: {finalIssueCount}장</Text>
-                <Text style={styles.finalCountText}>발행 후 남음: {Math.max(finalDisplayRemainingCount, 0)}장</Text>
+                <View style={styles.confirmRow}>
+                  <Text style={styles.confirmLabel}>총 티켓 수</Text>
+                  <Text style={styles.confirmValue}>{finalTotalCount}장</Text>
+                </View>
+                <View style={styles.confirmRow}>
+                  <Text style={styles.confirmLabel}>{issueCompleted ? '현재 발행됨' : '이미 발행됨'}</Text>
+                  <Text style={styles.confirmValue}>{finalDisplayIssuedCount}장</Text>
+                </View>
+                <View style={styles.confirmRow}>
+                  <Text style={styles.confirmLabel}>{issueCompleted ? '방금 발행됨' : '이번에 발행됨'}</Text>
+                  <Text style={styles.confirmValuePurple}>{finalIssueCount}장</Text>
+                </View>
+                <View style={styles.confirmRow}>
+                  <Text style={styles.confirmLabel}>발행 후 남음</Text>
+                  <Text style={styles.confirmValueGreen}>{Math.max(finalDisplayRemainingCount, 0)}장</Text>
+                </View>
               </View>
             )}
             {policyMode === 'global' ? (
@@ -1253,37 +1565,50 @@ export default function TicketIssuePage({ navigation, route }: any) {
         </Modal>
       </ScrollView>
 
-      <View style={styles.bottomBar}>
-        {flowPage === 1 ? (
-          <TouchableOpacity style={[styles.primaryButton, !policyMode && styles.disabledButton]} disabled={!policyMode} onPress={() => setFlowPage(2)}>
-            <Text style={styles.primaryButtonText}>다음: 회차 설정</Text>
-          </TouchableOpacity>
-        ) : null}
-        {flowPage === 2 ? (
-          <View style={styles.bottomRow}>
-            <TouchableOpacity style={styles.bottomSecondaryButton} onPress={() => setFlowPage(1)}>
+      {showBottomBar ? (
+        <View style={styles.bottomBar}>
+          {flowPage === 1 ? (
+            <TouchableOpacity style={[styles.primaryButton, !policyMode && styles.disabledButton]} disabled={!policyMode} onPress={() => setFlowPage(2)}>
+              <Text style={styles.primaryButtonText}>다음: 회차 설정</Text>
+            </TouchableOpacity>
+          ) : null}
+          {flowPage === 2 ? (
+            <View style={styles.bottomRow}>
+              <TouchableOpacity style={styles.bottomSecondaryButton} onPress={() => setFlowPage(1)}>
+                <Text style={styles.bottomSecondaryText}>이전</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.bottomPrimaryButton} onPress={() => validateCapacityPage() && setFlowPage(3)}>
+                <Text style={styles.primaryButtonText}>다음: 좌석 정책 설정</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
+          {showPolicySaveBar ? (
+            <View style={styles.bottomRow}>
+              <TouchableOpacity style={styles.bottomSecondaryButton} onPress={() => setFlowPage(2)}>
+                <Text style={styles.bottomSecondaryText}>이전</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.bottomPrimaryButton} onPress={saveCurrentPolicy}>
+                <Text style={styles.primaryButtonText}>{sectionNameOf(currentDraft) ? `${sectionNameOf(currentDraft)} 정책 저장` : '좌석 정책 저장'}</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
+          {showSavedBackBar ? (
+            <TouchableOpacity style={styles.bottomSecondaryFullButton} onPress={() => setFlowPage(2)}>
               <Text style={styles.bottomSecondaryText}>이전</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.bottomPrimaryButton} onPress={() => validateCapacityPage() && setFlowPage(3)}>
-              <Text style={styles.primaryButtonText}>다음: 좌석 정책 설정</Text>
-            </TouchableOpacity>
-          </View>
-        ) : null}
-        {flowPage === 3 ? (
-          <View style={styles.bottomRow}>
-            <TouchableOpacity style={styles.bottomSecondaryButton} onPress={() => setFlowPage(2)}>
-              <Text style={styles.bottomSecondaryText}>이전</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.bottomPrimaryButton, !issueCompleted && styles.disabledButton]}
-              disabled={!issueCompleted}
-              onPress={() => navigation.navigate('TicketExplore', { eventId })}
-            >
-              <Text style={styles.primaryButtonText}>다음: 티켓 판매 현황</Text>
-            </TouchableOpacity>
-          </View>
-        ) : null}
-      </View>
+          ) : null}
+          {showPostIssueBar ? (
+            <View style={styles.bottomRow}>
+              <TouchableOpacity style={styles.bottomSecondaryButton} onPress={() => setFlowPage(2)}>
+                <Text style={styles.bottomSecondaryText}>이전</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.bottomPrimaryButton} onPress={() => navigation.navigate('TicketExplore', { eventId })}>
+                <Text style={styles.primaryButtonText}>판매 현황</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -1291,8 +1616,8 @@ export default function TicketIssuePage({ navigation, route }: any) {
 function StepProgress({ page }: { page: FlowPage }) {
   const steps: Array<{ step: FlowPage; label: string }> = [
     { step: 1, label: '적용 방식' },
-    { step: 2, label: '총 수량' },
-    { step: 3, label: '좌석 판매' },
+    { step: 2, label: '수량·기간' },
+    { step: 3, label: '좌석 정책' },
   ];
 
   return (
@@ -1302,12 +1627,17 @@ function StepProgress({ page }: { page: FlowPage }) {
         const completed = page > item.step;
         return (
           <React.Fragment key={item.step}>
-            <View style={[styles.progressPill, completed && styles.progressPillDone, active && styles.progressPillActive]}>
-              <Text style={[styles.progressPillText, completed && styles.progressPillTextDone, active && styles.progressPillTextActive]}>
-                {item.step} {item.label}
-              </Text>
+            <View style={styles.stepItem}>
+              <View style={[styles.stepCircle, completed && styles.stepCircleDone, active && styles.stepCircleActive]}>
+                {completed ? (
+                  <TicketIcon name="check" color="#085041" size={11} />
+                ) : (
+                  <Text style={[styles.stepCircleText, active && styles.stepCircleTextActive]}>{item.step}</Text>
+                )}
+              </View>
+              <Text style={[styles.stepLabel, completed && styles.stepLabelDone, active && styles.stepLabelActive]}>{item.label}</Text>
             </View>
-            {index < steps.length - 1 ? <View style={[styles.progressLine, (completed || active) && styles.progressLineActive]} /> : null}
+            {index < steps.length - 1 ? <View style={[styles.progressLine, completed && styles.progressLineDone]} /> : null}
           </React.Fragment>
         );
       })}
@@ -1486,53 +1816,89 @@ const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20, backgroundColor: '#F5F5F5' },
   loadingText: { marginTop: 12, color: '#9CA3AF' },
   emptyTitle: { color: '#1A1A2E', fontSize: 16, fontWeight: '800', textAlign: 'center' },
-  hero: { paddingHorizontal: 20, paddingBottom: 24 },
-  heroTopBar: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
-  heroBackButton: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
+  hero: { paddingHorizontal: 18, paddingBottom: 24 },
+  heroTopBar: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 },
+  heroBackButton: { width: 28, height: 28, borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.1)', alignItems: 'center', justifyContent: 'center' },
   heroEyebrow: { color: '#A89CF7', fontSize: 10, fontWeight: '700', letterSpacing: 1.2, textTransform: 'uppercase' },
-  heroTitle: { color: '#FFFFFF', fontSize: 22, fontWeight: '800', marginTop: 4, marginBottom: 4 },
-  heroSub: { color: 'rgba(255,255,255,0.58)', fontSize: 12, lineHeight: 18 },
-  stepProgressWrap: { paddingHorizontal: 16, paddingTop: 14 },
-  progressRow: { flexDirection: 'row', alignItems: 'center' },
+  heroTitle: { color: '#FFFFFF', fontSize: 19, fontWeight: '800', marginTop: 0, marginBottom: 3, lineHeight: 24 },
+  heroSub: { color: 'rgba(255,255,255,0.45)', fontSize: 11, lineHeight: 17 },
+  progressRow: { flexDirection: 'row', alignItems: 'center', marginTop: 14 },
+  stepItem: { flexDirection: 'row', alignItems: 'center', flex: 1, minWidth: 0 },
+  stepCircle: { width: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.15)' },
+  stepCircleDone: { backgroundColor: '#6EE7B7' },
+  stepCircleActive: { backgroundColor: '#FFFFFF' },
+  stepCircleText: { color: 'rgba(255,255,255,0.45)', fontSize: 10, fontWeight: '900' },
+  stepCircleTextActive: { color: '#1A1A2E' },
+  stepLabel: { marginLeft: 4, color: 'rgba(255,255,255,0.35)', fontSize: 9, fontWeight: '800' },
+  stepLabelDone: { color: '#6EE7B7' },
+  stepLabelActive: { color: '#FFFFFF' },
   progressPill: { borderWidth: 0.5, borderColor: '#E5E7EB', borderRadius: 999, paddingHorizontal: 9, paddingVertical: 7, backgroundColor: '#FFFFFF' },
   progressPillDone: { borderColor: '#534AB7', backgroundColor: '#EEEDFE' },
   progressPillActive: { borderWidth: 1.5, borderColor: '#534AB7', backgroundColor: '#534AB7' },
   progressPillText: { color: '#9CA3AF', fontSize: 11, fontWeight: '700' },
   progressPillTextDone: { color: '#534AB7' },
   progressPillTextActive: { color: '#FFFFFF' },
-  progressLine: { flex: 1, height: 2, marginHorizontal: 4, backgroundColor: '#E5E7EB' },
-  progressLineActive: { backgroundColor: '#C4C0F5' },
+  progressLine: { flex: 1, height: 1, marginHorizontal: 4, backgroundColor: 'rgba(255,255,255,0.15)' },
+  progressLineDone: { backgroundColor: '#6EE7B7' },
+  eventContext: { marginTop: 12, backgroundColor: 'rgba(255,255,255,0.07)', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.12)', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  eventContextIcon: { width: 26, height: 26, borderRadius: 7, backgroundColor: 'rgba(255,255,255,0.1)', alignItems: 'center', justifyContent: 'center' },
+  eventContextCopy: { flex: 1, minWidth: 0 },
+  eventContextName: { color: '#FFFFFF', fontSize: 11, fontWeight: '800' },
+  eventContextMeta: { color: 'rgba(255,255,255,0.45)', fontSize: 10, marginTop: 1 },
+  eventContextRight: { alignItems: 'flex-end' },
+  eventContextValue: { color: '#A89CF7', fontSize: 13, fontWeight: '900', lineHeight: 15 },
+  eventContextLabel: { color: 'rgba(255,255,255,0.4)', fontSize: 9, fontWeight: '700' },
   messageBox: { marginTop: 14, marginHorizontal: 16, borderRadius: 12, padding: 12, borderWidth: 0.5 },
   errorBox: { backgroundColor: '#FEF2F2', borderColor: '#FECACA' },
   successBox: { backgroundColor: '#ECFDF5', borderColor: '#BBF7D0' },
   messageText: { fontSize: 13, fontWeight: '700', lineHeight: 19 },
   errorText: { color: '#B91C1C' },
   successText: { color: '#047857' },
-  card: { marginTop: 10, marginHorizontal: 16, backgroundColor: '#FFFFFF', borderRadius: 14, padding: 14, borderWidth: 0.5, borderColor: '#E5E7EB' },
+  card: { marginTop: 10, marginHorizontal: 14, backgroundColor: '#FFFFFF', borderRadius: 12, padding: 0, borderWidth: 0.5, borderColor: '#E5E7EB', overflow: 'hidden' },
+  flowStack: { marginTop: 10 },
+  issueCard: { marginHorizontal: 14, marginBottom: 10, backgroundColor: '#FFFFFF', borderRadius: 12, borderWidth: 0.5, borderColor: '#E5E7EB', overflow: 'hidden' },
   compactCard: { marginTop: 12, marginHorizontal: 16, backgroundColor: '#FFFFFF', borderRadius: 14, padding: 12, borderWidth: 0.5, borderColor: '#E5E7EB' },
   compactTitle: { color: '#1A1A2E', fontSize: 14, fontWeight: '800' },
-  cardTitle: { color: '#1A1A2E', fontSize: 15, fontWeight: '800' },
-  pageDescription: { marginTop: 8, color: '#6B7280', fontSize: 13, lineHeight: 19, fontWeight: '700' },
-  modeStack: { gap: 10, marginTop: 12 },
-  modeCard: { borderWidth: 0.5, borderColor: '#E5E7EB', borderRadius: 12, padding: 14, backgroundColor: '#FFFFFF' },
-  activeModeCard: { borderWidth: 1.5, borderColor: '#534AB7', backgroundColor: '#EEEDFE' },
-  modeTitle: { color: '#1A1A2E', fontSize: 15, fontWeight: '800' },
+  cardHead: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 13, paddingVertical: 10, borderBottomWidth: 0.5, borderBottomColor: '#F3F4F6', backgroundColor: '#FAFAFA' },
+  cardHeadIcon: { width: 24, height: 24, borderRadius: 7, alignItems: 'center', justifyContent: 'center' },
+  cardTitle: { color: '#1A1A2E', fontSize: 11, fontWeight: '800', flex: 1 },
+  cardBody: { paddingHorizontal: 13, paddingVertical: 11 },
+  pageDescription: { marginTop: 0, paddingHorizontal: 13, paddingTop: 11, color: '#9CA3AF', fontSize: 10, lineHeight: 15, fontWeight: '700' },
+  modeStack: { gap: 7, paddingHorizontal: 13, paddingTop: 10, paddingBottom: 12 },
+  modeCard: { borderWidth: 0.5, borderColor: '#E5E7EB', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, backgroundColor: '#FFFFFF', flexDirection: 'row', alignItems: 'center', gap: 10 },
+  activeModeCard: { borderColor: '#534AB7', backgroundColor: '#FAFAFE' },
+  optionRadio: { width: 16, height: 16, borderRadius: 8, borderWidth: 1.5, borderColor: '#E5E7EB', alignItems: 'center', justifyContent: 'center' },
+  optionRadioOn: { borderColor: '#534AB7', backgroundColor: '#534AB7' },
+  optionRadioDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#FFFFFF' },
+  optionCopy: { flex: 1, minWidth: 0 },
+  modeTitle: { color: '#1A1A2E', fontSize: 12, fontWeight: '800' },
   activeModeText: { color: '#534AB7' },
-  modeHint: { marginTop: 6, color: '#9CA3AF', fontSize: 12, lineHeight: 17 },
-  sectionBlock: { marginTop: 12 },
+  modeHint: { marginTop: 1, color: '#9CA3AF', fontSize: 10, lineHeight: 14 },
+  sectionBlock: { paddingTop: 0, paddingBottom: 0 },
   helpText: { marginTop: 8, color: '#9CA3AF', fontSize: 12, lineHeight: 18 },
-  label: { marginTop: 12, marginBottom: 6, color: '#1A1A2E', fontSize: 13, fontWeight: '700' },
+  label: { marginTop: 12, marginBottom: 5, color: '#6B7280', fontSize: 10, fontWeight: '800' },
   smallLabel: { marginBottom: 6, color: '#9CA3AF', fontSize: 12, fontWeight: '700' },
   input: { borderWidth: 0.5, borderColor: '#E5E7EB', borderRadius: 10, padding: 11, backgroundColor: '#FFFFFF', color: '#1A1A2E' },
   unitInputWrap: { borderWidth: 0.5, borderColor: '#E5E7EB', borderRadius: 10, backgroundColor: '#FFFFFF', flexDirection: 'row', alignItems: 'center', paddingRight: 12 },
   unitInput: { flex: 1, padding: 11, color: '#1A1A2E' },
   unitText: { color: '#9CA3AF', fontWeight: '700' },
-  roundSummaryList: { marginTop: 12, gap: 8 },
-  roundSummaryTitle: { color: '#1A1A2E', fontWeight: '800', fontSize: 13 },
+  directInputWrap: { marginTop: 8, borderWidth: 0.5, borderColor: '#E5E7EB', borderRadius: 8, backgroundColor: '#FFFFFF', flexDirection: 'row', alignItems: 'center', paddingRight: 11 },
+  directInput: { flex: 1, paddingHorizontal: 11, paddingVertical: 9, color: '#1A1A2E', fontSize: 12, fontWeight: '800' },
+  roundSummaryList: { marginTop: 8, gap: 5, paddingHorizontal: 13, paddingBottom: 12 },
+  roundSummaryListPlain: { marginTop: 8, gap: 5 },
+  roundItemCompact: { borderWidth: 0.5, borderColor: '#E5E7EB', borderRadius: 9, paddingHorizontal: 11, paddingVertical: 9, backgroundColor: '#FFFFFF', flexDirection: 'row', alignItems: 'center', gap: 8 },
+  roundNumberBox: { width: 24, height: 24, borderRadius: 7, backgroundColor: '#EEEDFE', alignItems: 'center', justifyContent: 'center' },
+  roundNumberText: { color: '#534AB7', fontSize: 10, fontWeight: '900' },
+  roundCompactCopy: { flex: 1, minWidth: 0 },
+  commonApplyPill: { backgroundColor: '#EEEDFE', borderRadius: 20, paddingHorizontal: 7, paddingVertical: 2 },
+  commonApplyPillText: { color: '#534AB7', fontSize: 9, fontWeight: '800' },
+  countPillBlue: { backgroundColor: '#E6F1FB', borderRadius: 20, paddingHorizontal: 8, paddingVertical: 2 },
+  countPillBlueText: { color: '#185FA5', fontSize: 10, fontWeight: '800' },
+  roundSummaryTitle: { color: '#1A1A2E', fontWeight: '800', fontSize: 11 },
   roundSummaryMeta: { color: '#534AB7', fontWeight: '800', fontSize: 12 },
-  selectableRoundRow: { borderWidth: 0.5, borderColor: '#E5E7EB', borderRadius: 10, backgroundColor: '#FFFFFF', padding: 12 },
+  selectableRoundRow: { borderWidth: 0.5, borderColor: '#E5E7EB', borderRadius: 9, backgroundColor: '#FFFFFF', padding: 10 },
   selectableRoundRowActive: { borderWidth: 1.5, borderColor: '#534AB7', backgroundColor: '#EEEDFE' },
-  roundSummaryStatus: { marginTop: 5, color: '#9CA3AF', fontSize: 12, fontWeight: '700' },
+  roundSummaryStatus: { marginTop: 2, color: '#9CA3AF', fontSize: 10, fontWeight: '700' },
   roundSummaryStatusSet: { color: '#534AB7', fontWeight: '800' },
   roundBox: { marginTop: 10, borderWidth: 0.5, borderColor: '#E5E7EB', borderRadius: 10, backgroundColor: '#FFFFFF' },
   roundHeader: { padding: 12, flexDirection: 'row', alignItems: 'center', gap: 8 },
@@ -1546,65 +1912,123 @@ const styles = StyleSheet.create({
   disabledRoundChip: { opacity: 0.45 },
   roundChipText: { color: '#6B7280', fontWeight: '700', fontSize: 13 },
   roundChipTextActive: { color: '#534AB7' },
-  sectionTitle: { color: '#1A1A2E', fontSize: 14, fontWeight: '800', marginBottom: 10 },
-  savedPolicySection: { marginBottom: 18, paddingBottom: 16, borderBottomWidth: 0.5, borderBottomColor: '#E5E7EB' },
-  newPolicyTitle: { marginTop: 2 },
+  policyRoundSelectorCard: { marginHorizontal: 14, marginBottom: 12, borderWidth: 0.5, borderColor: '#E5E7EB', borderRadius: 12, backgroundColor: '#FFFFFF', paddingHorizontal: 13, paddingTop: 12, paddingBottom: 2 },
+  policyRoundSelectorHead: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
+  policyRoundSelectorIcon: { width: 28, height: 28, borderRadius: 8, backgroundColor: '#EEEDFE', alignItems: 'center', justifyContent: 'center' },
+  policyRoundSelectorCopy: { flex: 1, minWidth: 0 },
+  policyRoundSelectorTitle: { color: '#1A1A2E', fontSize: 12, fontWeight: '900' },
+  policyRoundSelectorMeta: { marginTop: 2, color: '#9CA3AF', fontSize: 10, fontWeight: '700' },
+  sectionTitle: { color: '#1A1A2E', fontSize: 11, fontWeight: '800', marginBottom: 8 },
+  savedPolicySection: { marginHorizontal: 14, marginBottom: 14, paddingBottom: 12 },
+  savedZone: { marginHorizontal: 14, marginTop: 12 },
+  savedZoneHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 7 },
+  savedZoneTitle: { color: '#0F6E56', fontSize: 11, fontWeight: '800', flex: 1 },
+  savedCountPill: { backgroundColor: '#E1F5EE', borderRadius: 20, paddingHorizontal: 8, paddingVertical: 2 },
+  savedCountText: { color: '#0F6E56', fontSize: 10, fontWeight: '800' },
+  savedSummaryCard: { backgroundColor: '#FFFFFF', borderWidth: 0.5, borderColor: '#9FE1CB', borderRadius: 11, paddingHorizontal: 12, paddingVertical: 10, flexDirection: 'row', alignItems: 'center', gap: 9 },
+  savedSummaryCopy: { flex: 1, minWidth: 0 },
+  moreButton: { width: 26, height: 26, borderRadius: 7, backgroundColor: '#F3F4F6', alignItems: 'center', justifyContent: 'center' },
+  dividerRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 14, marginTop: 14 },
+  dividerLine: { flex: 1, height: 1, backgroundColor: '#E5E7EB' },
+  dividerText: { color: '#9CA3AF', fontSize: 10, fontWeight: '800' },
+  addPolicyCard: { marginTop: 8, marginHorizontal: 14, backgroundColor: '#FFFFFF', borderWidth: 1.5, borderStyle: 'dashed', borderColor: '#CECBF6', borderRadius: 12, overflow: 'hidden' },
+  addPolicyHead: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 13, paddingVertical: 10, backgroundColor: '#FAFAFE', borderBottomWidth: 0.5, borderBottomColor: '#EEEDFE' },
+  addPolicyIcon: { width: 24, height: 24, borderRadius: 7, backgroundColor: '#EEEDFE', alignItems: 'center', justifyContent: 'center' },
+  addPolicyTitle: { color: '#534AB7', fontSize: 11, fontWeight: '800' },
+  addPolicyBody: { paddingHorizontal: 13, paddingVertical: 11 },
+  addPolicyHint: { color: '#9CA3AF', fontSize: 10, lineHeight: 15, marginBottom: 8 },
+  addChipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 5 },
+  addChip: { borderWidth: 0.5, borderColor: '#E5E7EB', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 5, backgroundColor: '#FFFFFF' },
+  addChipText: { color: '#6B7280', fontSize: 11, fontWeight: '800' },
+  newPolicyTitle: { marginTop: 2, marginHorizontal: 14 },
   savedPolicyList: { gap: 8 },
-  savedPolicyCard: { borderWidth: 0.5, borderColor: '#E5E7EB', borderRadius: 12, backgroundColor: '#FFFFFF' },
+  savedPolicyCard: { borderWidth: 0.5, borderColor: '#9FE1CB', borderRadius: 11, backgroundColor: '#FFFFFF' },
   savedPolicyHeader: { padding: 12 },
   savedPolicyHeaderTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 },
-  savedBadge: { color: '#534AB7', fontSize: 12, fontWeight: '800' },
+  savedBadge: { color: '#0F6E56', backgroundColor: '#E1F5EE', borderRadius: 20, paddingHorizontal: 7, paddingVertical: 2, fontSize: 9, fontWeight: '800', overflow: 'hidden' },
   savedPolicyArrow: { color: '#9CA3AF', fontSize: 12, fontWeight: '700' },
   kebabButton: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F5F5F5' },
   kebabText: { color: '#1A1A2E', fontSize: 20, fontWeight: '800', lineHeight: 22 },
   savedPolicyText: { color: '#1A1A2E', fontSize: 13, fontWeight: '800', lineHeight: 19 },
   savedPolicyMeta: { marginTop: 3, color: '#6B7280', fontSize: 12, fontWeight: '700', lineHeight: 17 },
   savedPolicyDetail: { borderTopWidth: 0.5, borderTopColor: '#E5E7EB', padding: 12 },
-  builderBox: { gap: 12 },
-  builderTitle: { color: '#1A1A2E', fontSize: 14, fontWeight: '800' },
-  stepCard: { borderWidth: 0.5, borderColor: '#C4C0F5', borderRadius: 12, backgroundColor: '#FFFFFF', padding: 12 },
+  builderBox: { gap: 0 },
+  builderTitle: { color: '#1A1A2E', fontSize: 11, fontWeight: '800' },
+  stepCard: { marginHorizontal: 14, marginBottom: 10, borderWidth: 0.5, borderColor: '#E5E7EB', borderRadius: 12, backgroundColor: '#FFFFFF', padding: 11 },
+  policyCardHead: { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: -11, marginTop: -11, marginBottom: 11, paddingHorizontal: 13, paddingVertical: 10, borderBottomWidth: 0.5, borderBottomColor: '#F3F4F6', backgroundColor: '#FAFAFA' },
+  policyCardTitle: { fontSize: 11, fontWeight: '800', flex: 1 },
+  policyCardBody: { marginHorizontal: -11, marginBottom: -11, paddingHorizontal: 13, paddingBottom: 11 },
   activeStepCard: { borderWidth: 1.5, borderColor: '#A89CF7', backgroundColor: '#FAFAFE' },
   formStepCard: { borderColor: '#C4C0F5', backgroundColor: '#FAFAFE' },
   stepBox: { marginTop: 14, borderTopWidth: 0.5, borderTopColor: '#E5E7EB', paddingTop: 14 },
   deadlineGuide: { marginTop: 8, color: '#534AB7', fontSize: 12, fontWeight: '800', lineHeight: 17 },
   deadlineGuideMeta: { marginTop: 3, color: '#6B7280', fontSize: 12, fontWeight: '700', lineHeight: 17 },
-  chipGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 },
-  choiceChip: { borderWidth: 0.5, borderColor: '#E5E7EB', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: '#FFFFFF' },
-  activeChip: { borderColor: '#534AB7', backgroundColor: '#EEEDFE' },
-  choiceChipText: { color: '#6B7280', fontWeight: '700', fontSize: 13 },
-  activeChipText: { color: '#534AB7' },
+  chipGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 5, marginTop: 8 },
+  choiceChip: { borderWidth: 0.5, borderColor: '#E5E7EB', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 7, backgroundColor: '#FFFFFF', minWidth: '23%', alignItems: 'center' },
+  activeChip: { borderColor: '#1A1A2E', backgroundColor: '#1A1A2E' },
+  choiceChipText: { color: '#6B7280', fontWeight: '800', fontSize: 10 },
+  activeChipText: { color: '#FFFFFF' },
+  resaleChipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 5, marginTop: 8 },
+  resaleChip: { borderWidth: 0.5, borderColor: '#E5E7EB', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 5, backgroundColor: '#FFFFFF' },
+  resaleChipText: { color: '#6B7280', fontSize: 11, fontWeight: '800' },
   quickRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
   quickButton: { borderWidth: 0.5, borderColor: '#C4C0F5', backgroundColor: '#EEEDFE', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7 },
   quickButtonText: { color: '#534AB7', fontWeight: '800', fontSize: 12 },
   dateTimeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
   dateTimeField: { width: '48%' },
   toggleRow: { marginTop: 12, borderWidth: 0.5, borderColor: '#E5E7EB', borderRadius: 10, padding: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#FFFFFF' },
+  toggleCopy: { flex: 1, minWidth: 0, paddingRight: 12 },
   toggleLabel: { color: '#1A1A2E', fontWeight: '700' },
+  toggleSub: { color: '#9CA3AF', fontSize: 10, marginTop: 1 },
+  switchTrack: { width: 36, height: 20, borderRadius: 10, backgroundColor: '#534AB7', padding: 2, justifyContent: 'center' },
+  switchTrackOff: { backgroundColor: '#E5E7EB' },
+  switchKnob: { width: 16, height: 16, borderRadius: 8, backgroundColor: '#FFFFFF', alignSelf: 'flex-end' },
+  switchKnobOff: { alignSelf: 'flex-start' },
   toggleBadge: { overflow: 'hidden', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4, fontWeight: '800' },
   toggleOn: { backgroundColor: '#DCFCE7', color: '#166534' },
   toggleOff: { backgroundColor: '#F3F4F6', color: '#6B7280' },
-  savePolicyButton: { marginTop: 14, borderWidth: 0.5, borderColor: '#534AB7', borderRadius: 10, paddingVertical: 12, alignItems: 'center', backgroundColor: '#EEEDFE' },
-  savePolicyButtonText: { color: '#534AB7', fontWeight: '800' },
-  completeConfigButton: { marginTop: 16, backgroundColor: '#534AB7', borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
+  savePolicyButton: { marginTop: 14, borderWidth: 0.5, borderColor: '#1A1A2E', borderRadius: 10, paddingVertical: 12, alignItems: 'center', backgroundColor: '#1A1A2E' },
+  savePolicyButtonText: { color: '#FFFFFF', fontWeight: '800' },
+  completeConfigButton: { marginTop: 6, marginHorizontal: 14, backgroundColor: '#1A1A2E', borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
   completeConfigButtonText: { color: '#FFFFFF', fontSize: 14, fontWeight: '800' },
-  issuePreviewBox: { marginTop: 12, backgroundColor: '#EEEDFE', borderRadius: 10, padding: 12, borderWidth: 0.5, borderColor: '#C4C0F5' },
-  previewLabel: { marginTop: 10, color: '#9CA3AF', fontSize: 12, fontWeight: '700' },
-  previewText: { marginTop: 5, color: '#1A1A2E', fontWeight: '700', lineHeight: 20 },
+  completionZone: { marginTop: 6, marginHorizontal: 14, backgroundColor: '#1A1A2E', borderRadius: 14, overflow: 'hidden' },
+  completionTop: { paddingHorizontal: 16, paddingTop: 14, paddingBottom: 10, borderBottomWidth: 0.5, borderBottomColor: 'rgba(255,255,255,0.08)' },
+  completionEyebrowRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 6 },
+  completionDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#6EE7B7' },
+  completionEyebrow: { color: '#6EE7B7', fontSize: 10, fontWeight: '800', letterSpacing: 0.5 },
+  completionTitle: { color: '#FFFFFF', fontSize: 14, fontWeight: '900', lineHeight: 19 },
+  completionSub: { color: 'rgba(255,255,255,0.45)', fontSize: 10, lineHeight: 15, marginTop: 3 },
+  completionButton: { marginHorizontal: 16, marginTop: 12, marginBottom: 14, backgroundColor: '#FFFFFF', borderRadius: 10, paddingVertical: 13, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },
+  completionButtonText: { color: '#1A1A2E', fontSize: 13, fontWeight: '900', flex: 1, textAlign: 'center' },
+  completionArrow: { color: '#534AB7', fontSize: 16, fontWeight: '900' },
+  issuePreviewBox: { marginTop: 8, backgroundColor: '#FAFAFE', borderRadius: 9, paddingHorizontal: 11, paddingVertical: 9, borderWidth: 0.5, borderColor: '#CECBF6' },
+  previewRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 2 },
+  previewInlineLabel: { color: '#9CA3AF', fontSize: 10, fontWeight: '700' },
+  previewInlineValue: { color: '#1A1A2E', fontSize: 10, fontWeight: '800' },
+  previewInlineValuePurple: { color: '#534AB7', fontSize: 10, fontWeight: '800' },
+  previewInlineValueGreen: { color: '#0F6E56', fontSize: 10, fontWeight: '800' },
+  previewLabel: { marginTop: 10, marginHorizontal: 12, color: '#9CA3AF', fontSize: 10, fontWeight: '800' },
+  previewText: { marginTop: 5, marginHorizontal: 12, color: '#1A1A2E', fontWeight: '700', lineHeight: 18, fontSize: 11 },
   previewTextStrong: { marginTop: 5, color: '#1A1A2E', fontSize: 15, fontWeight: '800', lineHeight: 22 },
-  statusBand: { marginTop: 14, marginHorizontal: 16, backgroundColor: '#FFFFFF', borderRadius: 14, padding: 14, borderWidth: 0.5, borderColor: '#E5E7EB' },
-  statusLabel: { color: '#9CA3AF', fontSize: 12, fontWeight: '700' },
+  statusBand: { marginTop: 14, marginHorizontal: 14, backgroundColor: '#FFFFFF', borderRadius: 12, padding: 0, borderWidth: 0.5, borderColor: '#E5E7EB', overflow: 'hidden' },
+  statusLabel: { color: '#534AB7', fontSize: 11, fontWeight: '800', paddingHorizontal: 13, paddingVertical: 10, borderBottomWidth: 0.5, borderBottomColor: '#F3F4F6', backgroundColor: '#FAFAFA' },
   statusLine: { marginTop: 6, color: '#1A1A2E', fontSize: 16, fontWeight: '800' },
-  finalCountList: { marginTop: 10, gap: 7, borderWidth: 0.5, borderColor: '#E5E7EB', borderRadius: 10, padding: 12, backgroundColor: '#F5F5F5' },
-  finalCountText: { color: '#1A1A2E', fontSize: 14, fontWeight: '800' },
-  finalRoundList: { marginTop: 10, gap: 10 },
-  finalRoundCard: { borderWidth: 0.5, borderColor: '#E5E7EB', borderRadius: 10, padding: 12, backgroundColor: '#F5F5F5' },
-  finalRoundTitle: { color: '#1A1A2E', fontSize: 14, fontWeight: '800', marginBottom: 8 },
-  finalActionButton: { marginTop: 14 },
+  finalCountList: { marginTop: 10, marginHorizontal: 12, gap: 0, borderWidth: 0.5, borderColor: '#E5E7EB', borderRadius: 10, padding: 10, backgroundColor: '#F9F9F9' },
+  finalCountText: { color: '#1A1A2E', fontSize: 11, fontWeight: '800', paddingVertical: 3 },
+  confirmRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 3, borderBottomWidth: 0.5, borderBottomColor: '#F3F4F6' },
+  confirmLabel: { color: '#9CA3AF', fontSize: 11, fontWeight: '700' },
+  confirmValue: { color: '#1A1A2E', fontSize: 11, fontWeight: '800' },
+  confirmValuePurple: { color: '#534AB7', fontSize: 11, fontWeight: '800' },
+  confirmValueGreen: { color: '#0F6E56', fontSize: 11, fontWeight: '800' },
+  finalRoundList: { marginTop: 10, marginHorizontal: 12, gap: 8 },
+  finalRoundCard: { borderWidth: 0.5, borderColor: '#E5E7EB', borderRadius: 10, padding: 10, backgroundColor: '#F9F9F9' },
+  finalRoundTitle: { color: '#1A1A2E', fontSize: 12, fontWeight: '800', marginBottom: 6 },
+  finalActionButton: { marginTop: 12, marginHorizontal: 12 },
   removeButton: { marginTop: 10, alignSelf: 'flex-start', borderWidth: 0.5, borderColor: '#FECACA', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6, backgroundColor: '#FEF2F2' },
   removeButtonText: { color: '#B91C1C', fontSize: 12, fontWeight: '800' },
   editButton: { marginTop: 10, alignSelf: 'flex-start', borderWidth: 0.5, borderColor: '#C4C0F5', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6, backgroundColor: '#EEEDFE' },
   editButtonText: { color: '#534AB7', fontSize: 12, fontWeight: '800' },
-  secondaryButton: { borderWidth: 0.5, borderColor: '#E5E7EB', borderRadius: 10, paddingVertical: 14, alignItems: 'center', marginTop: 12, backgroundColor: '#FFFFFF' },
+  secondaryButton: { borderWidth: 0.5, borderColor: '#E5E7EB', borderRadius: 10, paddingVertical: 12, alignItems: 'center', marginTop: 8, marginHorizontal: 12, marginBottom: 12, backgroundColor: '#FFFFFF' },
   secondaryButtonText: { color: '#1A1A2E', fontSize: 14, fontWeight: '700' },
   emptyText: { color: '#9CA3AF', paddingVertical: 14, textAlign: 'center' },
   bottomBar: { position: 'absolute', left: 0, right: 0, bottom: 0, borderTopWidth: 0.5, borderTopColor: '#E5E7EB', backgroundColor: '#FFFFFF', padding: 14 },
@@ -1613,6 +2037,7 @@ const styles = StyleSheet.create({
   bottomPrimaryButton: { flex: 1.4, backgroundColor: '#1A1A2E', borderRadius: 12, paddingVertical: 15, alignItems: 'center' },
   primaryButtonText: { color: '#FFFFFF', fontSize: 14, fontWeight: '800' },
   bottomSecondaryButton: { flex: 0.8, borderWidth: 0.5, borderColor: '#E5E7EB', borderRadius: 12, paddingVertical: 15, alignItems: 'center', backgroundColor: '#FFFFFF' },
+  bottomSecondaryFullButton: { borderWidth: 0.5, borderColor: '#E5E7EB', borderRadius: 12, paddingVertical: 15, alignItems: 'center', backgroundColor: '#FFFFFF' },
   bottomSecondaryText: { color: '#1A1A2E', fontSize: 14, fontWeight: '700' },
   disabledButton: { opacity: 0.45 },
   pickerButton: { borderWidth: 0.5, borderColor: '#E5E7EB', borderRadius: 10, padding: 11, backgroundColor: '#FFFFFF' },
