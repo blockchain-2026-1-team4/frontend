@@ -1,6 +1,5 @@
 import React, { useCallback, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
-import * as ImagePicker from 'expo-image-picker';
 import {
   ActivityIndicator,
   Alert,
@@ -27,6 +26,23 @@ function BackIcon() {
   return (
     <Svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.78)" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
       <Path d="M19 12H5m7 7-7-7 7-7" />
+    </Svg>
+  );
+}
+
+type DetailIconName = 'edit' | 'eye' | 'ticket' | 'chart' | 'qr' | 'tag' | 'cart';
+
+function DetailIcon({ name, color = '#534AB7', size = 16 }: { name: DetailIconName; color?: string; size?: number }) {
+  const common = { fill: 'none', stroke: color, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const, strokeWidth: 2 };
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24">
+      {name === 'edit' ? <Path {...common} d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5Z" /> : null}
+      {name === 'eye' ? <Path {...common} d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Zm10 3a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" /> : null}
+      {name === 'ticket' ? <Path {...common} d="M4 7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v3a2 2 0 0 0 0 4v3a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-3a2 2 0 0 0 0-4V7Zm8-1v12" /> : null}
+      {name === 'chart' ? <Path {...common} d="M4 19V5m4 14v-7m4 7V8m4 11v-4m4 4H3" /> : null}
+      {name === 'qr' ? <Path {...common} d="M4 4h6v6H4V4Zm10 0h6v6h-6V4ZM4 14h6v6H4v-6Zm10 0h2v2h-2v-2Zm4 0h2v6h-2v-6Zm-4 4h2v2h-2v-2Z" /> : null}
+      {name === 'tag' ? <Path {...common} d="M20 10 12 2H5v7l8 8a2 2 0 0 0 3 0l4-4a2 2 0 0 0 0-3ZM8 7h.01" /> : null}
+      {name === 'cart' ? <Path {...common} d="M6 6h15l-2 8H8L6 3H3m6 17h.01M18 20h.01" /> : null}
     </Svg>
   );
 }
@@ -69,7 +85,6 @@ export default function OrganizerEventDetailPage({ navigation, route }: any) {
   const [refreshing, setRefreshing] = useState(false);
   const [statusDraft, setStatusDraft] = useState('PUBLISHED');
   const [statusSaving, setStatusSaving] = useState(false);
-  const [posterUploading, setPosterUploading] = useState(false);
 
   const soldTickets = tickets.filter((ticket) => ['SOLD', 'LISTED', 'USED'].includes(String(ticket.status).toUpperCase())).length;
   const usedTickets = tickets.filter((ticket) => String(ticket.status).toUpperCase() === 'USED').length;
@@ -98,36 +113,6 @@ export default function OrganizerEventDetailPage({ navigation, route }: any) {
   }, [eventId]);
 
   useFocusEffect(useCallback(() => { void load(); }, [load]));
-
-  const uploadPoster = async () => {
-    if (!event) return;
-    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) {
-      Alert.alert('권한 필요', '사진 접근 권한이 필요합니다.');
-      return;
-    }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [16, 9],
-      quality: 0.85,
-    });
-    if (result.canceled || !result.assets?.[0]) return;
-    const asset = result.assets[0];
-    const mimeType = asset.mimeType || 'image/jpeg';
-    const ext = mimeType === 'image/png' ? 'png' : mimeType === 'image/webp' ? 'webp' : 'jpg';
-    const file = { uri: asset.uri, name: `poster-${Date.now()}.${ext}`, type: mimeType };
-    setPosterUploading(true);
-    try {
-      await backendApi.uploadEventImage(event.id, file);
-      Alert.alert('업로드 완료', '포스터가 저장되었습니다.');
-      await load();
-    } catch (err: any) {
-      Alert.alert('업로드 실패', errorMessage(err, '포스터 업로드에 실패했습니다.'));
-    } finally {
-      setPosterUploading(false);
-    }
-  };
 
   const saveStatus = async () => {
     if (!event) return;
@@ -206,42 +191,35 @@ export default function OrganizerEventDetailPage({ navigation, route }: any) {
       </HeroGradient>
 
       <View style={styles.metricGrid}>
-        <MetricCard label="총 티켓" value={totalTickets} bg="#EEEDFE" color="#534AB7" />
-        <MetricCard label="발행" value={tickets.length} bg="#F3F4F6" color="#6B7280" />
-        <MetricCard label="판매" value={soldTickets} bg="#E1F5EE" color="#0F6E56" />
-        <MetricCard label="체크인" value={usedTickets} bg="#E6F1FB" color="#185FA5" />
-      </View>
-
-      <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>티켓 운영</Text>
-      </View>
-      <TouchableOpacity style={styles.primaryAction} onPress={() => navigation.navigate('TicketIssue', { eventId: event.id, returnTo: 'detail' })}>
-        <Text style={styles.primaryActionText}>티켓 발행</Text>
-      </TouchableOpacity>
-      <View style={styles.actionRow}>
-        <TouchableOpacity style={styles.actionBtn} onPress={() => navigation.navigate('SalesStatus', { eventId: event.id })}>
-          <Text style={styles.actionBtnText}>판매 현황</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.actionBtn} onPress={() => navigation.navigate('CheckInStatus', { eventId: event.id })}>
-          <Text style={styles.actionBtnText}>체크인 현황</Text>
-        </TouchableOpacity>
+        <MetricCard icon="ticket" label="총 티켓" value={totalTickets} bg="#EEEDFE" color="#534AB7" />
+        <MetricCard icon="tag" label="발행" value={tickets.length} bg="#E6F1FB" color="#185FA5" />
+        <MetricCard icon="cart" label="판매" value={soldTickets} bg="#E1F5EE" color="#0F6E56" />
+        <MetricCard icon="qr" label="체크인" value={usedTickets} bg="#FAEEDA" color="#854F0B" />
       </View>
 
       <View style={styles.sectionHeader}>
         <Text style={styles.sectionTitle}>이벤트 관리</Text>
       </View>
       <View style={styles.card}>
-        <View style={styles.manageRow}>
-          <TouchableOpacity style={styles.manageBtn} onPress={() => navigation.navigate('EventSettings', { eventId: event.id })}>
-            <Text style={styles.manageBtnText}>이벤트 수정</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.manageBtn, posterUploading && styles.disabledButton]}
-            disabled={posterUploading}
-            onPress={() => void uploadPoster()}
-          >
-            <Text style={styles.manageBtnText}>{posterUploading ? '업로드 중...' : event.imageUrl ? '포스터 교체' : '포스터 등록'}</Text>
-          </TouchableOpacity>
+        <TouchableOpacity style={styles.manageActionRow} onPress={() => navigation.navigate('EventSettings', { eventId: event.id })}>
+          <View style={[styles.manageIcon, { backgroundColor: '#EEEDFE' }]}>
+            <DetailIcon name="edit" color="#534AB7" size={15} />
+          </View>
+          <View style={styles.manageCopy}>
+            <Text style={styles.manageTitle}>이벤트 수정</Text>
+            <Text style={styles.manageSub}>기본 정보, 포스터, 회차 일정 수정</Text>
+          </View>
+          <Text style={styles.manageChevron}>›</Text>
+        </TouchableOpacity>
+        <View style={styles.manageActionRow}>
+          <View style={[styles.manageIcon, { backgroundColor: '#F3F4F6' }]}>
+            <DetailIcon name="eye" color="#6B7280" size={15} />
+          </View>
+          <View style={styles.manageCopy}>
+            <Text style={styles.manageTitle}>이벤트 상태 변경</Text>
+            <Text style={styles.manageSub}>현재: {displayStatus.label} · 공개 여부 변경</Text>
+          </View>
+          <Text style={styles.manageChevron}>›</Text>
         </View>
 
         <View style={styles.divider} />
@@ -270,15 +248,46 @@ export default function OrganizerEventDetailPage({ navigation, route }: any) {
           <Text style={styles.statusSaveBtnText}>{statusSaving ? '저장 중...' : '상태 저장'}</Text>
         </TouchableOpacity>
       </View>
+
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionTitle}>티켓 운영</Text>
+      </View>
+      <TouchableOpacity style={styles.primaryAction} onPress={() => navigation.navigate('TicketIssue', { eventId: event.id, returnTo: 'detail' })}>
+        <View style={styles.primaryActionIcon}>
+          <DetailIcon name="ticket" color="#FFFFFF" size={17} />
+        </View>
+        <View>
+          <Text style={styles.primaryActionText}>티켓 발행</Text>
+          <Text style={styles.primaryActionSub}>좌석과 판매 정책을 설정합니다.</Text>
+        </View>
+      </TouchableOpacity>
+      <View style={styles.actionRow}>
+        <TouchableOpacity style={styles.actionBtn} onPress={() => navigation.navigate('SalesStatus', { eventId: event.id })}>
+          <View style={[styles.actionIcon, { backgroundColor: '#E6F1FB' }]}>
+            <DetailIcon name="chart" color="#185FA5" size={14} />
+          </View>
+          <Text style={styles.actionBtnText}>판매 현황</Text>
+          <Text style={[styles.actionBtnValue, { color: '#185FA5' }]}>{soldTickets.toLocaleString()}<Text style={styles.actionBtnTotal}>/{totalTickets.toLocaleString()}</Text></Text>
+          <Text style={styles.actionBtnSub}>좌석 · 리셀</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.actionBtn} onPress={() => navigation.navigate('CheckInStatus', { eventId: event.id })}>
+          <View style={[styles.actionIcon, { backgroundColor: '#E1F5EE' }]}>
+            <DetailIcon name="qr" color="#0F6E56" size={14} />
+          </View>
+          <Text style={styles.actionBtnText}>체크인 현황</Text>
+          <Text style={[styles.actionBtnValue, { color: '#0F6E56' }]}>{usedTickets.toLocaleString()}<Text style={styles.actionBtnTotal}>/{totalTickets.toLocaleString()}</Text></Text>
+          <Text style={styles.actionBtnSub}>입장 처리</Text>
+        </TouchableOpacity>
+      </View>
     </ScrollView>
   );
 }
 
-function MetricCard({ label, value, bg, color }: { label: string; value: number; bg: string; color: string }) {
+function MetricCard({ icon, label, value, bg, color }: { icon: DetailIconName; label: string; value: number; bg: string; color: string }) {
   return (
     <View style={styles.metricCard}>
       <View style={[styles.metricIconBox, { backgroundColor: bg }]}>
-        <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: color }} />
+        <DetailIcon name={icon} color={color} size={12} />
       </View>
       <Text style={styles.metricValue}>{value.toLocaleString()}</Text>
       <Text style={styles.metricLabel}>{label}</Text>
@@ -306,22 +315,34 @@ const styles = StyleSheet.create({
   heroChip: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', backgroundColor: 'rgba(255,255,255,0.12)', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.2)', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 5 },
   heroDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#6EE7B7' },
   heroChipText: { color: 'rgba(255,255,255,0.85)', fontSize: 11 },
-  metricGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, paddingHorizontal: 16, marginTop: -16, marginBottom: 16 },
-  metricCard: { width: '48.5%', backgroundColor: '#FFFFFF', borderRadius: 14, padding: 13, borderWidth: 0.5, borderColor: '#E5E7EB' },
-  metricIconBox: { width: 26, height: 26, borderRadius: 7, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
-  metricValue: { fontSize: 22, fontWeight: '800', color: '#1A1A2E' },
-  metricLabel: { fontSize: 11, color: '#9CA3AF', marginTop: 2 },
-  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, marginBottom: 10, marginTop: 2 },
-  sectionTitle: { fontSize: 13, fontWeight: '700', color: '#1A1A2E' },
-  primaryAction: { marginHorizontal: 16, backgroundColor: '#1A1A2E', borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginBottom: 8 },
+  metricGrid: { flexDirection: 'row', gap: 7, paddingHorizontal: 14, marginTop: -16, marginBottom: 12 },
+  metricCard: { flex: 1, backgroundColor: '#FFFFFF', borderRadius: 11, paddingVertical: 10, paddingHorizontal: 6, alignItems: 'center', borderWidth: 0.5, borderColor: '#E5E7EB' },
+  metricIconBox: { width: 22, height: 22, borderRadius: 6, alignItems: 'center', justifyContent: 'center', marginBottom: 5 },
+  metricValue: { fontSize: 17, fontWeight: '900', color: '#1A1A2E', lineHeight: 19 },
+  metricLabel: { fontSize: 9, color: '#9CA3AF', marginTop: 2, fontWeight: '700' },
+  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 14, marginBottom: 6, marginTop: 4 },
+  sectionTitle: { fontSize: 10, fontWeight: '900', color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: 0.5 },
+  primaryAction: { marginHorizontal: 16, backgroundColor: '#1A1A2E', borderRadius: 12, paddingVertical: 14, paddingHorizontal: 16, alignItems: 'center', marginBottom: 8, flexDirection: 'row', gap: 12 },
+  primaryActionIcon: { width: 34, height: 34, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.14)', alignItems: 'center', justifyContent: 'center' },
   primaryActionText: { color: '#FFFFFF', fontSize: 14, fontWeight: '800' },
+  primaryActionSub: { color: 'rgba(255,255,255,0.58)', fontSize: 11, marginTop: 2 },
   actionRow: { flexDirection: 'row', gap: 8, paddingHorizontal: 16, marginBottom: 18 },
-  actionBtn: { flex: 1, backgroundColor: '#FFFFFF', borderRadius: 12, paddingVertical: 13, alignItems: 'center', borderWidth: 0.5, borderColor: '#E5E7EB' },
+  actionBtn: { flex: 1, backgroundColor: '#FFFFFF', borderRadius: 12, padding: 12, borderWidth: 0.5, borderColor: '#E5E7EB' },
+  actionIcon: { width: 28, height: 28, borderRadius: 8, marginBottom: 9, alignItems: 'center', justifyContent: 'center' },
   actionBtnText: { color: '#1A1A2E', fontSize: 13, fontWeight: '700' },
+  actionBtnValue: { fontSize: 15, fontWeight: '900', lineHeight: 18, marginTop: 4 },
+  actionBtnTotal: { color: '#9CA3AF', fontSize: 10, fontWeight: '500' },
+  actionBtnSub: { color: '#9CA3AF', fontSize: 10, fontWeight: '700', marginTop: 3 },
   card: { marginHorizontal: 16, marginBottom: 16, backgroundColor: '#FFFFFF', borderRadius: 14, padding: 14, borderWidth: 0.5, borderColor: '#E5E7EB' },
   manageRow: { flexDirection: 'row', gap: 8 },
   manageBtn: { flex: 1, backgroundColor: '#F5F5F5', borderRadius: 10, paddingVertical: 11, alignItems: 'center', borderWidth: 0.5, borderColor: '#E5E7EB' },
   manageBtnText: { color: '#1A1A2E', fontSize: 13, fontWeight: '700' },
+  manageActionRow: { flexDirection: 'row', alignItems: 'center', gap: 11, paddingVertical: 11, borderBottomWidth: 0.5, borderBottomColor: '#F3F4F6' },
+  manageIcon: { width: 32, height: 32, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
+  manageCopy: { flex: 1, minWidth: 0 },
+  manageTitle: { color: '#1A1A2E', fontSize: 13, fontWeight: '800' },
+  manageSub: { color: '#9CA3AF', fontSize: 11, fontWeight: '600', marginTop: 2 },
+  manageChevron: { color: '#B4B2A9', fontSize: 22, lineHeight: 24 },
   divider: { height: 0.5, backgroundColor: '#E5E7EB', marginVertical: 14 },
   subTitle: { color: '#1A1A2E', fontSize: 14, fontWeight: '800', marginBottom: 6 },
   descriptionText: { color: '#6B7280', fontSize: 12, lineHeight: 18, marginBottom: 10 },

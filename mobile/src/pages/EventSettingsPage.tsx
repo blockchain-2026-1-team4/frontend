@@ -2,6 +2,9 @@
 import * as ImagePicker from 'expo-image-picker';
 import { useFocusEffect } from '@react-navigation/native';
 import { ActivityIndicator, Alert, Image, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Svg, { Path } from 'react-native-svg';
 import { TextInput } from '../components/TextInput';
 import { errorMessage } from '../lib/account';
 import { backendApi } from '../lib/backend';
@@ -26,6 +29,31 @@ type MarkedRoundDate = {
   date: string;
   label: string;
 };
+
+const HeroGradient = LinearGradient as unknown as React.ComponentType<any>;
+
+function BackIcon() {
+  return (
+    <Svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.78)" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <Path d="M19 12H5m7 7-7-7 7-7" />
+    </Svg>
+  );
+}
+
+type FormIconName = 'tag' | 'align' | 'photo' | 'calendar' | 'upload';
+
+function FormIcon({ name, color = '#534AB7', size = 14 }: { name: FormIconName; color?: string; size?: number }) {
+  const common = { fill: 'none', stroke: color, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const, strokeWidth: 2 };
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24">
+      {name === 'tag' ? <Path {...common} d="M20 10 12 2H5v7l8 8a2 2 0 0 0 3 0l4-4a2 2 0 0 0 0-3ZM8 7h.01" /> : null}
+      {name === 'align' ? <Path {...common} d="M4 6h16M4 12h12M4 18h16" /> : null}
+      {name === 'photo' ? <Path {...common} d="M4 5h16v14H4V5Zm4 8 2.5-3 3 4 2-2.5L20 17M8 9h.01" /> : null}
+      {name === 'calendar' ? <Path {...common} d="M7 3v4m10-4v4M4 9h16M5 5h14a1 1 0 0 1 1 1v14H4V6a1 1 0 0 1 1-1Z" /> : null}
+      {name === 'upload' ? <Path {...common} d="M12 16V4m0 0 4 4m-4-4-4 4M5 20h14" /> : null}
+    </Svg>
+  );
+}
 
 const EVENT_CATEGORIES = [
   { value: 'CONCERT', label: '공연' },
@@ -152,6 +180,7 @@ function fallbackRound(event: EventDetail): RoundDraft {
 }
 
 export default function EventSettingsPage({ navigation, route }: any) {
+  const insets = useSafeAreaInsets();
   const eventId = route?.params?.eventId as string;
   const today = useMemo(() => localDate(new Date()), []);
   const [event, setEvent] = useState<EventDetail | null>(null);
@@ -378,11 +407,25 @@ export default function EventSettingsPage({ navigation, route }: any) {
   return (
     <View style={styles.container}>
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
-        <Text style={styles.eyebrow}>Event Settings</Text>
-        <Text style={styles.title}>이벤트 수정</Text>
-        <Text style={styles.subtitle}>이벤트 정보를 수정한 후 티켓과 좌석 설정을 이어서 관리할 수 있습니다.</Text>
+        <HeroGradient colors={['#1A1A2E', '#2D2B6B']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.hero, { paddingTop: Math.max(insets.top + 18, 40) }]}>
+          <View style={styles.heroTop}>
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel="뒤로가기" style={styles.heroBackButton} onPress={() => navigation.goBack()}>
+              <BackIcon />
+            </TouchableOpacity>
+            <Text style={styles.heroEyebrow}>Event Settings</Text>
+            <View style={styles.heroBackButton} />
+          </View>
+          <Text style={styles.heroTitle}>이벤트 수정</Text>
+          <Text style={styles.heroSub}>이벤트 정보를 수정한 후 티켓과 좌석 설정을 이어서 관리할 수 있습니다.</Text>
+        </HeroGradient>
 
         <View style={styles.card}>
+          <View style={styles.formSectionHead}>
+            <View style={[styles.formSectionIcon, { backgroundColor: '#EEEDFE' }]}>
+              <FormIcon name="tag" color="#534AB7" />
+            </View>
+            <Text style={styles.formSectionTitle}>기본 정보</Text>
+          </View>
           <Text style={styles.label}>카테고리</Text>
           <View style={styles.categoryGrid}>
             {EVENT_CATEGORIES.map((item) => (
@@ -398,8 +441,15 @@ export default function EventSettingsPage({ navigation, route }: any) {
 
           <Text style={styles.label}>장소</Text>
           <TextInput style={filledInputStyle(venue)} value={venue} onChangeText={setVenue} placeholder="예: 올림픽공원 KSPO DOME" />
+        </View>
 
-          <Text style={styles.label}>소개</Text>
+        <View style={styles.card}>
+          <View style={styles.formSectionHead}>
+            <View style={[styles.formSectionIcon, { backgroundColor: '#E6F1FB' }]}>
+              <FormIcon name="align" color="#185FA5" />
+            </View>
+            <Text style={[styles.formSectionTitle, { color: '#185FA5' }]}>소개</Text>
+          </View>
           <TextInput
             style={[styles.input, description.trim() && styles.filledInput, styles.textArea, { height: descriptionHeight }]}
             value={description}
@@ -408,15 +458,26 @@ export default function EventSettingsPage({ navigation, route }: any) {
             placeholder="공연 소개, 출연진, 운영 시간, 입장 안내, 주의사항 등을 입력해주세요."
             multiline
           />
+        </View>
 
-          <Text style={styles.label}>포스터</Text>
+        <View style={styles.card}>
+          <View style={styles.formSectionHead}>
+            <View style={[styles.formSectionIcon, { backgroundColor: '#E1F5EE' }]}>
+              <FormIcon name="photo" color="#0F6E56" />
+            </View>
+            <Text style={[styles.formSectionTitle, { color: '#0F6E56' }]}>포스터</Text>
+          </View>
           {posterPreviewUri ? (
             <TouchableOpacity activeOpacity={0.88} onPress={() => setPosterPreviewOpen(true)}>
               <Image source={{ uri: posterPreviewUri }} style={styles.posterPreview} />
             </TouchableOpacity>
           ) : (
             <TouchableOpacity style={styles.posterPlaceholder} activeOpacity={0.88} onPress={pickPoster}>
-              <Text style={styles.posterPlaceholderText}>포스터 없음</Text>
+              <Text style={styles.posterPlaceholderText}>포스터를 등록하면 이벤트 목록과 상세에 표시됩니다.</Text>
+              <View style={styles.posterZoneButton}>
+                <FormIcon name="upload" color="#534AB7" size={12} />
+                <Text style={styles.posterZoneButtonText}>이미지 선택</Text>
+              </View>
             </TouchableOpacity>
           )}
           <View style={styles.posterActionRow}>
@@ -440,6 +501,12 @@ export default function EventSettingsPage({ navigation, route }: any) {
         </View>
 
         <View style={styles.card}>
+          <View style={styles.formSectionHead}>
+            <View style={[styles.formSectionIcon, { backgroundColor: '#FAEEDA' }]}>
+              <FormIcon name="calendar" color="#854F0B" />
+            </View>
+            <Text style={[styles.formSectionTitle, { color: '#854F0B' }]}>회차 일정</Text>
+          </View>
           <Text style={styles.cardTitle}>일정</Text>
           <Text style={styles.helpText}>공연 회차별로 날짜와 시간을 설정하세요.</Text>
           <Text style={styles.helpText}>장소나 일정 차이가 큰 경우 별도 이벤트 등록을 권장합니다.</Text>
@@ -651,17 +718,23 @@ function TimeColumn({ label, options, value, onChange }: { label: string; option
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F8FAFC' },
+  container: { flex: 1, backgroundColor: '#F5F5F5' },
   scroll: { flex: 1 },
-  content: { padding: 14, paddingBottom: 112 },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F8FAFC' },
+  content: { paddingBottom: 112 },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F5F5F5' },
   emptyTitle: { color: '#0F172A', fontSize: 18, fontWeight: '900', textAlign: 'center' },
   emptyText: { marginTop: 8, color: '#64748B', fontSize: 13, textAlign: 'center', lineHeight: 19 },
-  eyebrow: { color: '#2563EB', fontWeight: '800', fontSize: 12 },
-  title: { marginTop: 3, fontSize: 26, fontWeight: '900', color: '#0F172A' },
-  subtitle: { marginTop: 6, color: '#64748B', fontSize: 13, lineHeight: 19 },
-  card: { marginTop: 11, backgroundColor: '#FFFFFF', borderRadius: 8, padding: 12, shadowColor: '#0F172A', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 1 },
+  hero: { paddingHorizontal: 18, paddingBottom: 28 },
+  heroTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
+  heroBackButton: { width: 30, height: 30, borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.1)', alignItems: 'center', justifyContent: 'center' },
+  heroEyebrow: { color: '#A89CF7', fontSize: 10, fontWeight: '800', letterSpacing: 1, textTransform: 'uppercase' },
+  heroTitle: { color: '#FFFFFF', fontSize: 20, fontWeight: '900', lineHeight: 25 },
+  heroSub: { color: 'rgba(255,255,255,0.48)', fontSize: 11, lineHeight: 17, marginTop: 3 },
+  card: { marginTop: 11, marginHorizontal: 14, backgroundColor: '#FFFFFF', borderRadius: 12, padding: 12, borderWidth: 0.5, borderColor: '#E5E7EB' },
   cardTitle: { color: '#0F172A', fontSize: 16, fontWeight: '900' },
+  formSectionHead: { flexDirection: 'row', alignItems: 'center', gap: 7, marginHorizontal: -12, marginTop: -12, marginBottom: 11, padding: 11, borderBottomWidth: 0.5, borderBottomColor: '#F5F5F5', backgroundColor: '#FAFAFA' },
+  formSectionIcon: { width: 26, height: 26, borderRadius: 7, alignItems: 'center', justifyContent: 'center' },
+  formSectionTitle: { fontSize: 11, fontWeight: '900', color: '#534AB7' },
   label: { marginTop: 9, marginBottom: 5, color: '#334155', fontSize: 13, fontWeight: '800' },
   helpText: { marginTop: 5, color: '#64748B', fontSize: 12, lineHeight: 17 },
   lockedNotice: { marginTop: 8, borderWidth: 1, borderColor: '#FDE68A', backgroundColor: '#FFFBEB', borderRadius: 8, padding: 10, color: '#92400E', fontSize: 12, fontWeight: '800', lineHeight: 18 },
@@ -669,18 +742,20 @@ const styles = StyleSheet.create({
   filledInput: { borderColor: '#CECBF6', backgroundColor: '#FAFAFE' },
   textArea: { minHeight: 76, maxHeight: 180, textAlignVertical: 'top' },
   posterPreview: { width: '100%', aspectRatio: 3 / 4, borderRadius: 8, backgroundColor: '#E2E8F0' },
-  posterPlaceholder: { minHeight: 86, borderWidth: 1.5, borderColor: '#CECBF6', borderStyle: 'dashed', borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: '#FAFAFE' },
-  posterPlaceholderText: { color: '#64748B', fontSize: 13, fontWeight: '800' },
+  posterPlaceholder: { minHeight: 96, borderWidth: 1.5, borderColor: '#CECBF6', borderStyle: 'dashed', borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: '#FAFAFE', padding: 18 },
+  posterPlaceholderText: { color: '#B4B2A9', fontSize: 11, fontWeight: '800', textAlign: 'center', lineHeight: 16, marginBottom: 8 },
+  posterZoneButton: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: '#EEEDFE', borderRadius: 8, paddingHorizontal: 13, paddingVertical: 7 },
+  posterZoneButtonText: { color: '#534AB7', fontSize: 11, fontWeight: '900' },
   posterActionRow: { flexDirection: 'row', gap: 8, marginTop: 9 },
-  posterButton: { flex: 1, borderWidth: 1, borderColor: '#2563EB', borderRadius: 8, paddingVertical: 11, alignItems: 'center', backgroundColor: '#EFF6FF' },
-  posterButtonText: { color: '#2563EB', fontWeight: '900', fontSize: 13 },
+  posterButton: { flex: 1, borderWidth: 1, borderColor: '#534AB7', borderRadius: 8, paddingVertical: 11, alignItems: 'center', backgroundColor: '#EEEDFE' },
+  posterButtonText: { color: '#534AB7', fontWeight: '900', fontSize: 13 },
   posterDeleteButton: { borderColor: '#FCA5A5', backgroundColor: '#FFF7F7' },
   posterDeleteText: { color: '#B91C1C', fontWeight: '900', fontSize: 13 },
   categoryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
   categoryChip: { borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 999, paddingHorizontal: 11, paddingVertical: 7, backgroundColor: '#FFFFFF' },
-  activeCategoryChip: { borderColor: '#2563EB', backgroundColor: '#EFF6FF' },
+  activeCategoryChip: { borderColor: '#534AB7', backgroundColor: '#EEEDFE' },
   categoryChipText: { color: '#475569', fontWeight: '800', fontSize: 13 },
-  activeCategoryChipText: { color: '#2563EB' },
+  activeCategoryChipText: { color: '#534AB7' },
   roundBox: { marginTop: 9, borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, backgroundColor: '#FFFFFF' },
   roundHeader: { padding: 12, flexDirection: 'row', alignItems: 'center', gap: 8 },
   roundHeaderCopy: { flex: 1 },
@@ -761,8 +836,8 @@ const styles = StyleSheet.create({
   errorPanel: { marginTop: 13, borderWidth: 1, borderColor: '#FCA5A5', backgroundColor: '#FEF2F2', borderRadius: 8, padding: 12 },
   errorTitle: { color: '#B91C1C', fontWeight: '900', marginBottom: 6 },
   errorItem: { color: '#B91C1C', fontWeight: '800', lineHeight: 20 },
-  bottomBar: { borderTopWidth: 1, borderTopColor: '#E2E8F0', backgroundColor: '#FFFFFF', padding: 14 },
-  primaryButton: { backgroundColor: '#2563EB', borderRadius: 8, paddingVertical: 15, alignItems: 'center' },
+  bottomBar: { borderTopWidth: 0.5, borderTopColor: '#E5E7EB', backgroundColor: '#FFFFFF', padding: 14 },
+  primaryButton: { backgroundColor: '#1A1A2E', borderRadius: 11, paddingVertical: 15, alignItems: 'center' },
   primaryButtonText: { color: '#FFFFFF', fontSize: 16, fontWeight: '900' },
   disabledButton: { opacity: 0.55 },
   previewOverlay: { flex: 1, backgroundColor: 'rgba(15, 23, 42, 0.92)', alignItems: 'center', justifyContent: 'center', padding: 20 },

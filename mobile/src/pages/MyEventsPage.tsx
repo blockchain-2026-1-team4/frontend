@@ -95,7 +95,13 @@ function eventBadge(event: EventSummary) {
 }
 
 function eventPosterUrl(event: EventSummary) {
-  return resolveImageUrl(event.imageUrl);
+  const rawUrl =
+    event.imageUrl ||
+    (event as any).posterUrl ||
+    (event as any).posterImageUrl ||
+    (event as any).thumbnailUrl ||
+    (event as any).image;
+  return resolveImageUrl(rawUrl);
 }
 
 function AppIcon({ name, color = '#534AB7', size = 18 }: { name: IconName; color?: string; size?: number }) {
@@ -272,9 +278,10 @@ export default function MyEventsPage({ navigation }: any) {
                   <Text style={[styles.eventDay, badge.grayDate && styles.eventDayGray]}>{date.day}</Text>
                 </View>
               )}
-              <View style={styles.eventInfo}>
+              <View style={[styles.eventInfo, posterUrl && styles.eventInfoWithPoster]}>
                 <Text style={styles.eventName} numberOfLines={1}>{eventTitle(item)}</Text>
-                <Text style={styles.eventMeta} numberOfLines={1}>{item.venue || '장소 미정'} · {formatEventTime(dateStr)} · {ticketSummary(item)}</Text>
+                <Text style={styles.eventMeta} numberOfLines={1}>{item.venue || '장소 미정'} · {formatEventTime(dateStr)}</Text>
+                <Text style={styles.eventMeta} numberOfLines={1}>{ticketSummary(item)}</Text>
               </View>
               <View style={[styles.badge, { backgroundColor: badge.bg }]}>
                 <Text style={[styles.badgeText, { color: badge.text }]}>{badge.label}</Text>
@@ -335,9 +342,9 @@ const styles = StyleSheet.create({
   resultLabel: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 14, paddingBottom: 6 },
   resultText: { fontSize: 10, color: '#9CA3AF', fontWeight: '800' },
   sortText: { fontSize: 10, color: '#534AB7', fontWeight: '800' },
-  eventCard: { backgroundColor: '#FFFFFF', borderRadius: 12, borderWidth: 0.5, borderColor: '#E5E7EB', padding: 11, marginHorizontal: 14, marginBottom: 7, flexDirection: 'row', alignItems: 'center', gap: 10 },
-  eventCardWithPoster: { padding: 0, overflow: 'hidden', alignItems: 'stretch' },
-  eventPosterThumb: { width: 56, minHeight: 64, backgroundColor: '#F3F4F6' },
+  eventCard: { backgroundColor: '#FFFFFF', borderRadius: 12, borderWidth: 0.5, borderColor: '#E5E7EB', padding: 11, marginHorizontal: 14, marginBottom: 7, flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 62 },
+  eventCardWithPoster: { padding: 0, overflow: 'hidden', alignItems: 'center', minHeight: 74 },
+  eventPosterThumb: { width: 58, alignSelf: 'stretch', minHeight: 74, backgroundColor: '#F3F4F6' },
   eventDate: { width: 36, height: 36, borderRadius: 9, backgroundColor: '#EEEDFE', alignItems: 'center', justifyContent: 'center' },
   eventDateGray: { backgroundColor: '#F3F4F6' },
   eventMonth: { fontSize: 7, fontWeight: '900', color: '#534AB7', textTransform: 'uppercase', lineHeight: 9 },
@@ -345,6 +352,7 @@ const styles = StyleSheet.create({
   eventDay: { fontSize: 15, fontWeight: '900', color: '#3C3489', lineHeight: 17 },
   eventDayGray: { color: '#6B7280' },
   eventInfo: { flex: 1, minWidth: 0 },
+  eventInfoWithPoster: { paddingVertical: 10 },
   eventName: { fontSize: 12, fontWeight: '900', color: '#1A1A2E' },
   eventMeta: { fontSize: 10, color: '#9CA3AF', marginTop: 2 },
   badge: { paddingHorizontal: 7, paddingVertical: 3, borderRadius: 20 },

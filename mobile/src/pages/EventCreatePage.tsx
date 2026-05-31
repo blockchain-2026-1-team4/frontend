@@ -29,6 +29,21 @@ function BackIcon() {
   );
 }
 
+type FormIconName = 'tag' | 'align' | 'photo' | 'calendar' | 'upload';
+
+function FormIcon({ name, color = '#534AB7', size = 14 }: { name: FormIconName; color?: string; size?: number }) {
+  const common = { fill: 'none', stroke: color, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const, strokeWidth: 2 };
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24">
+      {name === 'tag' ? <Path {...common} d="M20 10 12 2H5v7l8 8a2 2 0 0 0 3 0l4-4a2 2 0 0 0 0-3ZM8 7h.01" /> : null}
+      {name === 'align' ? <Path {...common} d="M4 6h16M4 12h12M4 18h16" /> : null}
+      {name === 'photo' ? <Path {...common} d="M4 5h16v14H4V5Zm4 8 2.5-3 3 4 2-2.5L20 17M8 9h.01" /> : null}
+      {name === 'calendar' ? <Path {...common} d="M7 3v4m10-4v4M4 9h16M5 5h14a1 1 0 0 1 1 1v14H4V6a1 1 0 0 1 1-1Z" /> : null}
+      {name === 'upload' ? <Path {...common} d="M12 16V4m0 0 4 4m-4-4-4 4M5 20h14" /> : null}
+    </Svg>
+  );
+}
+
 type EventRoundDraft = {
   id: string;
   title: string;
@@ -453,6 +468,12 @@ export default function EventCreatePage({ navigation }: any) {
         </HeroGradient>
 
         <View style={styles.card}>
+          <View style={styles.formSectionHead}>
+            <View style={[styles.formSectionIcon, { backgroundColor: '#EEEDFE' }]}>
+              <FormIcon name="tag" color="#534AB7" />
+            </View>
+            <Text style={styles.formSectionTitle}>기본 정보</Text>
+          </View>
           <Text style={styles.label}>카테고리</Text>
           <View style={styles.categoryGrid}>
             {EVENT_CATEGORIES.map((item) => (
@@ -468,8 +489,15 @@ export default function EventCreatePage({ navigation }: any) {
 
           <Text style={styles.label}>장소</Text>
           <TextInput style={filledInputStyle(venue, invalidFields.venue)} value={venue} onChangeText={setVenue} placeholder="예: 올림픽공원 KSPO DOME" />
+        </View>
 
-          <Text style={styles.label}>소개</Text>
+        <View style={styles.card}>
+          <View style={styles.formSectionHead}>
+            <View style={[styles.formSectionIcon, { backgroundColor: '#E6F1FB' }]}>
+              <FormIcon name="align" color="#185FA5" />
+            </View>
+            <Text style={[styles.formSectionTitle, { color: '#185FA5' }]}>소개</Text>
+          </View>
           <TextInput
             style={[styles.input, description.trim() && styles.filledInput, styles.textArea, { height: descriptionHeight }, invalidFields.description && styles.invalidInput]}
             value={description}
@@ -478,15 +506,26 @@ export default function EventCreatePage({ navigation }: any) {
             placeholder="공연 소개, 출연진, 운영 시간, 입장 안내, 주의사항 등을 입력해주세요."
             multiline
           />
+        </View>
 
-          <Text style={styles.label}>포스터</Text>
+        <View style={styles.card}>
+          <View style={styles.formSectionHead}>
+            <View style={[styles.formSectionIcon, { backgroundColor: '#E1F5EE' }]}>
+              <FormIcon name="photo" color="#0F6E56" />
+            </View>
+            <Text style={[styles.formSectionTitle, { color: '#0F6E56' }]}>포스터 <Text style={styles.optionalText}>(선택)</Text></Text>
+          </View>
           {poster ? (
             <TouchableOpacity onPress={() => setPosterPreviewOpen(true)} activeOpacity={0.88}>
               <Image source={{ uri: poster.uri }} style={styles.posterPreview} />
             </TouchableOpacity>
           ) : (
             <TouchableOpacity style={styles.posterPlaceholder} activeOpacity={0.86} onPress={pickPoster}>
-              <Text style={styles.posterPlaceholderText}>포스터 없음</Text>
+              <Text style={styles.posterPlaceholderText}>포스터를 등록하면 이벤트 목록과 상세에 표시됩니다.</Text>
+              <View style={styles.posterZoneButton}>
+                <FormIcon name="upload" color="#534AB7" size={12} />
+                <Text style={styles.posterZoneButtonText}>이미지 선택</Text>
+              </View>
             </TouchableOpacity>
           )}
           <View style={styles.posterActionRow}>
@@ -503,6 +542,12 @@ export default function EventCreatePage({ navigation }: any) {
         </View>
 
         <View style={[styles.card, invalidFields.rounds && styles.invalidRound]}>
+          <View style={styles.formSectionHead}>
+            <View style={[styles.formSectionIcon, { backgroundColor: '#FAEEDA' }]}>
+              <FormIcon name="calendar" color="#854F0B" />
+            </View>
+            <Text style={[styles.formSectionTitle, { color: '#854F0B' }]}>회차 일정</Text>
+          </View>
           <Text style={styles.cardTitle}>일정</Text>
           <Text style={styles.helpText}>공연 회차별로 날짜와 시간을 설정하세요.</Text>
           <Text style={styles.helpText}>장소나 일정 차이가 큰 경우 별도 이벤트 등록을 권장합니다.</Text>
@@ -807,6 +852,11 @@ const styles = StyleSheet.create({
     borderColor: '#E5E7EB',
   },
   cardTitle: { color: '#1A1A2E', fontSize: 15, fontWeight: '800' },
+  formSectionHead: { flexDirection: 'row', alignItems: 'center', gap: 7, marginHorizontal: -12, marginTop: -12, marginBottom: 11, padding: 11, borderBottomWidth: 0.5, borderBottomColor: '#F5F5F5', backgroundColor: '#FAFAFA' },
+  inlineSectionHead: { flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 13, marginBottom: 7 },
+  formSectionIcon: { width: 26, height: 26, borderRadius: 7, alignItems: 'center', justifyContent: 'center' },
+  formSectionTitle: { fontSize: 11, fontWeight: '900', color: '#534AB7' },
+  optionalText: { fontSize: 10, fontWeight: '500', color: '#B4B2A9' },
   label: { marginTop: 9, marginBottom: 5, color: '#1A1A2E', fontSize: 13, fontWeight: '700' },
   helpText: { marginTop: 5, color: '#9CA3AF', fontSize: 12, lineHeight: 17 },
   categoryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
@@ -819,8 +869,10 @@ const styles = StyleSheet.create({
   invalidInput: { borderColor: '#DC2626', backgroundColor: '#FEF2F2' },
   textArea: { minHeight: 76, maxHeight: 180, textAlignVertical: 'top' },
   posterPreview: { width: '100%', aspectRatio: 3 / 4, borderRadius: 10, backgroundColor: '#E5E7EB' },
-  posterPlaceholder: { width: '100%', minHeight: 72, borderRadius: 10, borderWidth: 1.5, borderStyle: 'dashed', borderColor: '#CECBF6', backgroundColor: '#FAFAFE', alignItems: 'center', justifyContent: 'center' },
-  posterPlaceholderText: { color: '#9CA3AF', fontSize: 13, fontWeight: '700' },
+  posterPlaceholder: { width: '100%', minHeight: 96, borderRadius: 10, borderWidth: 1.5, borderStyle: 'dashed', borderColor: '#CECBF6', backgroundColor: '#FAFAFE', alignItems: 'center', justifyContent: 'center', padding: 18 },
+  posterPlaceholderText: { color: '#B4B2A9', fontSize: 11, fontWeight: '700', textAlign: 'center', lineHeight: 16, marginBottom: 8 },
+  posterZoneButton: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: '#EEEDFE', borderRadius: 8, paddingHorizontal: 13, paddingVertical: 7 },
+  posterZoneButtonText: { color: '#534AB7', fontSize: 11, fontWeight: '800' },
   posterActionRow: { flexDirection: 'row', gap: 8, marginTop: 9 },
   posterButton: { flex: 1, borderWidth: 0.5, borderColor: '#534AB7', borderRadius: 8, padding: 11, backgroundColor: '#EEEDFE', alignItems: 'center' },
   posterButtonText: { color: '#534AB7', fontWeight: '800' },
