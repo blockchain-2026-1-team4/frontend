@@ -73,6 +73,10 @@ function reviewError(cause: unknown) {
   return "주최자 신청 심사에 실패했습니다.";
 }
 
+function shouldShowLoginAction(message: string) {
+  return message.includes("관리자 로그인이 필요합니다");
+}
+
 export function OrganizerApprovalsPage() {
   const [items, setItems] = useState<OrganizerApplication[]>([]);
   const [filterStatus, setFilterStatus] = useState<StatusFilter>("PENDING");
@@ -240,9 +244,11 @@ export function OrganizerApprovalsPage() {
         {error ? (
           <div className="oa-alert">
             <span>{error}</span>
-            <Link className="button" to="/login">
-              다시 로그인
-            </Link>
+            {shouldShowLoginAction(error) ? (
+              <Link className="button" to="/login">
+                다시 로그인
+              </Link>
+            ) : null}
           </div>
         ) : null}
         {message ? <div className="oa-toast">{message}</div> : null}
