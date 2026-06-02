@@ -59,7 +59,7 @@ export default function CheckInHomePage({ navigation }: any) {
   const load = useCallback(async () => {
     try {
       const page = await backendApi.getMyEvents({ page: 0, size: 100 });
-      const published = (page.items ?? []).filter((event) => String(event.status).toUpperCase() === 'PUBLISHED');
+      const published = (page.items ?? []).filter((event) => String(event.status).toUpperCase() === 'ACTIVE');
       const withTickets = await Promise.all(published.map(async (event) => ({ event, tickets: await backendApi.getEventTickets(event.id).catch(() => []) })));
       setItems(withTickets);
     } catch (error: any) {

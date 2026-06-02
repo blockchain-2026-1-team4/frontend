@@ -33,8 +33,8 @@ import CheckInEventListPage from './src/pages/CheckInEventListPage';
 import DisputeCreatePage from './src/pages/DisputeCreatePage';
 import MyDisputesPage from './src/pages/MyDisputesPage';
 import BottomNavigation from './src/components/BottomNavigation';
-import { appKit } from './src/lib/appkit';
 import { backendApi } from './src/lib/backend';
+import { config } from './src/lib/config';
 import { hasOrganizerAccess } from './src/lib/roles';
 
 const Stack = createStackNavigator();
@@ -43,10 +43,25 @@ const TicketExplorePage = require('./src/pages/TicketExplorePage').default;
 const OrganizerEventDetailPage = require('./src/pages/OrganizerEventDetailPage').default;
 const OrganizerProfilePage = require('./src/pages/OrganizerProfilePage').default;
 const SalesStatusPage = require('./src/pages/SalesStatusPage').default;
+const shouldUseAppKit = Platform.OS !== 'web' && Boolean(config.reownProjectId);
+const disabledAppKit = {
+  connect: async () => undefined,
+  disconnect: async () => undefined,
+  open: async () => undefined,
+  close: async () => undefined,
+  back: async () => undefined,
+  switchNetwork: async () => undefined,
+  getProvider: () => undefined,
+  switchAccountType: () => undefined,
+};
 
 export default function App() {
   const [currentRouteName, setCurrentRouteName] = React.useState('Main');
   const lastOrganizerEventIdRef = React.useRef<string | null>(null);
+  const appKitInstance = React.useMemo(() => {
+    if (!shouldUseAppKit) return disabledAppKit;
+    return require('./src/lib/appkit').appKit;
+  }, []);
 
   const syncCurrentRoute = React.useCallback(() => {
     const route = navigationRef.getCurrentRoute();
@@ -122,7 +137,7 @@ export default function App() {
 
   return (
     <SafeAreaProvider>
-      <AppKitProvider instance={appKit}>
+      <AppKitProvider instance={appKitInstance}>
         <View style={[styles.appRoot, Platform.OS === 'web' && styles.webRoot]}>
           <View style={[styles.appFrame, Platform.OS === 'web' && styles.webFrame]}>
             <View style={styles.navigationHost}>
@@ -170,9 +185,11 @@ export default function App() {
             </View>
             <BottomNavigation routeName={currentRouteName} onNavigate={navigateFromBottom} />
           </View>
-          <View style={styles.appKitHost} pointerEvents="box-none">
-            <AppKit />
-          </View>
+          {shouldUseAppKit ? (
+            <View style={styles.appKitHost} pointerEvents="box-none">
+              <AppKit />
+            </View>
+          ) : null}
         </View>
       </AppKitProvider>
     </SafeAreaProvider>

@@ -53,7 +53,7 @@ function ticketStats(event: EventSummary, tickets: TicketDetail[]) {
   const available = Number(event.remainingTicketCount ?? 0) || tickets.filter((ticket) => String(ticket.status).toUpperCase() === 'AVAILABLE').length;
   const listed = tickets.filter((ticket) => String(ticket.status).toUpperCase() === 'LISTED').length;
   const used = tickets.filter((ticket) => String(ticket.status).toUpperCase() === 'USED').length;
-  const cancelled = tickets.filter((ticket) => String(ticket.status).toUpperCase() === 'CANCELLED').length;
+  const cancelled = tickets.filter((ticket) => String(ticket.status).toUpperCase() === 'CANCELED').length;
   return { total, sold, available, listed, used, cancelled };
 }
 
@@ -64,7 +64,7 @@ function matchesTicketFilter(ticket: TicketDetail, filter: SalesFilter) {
   if (filter === 'sold') return ['SOLD', 'LISTED', 'USED'].includes(status);
   if (filter === 'listed') return status === 'LISTED';
   if (filter === 'used') return status === 'USED';
-  if (filter === 'cancelled') return status === 'CANCELLED';
+  if (filter === 'cancelled') return status === 'CANCELED';
   return true;
 }
 
@@ -145,7 +145,7 @@ export default function SalesStatusPage({ navigation, route }: any) {
 
       const page = await backendApi.getMyEvents({ page: 0, size: 100 });
       const myEvents = (page.items ?? [])
-        .filter((item) => String(item.status).toUpperCase() !== 'CANCELLED')
+        .filter((item) => String(item.status).toUpperCase() !== 'CANCELED')
         .sort((a, b) => {
           const rankDiff = salesSortRank(a) - salesSortRank(b);
           if (rankDiff !== 0) return rankDiff;

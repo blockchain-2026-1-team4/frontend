@@ -4,14 +4,14 @@ import { AdminPagination } from "../../components/AdminPagination";
 import { backendApi } from "../../lib/backend";
 import type { EventDetail } from "../../types/api";
 
-type FilterStatus = "ALL" | "PUBLISHED" | "INACTIVE" | "CANCELLED";
+type FilterStatus = "ALL" | "ACTIVE" | "INACTIVE" | "CANCELED";
 type FlaggedFilter = "ALL" | "FLAGGED" | "NORMAL";
 const PAGE_SIZE = 20;
 
 const STATUS_LABEL: Record<string, string> = {
-  PUBLISHED: "진행 중",
+  ACTIVE: "진행 중",
   INACTIVE: "비활성",
-  CANCELLED: "취소됨",
+  CANCELED: "취소됨",
   FLAGGED: "검토",
 };
 
@@ -51,8 +51,8 @@ function shortId(value?: string) {
 
 function sortCanceledLast(events: EventDetail[]) {
   return [...events].sort((a, b) => {
-    if (a.status === "CANCELLED" && b.status !== "CANCELLED") return 1;
-    if (a.status !== "CANCELLED" && b.status === "CANCELLED") return -1;
+    if (a.status === "CANCELED" && b.status !== "CANCELED") return 1;
+    if (a.status !== "CANCELED" && b.status === "CANCELED") return -1;
     const aTime = new Date(a.eventAt ?? a.eventDateTime ?? "").getTime();
     const bTime = new Date(b.eventAt ?? b.eventDateTime ?? "").getTime();
     return (Number.isNaN(bTime) ? 0 : bTime) - (Number.isNaN(aTime) ? 0 : aTime);
@@ -161,7 +161,7 @@ export function AdminEventsPage() {
     setCancelingId(eventId);
     setError(null);
     try {
-      await backendApi.updateEventStatus(eventId, { status: "CANCELLED" });
+      await backendApi.updateEventStatus(eventId, { status: "CANCELED" });
       setActionMessage("이벤트를 취소했습니다.");
       await load();
     } catch (cause) {
@@ -180,7 +180,7 @@ export function AdminEventsPage() {
     setRestoringId(eventId);
     setError(null);
     try {
-      await backendApi.updateEventStatus(eventId, { status: "PUBLISHED" });
+      await backendApi.updateEventStatus(eventId, { status: "ACTIVE" });
       setActionMessage("이벤트를 다시 활성화했습니다.");
       await load();
     } catch (cause) {
@@ -199,9 +199,9 @@ export function AdminEventsPage() {
 
   const filterTabs: { label: string; value: FilterStatus }[] = [
     { label: "전체", value: "ALL" },
-    { label: "진행 중", value: "PUBLISHED" },
+    { label: "진행 중", value: "ACTIVE" },
     { label: "비활성", value: "INACTIVE" },
-    { label: "취소됨", value: "CANCELLED" },
+    { label: "취소됨", value: "CANCELED" },
   ];
 
   const flaggedTabs: { label: string; value: FlaggedFilter }[] = [
@@ -365,10 +365,10 @@ export function AdminEventsPage() {
                   ) : (
                     visibleItems.map((event) => {
                       const isFlagged = event.flagged === true || event.status === "FLAGGED";
-                      const status = isFlagged ? "FLAGGED" : event.status ?? "PUBLISHED";
-                      const isCanceled = event.status === "CANCELLED";
+                      const status = isFlagged ? "FLAGGED" : event.status ?? "ACTIVE";
+                      const isCanceled = event.status === "CANCELED";
                       const statusLabel = event.adminCanceled && isCanceled ? "관리자 취소" : STATUS_LABEL[status] ?? status;
-                      const statusClass = status === "PUBLISHED" ? "active" : status.toLowerCase();
+                      const statusClass = status === "ACTIVE" ? "active" : status.toLowerCase();
                       return (
                         <tr key={event.id}>
                           <td className="ae-id">#{shortId(event.id)}</td>
@@ -410,11 +410,11 @@ export function AdminEventsPage() {
                               )}
                               <button
                                 className="ae-action danger"
-                                disabled={cancelingId === event.id || event.status === "CANCELLED"}
+                                disabled={cancelingId === event.id || event.status === "CANCELED"}
                                 onClick={() => void handleCancel(event.id)}
                                 type="button"
                               >
-                                {cancelingId === event.id ? "취소 중..." : event.status === "CANCELLED" ? "취소됨" : "취소하기"}
+                                {cancelingId === event.id ? "취소 중..." : event.status === "CANCELED" ? "취소됨" : "취소하기"}
                               </button>
                               {isCanceled ? (
                                 <button

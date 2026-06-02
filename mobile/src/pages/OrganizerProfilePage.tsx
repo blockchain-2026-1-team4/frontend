@@ -82,7 +82,7 @@ export default function OrganizerProfilePage({ navigation }: any) {
   useFocusEffect(useCallback(() => { void load(); }, [load]));
 
   const metrics = useMemo(() => {
-    const operating = events.filter((event) => String(event.status ?? '').toUpperCase() === 'PUBLISHED').length;
+    const operating = events.filter((event) => String(event.status ?? '').toUpperCase() === 'ACTIVE').length;
     const issued = tickets.length || events.reduce((sum, event) => sum + Number(event.totalTicketCount ?? 0), 0);
     const checkedIn = tickets.filter((ticket) => String(ticket.status).toUpperCase() === 'USED').length;
     const resale = tickets.filter((ticket) => String(ticket.status).toUpperCase() === 'LISTED').length;

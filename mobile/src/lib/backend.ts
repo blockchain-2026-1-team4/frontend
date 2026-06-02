@@ -119,8 +119,8 @@ export const backendApi = {
     return unwrap<TicketDetail[]>(http.post(`/events/${eventId}/tickets/cancel-issued`, payload));
   },
 
-  async purchasePrimary(ticketId: string) {
-    return unwrap<TicketDetail>(http.post(`/tickets/${ticketId}/purchase`));
+  async purchasePrimary(ticketId: string, transactionHash?: string) {
+    return unwrap<TicketDetail>(http.post(`/tickets/${ticketId}/purchase`, transactionHash ? { transactionHash } : undefined));
   },
 
   async getResaleListings(params?: { page?: number; size?: number }) {
@@ -131,12 +131,12 @@ export const backendApi = {
     return unwrap<ResaleListing>(http.get(`/resale-listings/${listingId}`));
   },
 
-  async purchaseResale(listingId: string) {
-    return unwrap<ResaleListing>(http.post(`/resale-listings/${listingId}/purchase`));
+  async purchaseResale(listingId: string, transactionHash?: string) {
+    return unwrap<ResaleListing>(http.post(`/resale-listings/${listingId}/purchase`, transactionHash ? { transactionHash } : undefined));
   },
 
-  async cancelResale(listingId: string) {
-    return unwrap<ResaleListing>(http.patch(`/resale-listings/${listingId}/cancel`));
+  async cancelResale(listingId: string, transactionHash?: string) {
+    return unwrap<ResaleListing>(http.patch(`/resale-listings/${listingId}/cancel`, transactionHash ? { transactionHash } : undefined));
   },
 
   async getMyTickets() {
@@ -151,8 +151,8 @@ export const backendApi = {
     return unwrap<Record<string, unknown>>(http.get(`/tickets/${ticketId}/validity`));
   },
 
-  async createResale(ticketId: string, price: string) {
-    return unwrap<ResaleListing>(http.post(`/tickets/${ticketId}/resale-listing`, { priceWei: price }));
+  async createResale(ticketId: string, price: string, transactionHash?: string) {
+    return unwrap<ResaleListing>(http.post(`/tickets/${ticketId}/resale-listing`, { priceWei: price, transactionHash }));
   },
 
   async createDispute(payload: { resaleListingId?: string | null; ticketId?: string | null; type: string; description: string }) {
@@ -239,10 +239,11 @@ export const backendApi = {
     return unwrap<OrganizerApplication>(http.post("/organizer-applications", payload));
   },
 
-  async reviewOrganizerApplication(applicationId: string, decision: "APPROVED" | "REJECTED") {
+  async reviewOrganizerApplication(applicationId: string, decision: "APPROVED" | "REJECTED", transactionHash?: string) {
     return unwrap<OrganizerApplication>(
       http.patch(`/organizer-applications/${applicationId}/review`, {
         status: decision,
+        transactionHash,
       }),
     );
   },

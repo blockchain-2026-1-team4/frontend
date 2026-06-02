@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { AdminPagination } from "../../components/AdminPagination";
 import { backendApi } from "../../lib/backend";
+import { addOrganizerOnChain } from "../../lib/blockchain/client";
 import type { OrganizerApplication } from "../../types/api";
 
 type StatusFilter = "ALL" | "PENDING" | "APPROVED" | "REJECTED";
@@ -56,6 +57,20 @@ function buildError(cause: unknown) {
     return cause.message;
   }
   return "주최자 신청 목록을 불러오지 못했습니다.";
+}
+
+function reviewError(cause: unknown) {
+  const status = getHttpStatus(cause);
+  if (status === 401 || status === 403) {
+    return "관리자 로그인이 필요합니다. 관리자 계정으로 다시 로그인하세요.";
+  }
+  if (status === 502) {
+    return "온체인 주최자 권한 트랜잭션 확인에 실패했습니다. MetaMask 활동과 Kairos 네트워크 상태를 확인해주세요.";
+  }
+  if (cause instanceof Error) {
+    return cause.message;
+  }
+  return "주최자 신청 심사에 실패했습니다.";
 }
 
 export function OrganizerApprovalsPage() {
@@ -118,7 +133,12 @@ export function OrganizerApprovalsPage() {
   const approvedCount = items.filter((item) => item.status === "APPROVED").length;
   const rejectedCount = items.filter((item) => item.status === "REJECTED").length;
 
-  async function review(id: string, decision: "APPROVED" | "REJECTED") {
+  async function review(item: OrganizerApplication, decision: "APPROVED" | "REJECTED") {
+    const id = item.id;
+    if (!id) {
+      setError("신청 ID를 확인할 수 없습니다.");
+      return;
+    }
     const message = decision === "APPROVED" ? "이 주최자 신청을 승인할까요?" : "이 주최자 신청을 거절할까요?";
     if (!window.confirm(message)) {
       return;
@@ -127,11 +147,14 @@ export function OrganizerApprovalsPage() {
     setReviewingId(id);
     setError(null);
     try {
-      await backendApi.reviewOrganizerApplication(id, decision);
+      const transactionHash = decision === "APPROVED"
+        ? await addOrganizerOnChain(String(item.userWalletAddress ?? ""))
+        : undefined;
+      await backendApi.reviewOrganizerApplication(id, decision, transactionHash);
       setMessage(decision === "APPROVED" ? "주최자 신청을 승인했습니다." : "주최자 신청을 거절했습니다.");
       await load();
     } catch (cause) {
-      setError(buildError(cause));
+      setError(reviewError(cause));
     } finally {
       setReviewingId(null);
       window.setTimeout(() => setMessage(null), 3000);
@@ -306,7 +329,7 @@ export function OrganizerApprovalsPage() {
                             <button
                               className="oa-action primary"
                               disabled={!item.id || !isPending || isBusy}
-                              onClick={() => item.id && void review(item.id, "APPROVED")}
+                              onClick={() => void review(item, "APPROVED")}
                               type="button"
                             >
                               승인하기
@@ -314,7 +337,7 @@ export function OrganizerApprovalsPage() {
                             <button
                               className="oa-action danger"
                               disabled={!item.id || !isPending || isBusy}
-                              onClick={() => item.id && void review(item.id, "REJECTED")}
+                              onClick={() => void review(item, "REJECTED")}
                               type="button"
                             >
                               거절하기

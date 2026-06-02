@@ -62,7 +62,7 @@ function formatStartSummary(startTime: number, now = new Date()) {
 
 function checkInStatus(item: CheckInEvent, now = new Date()): CheckInState {
   const eventStatus = String(item.event.status ?? '').toUpperCase();
-  if (eventStatus === 'CANCELLED') {
+  if (eventStatus === 'CANCELED') {
     return { label: '이벤트 취소', rank: 0, section: '종료된 이벤트', actionable: false, ticketCount: 0, usedCount: 0, startSummary: '-', buttonLabel: '체크인 하기' };
   }
   const ticketCount = item.event.totalTicketCount && item.event.totalTicketCount > 0 ? item.event.totalTicketCount : item.tickets.length;
@@ -108,7 +108,7 @@ export default function CheckInEventListPage({ navigation, route }: any) {
   const load = useCallback(async () => {
     try {
       const pageData = await backendApi.getMyEvents({ page: 0, size: 30 });
-      const publishedEvents = (pageData.items ?? []).filter((event) => event.status === 'PUBLISHED');
+      const publishedEvents = (pageData.items ?? []).filter((event) => event.status === 'ACTIVE');
       const withTickets = await Promise.all(
         publishedEvents.map(async (event) => ({
           event,

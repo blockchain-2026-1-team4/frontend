@@ -1,9 +1,11 @@
-﻿import React, { useEffect, useMemo, useState } from 'react';
+import { useProvider } from '@reown/appkit-react-native';
+import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { TextInput } from '../components/TextInput';
 import WalletRequiredView from '../components/WalletRequiredView';
 import { errorMessage } from '../lib/account';
 import { backendApi } from '../lib/backend';
+import { listTicketOnChain } from '../lib/blockchain/client';
 import { ethToWei, formatEventDate, formatTicketStatus, formatTicketValidity, isEventEnded, weiToEthValue } from '../lib/ticketDisplay';
 import type { EventDetail, TicketDetail, UserProfile } from '../types/api';
 
@@ -46,7 +48,8 @@ function localBlockReason(ticket: TicketDetail | null, event: EventDetail | null
   if (status === 'LISTED') return '이미 판매 등록된 티켓입니다.';
   if (status === 'USED') return '사용 완료된 티켓은 리셀할 수 없습니다.';
   if (status === 'AVAILABLE') return '구매 완료된 본인 티켓만 리셀할 수 있습니다.';
-  if (event?.status && event.status !== 'PUBLISHED') return '판매 가능한 이벤트의 티켓만 리셀할 수 있습니다.';
+  const eventStatus = String(event?.status ?? '').toUpperCase();
+  if (eventStatus && eventStatus !== 'ACTIVE') return '판매 가능한 이벤트의 티켓만 리셀할 수 있습니다.';
   if (isEventEnded(event)) return '종료된 이벤트의 티켓은 리셀 등록할 수 없습니다.';
   if (ticket && ticket.resaleEnabled === false) return '리셀 정책상 판매가 제한된 티켓입니다.';
   if (event && event.resaleAllowed === false) return '이 이벤트는 리셀을 허용하지 않습니다.';
@@ -65,6 +68,7 @@ export default function TicketResaleCreatePage({ route, navigation }: any) {
   const [feedback, setFeedback] = useState('');
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const { provider } = useProvider();
 
   useEffect(() => {
     const load = async () => {
@@ -110,7 +114,10 @@ export default function TicketResaleCreatePage({ route, navigation }: any) {
     setFeedback('');
     try {
       const priceWei = ethToWei(priceEth);
-      const listing = await backendApi.createResale(String(ticketId), priceWei);
+      const tokenId = ticket?.contractTokenId;
+      if (!tokenId) throw new Error('온체인 tokenId가 없는 티켓입니다. 리셀 등록 전에 티켓 발행 상태를 확인해주세요.');
+      const transactionHash = await listTicketOnChain(provider, String(tokenId), priceWei);
+      const listing = await backendApi.createResale(String(ticketId), priceWei, transactionHash);
       navigation.replace('ResaleRegisterComplete', { listingId: listing.id ?? listing.listingId, ticketId });
     } catch (error: any) {
       const message = normalizeResaleFailure(error);

@@ -14,7 +14,6 @@ const STATUS_LABEL: Record<string, string> = {
   REJECTED: '반려',
   CLOSED: '종료',
   CANCELED: '취소됨',
-  CANCELLED: '취소됨',
 };
 
 const TYPE_LABEL: Record<string, string> = {
@@ -26,7 +25,7 @@ const TYPE_LABEL: Record<string, string> = {
 
 const EDITABLE_STATUSES = new Set(['OPEN', 'RECEIVED']);
 const PROCESSING_STATUSES = new Set(['REVIEWING', 'PROCESSING']);
-const DONE_STATUSES = new Set(['RESOLVED', 'REJECTED', 'CLOSED', 'CANCELED', 'CANCELLED']);
+const DONE_STATUSES = new Set(['RESOLVED', 'REJECTED', 'CLOSED', 'CANCELED']);
 
 type DisputeTargetSummary = {
   title: string;

@@ -15,8 +15,8 @@ import {
 import Svg, { Path } from 'react-native-svg';
 import { TextInput } from '../components/TextInput';
 import { accountStatusMessage, errorMessage, routeForEntry } from '../lib/account';
-import { isWalletConnectConfigured } from '../lib/appkit';
 import { backendApi } from '../lib/backend';
+import { config } from '../lib/config';
 
 type AuthRole = 'USER' | 'ORGANIZER';
 type WalletStep = 'idle' | 'signing' | 'signed';
@@ -25,7 +25,9 @@ type EthereumProvider = {
   request: (args: { method: string; params?: unknown[] }, chainId?: string) => Promise<unknown>;
 };
 
+const CONNECT_TIMEOUT_MS = 20 * 1000;
 const SIGN_TIMEOUT_MS = 5 * 60 * 1000;
+const isWalletConnectConfigured = Boolean(config.reownProjectId);
 
 function BackIcon({ color = '#6B7280' }: { color?: string }) {
   return (
@@ -81,6 +83,11 @@ function walletMessage(error: any, fallback: string) {
   if (error?.code === -32002) return '지갑에 이미 처리 중인 요청이 있습니다. 지갑 앱을 확인해주세요.';
   const raw = typeof error?.message === 'string' ? error.message : '';
   return raw.trim() || fallback;
+}
+
+function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
+  const timeout = new Promise<never>((_, reject) => setTimeout(() => reject(new Error(message)), ms));
+  return Promise.race([promise, timeout]) as Promise<T>;
 }
 
 function compactWallet(address?: string) {
@@ -204,12 +211,23 @@ export default function AuthPage({ navigation, route }: any) {
         setFeedback({ type: 'error', message: '브라우저 지갑을 찾을 수 없습니다. MetaMask 같은 Web3 지갑을 설치해주세요.' });
         return;
       }
+      setLoading(true);
+      setFeedback({
+        type: 'success',
+        message: 'MetaMask 연결 요청을 보냈습니다. 팝업이 보이지 않으면 Chrome 오른쪽 위 MetaMask 아이콘을 열어 승인해 주세요.',
+      });
       try {
-        const rawAccounts = await injectedProvider.request({ method: 'eth_requestAccounts' });
+        const rawAccounts = await withTimeout(
+          injectedProvider.request({ method: 'eth_requestAccounts' }),
+          CONNECT_TIMEOUT_MS,
+          'MetaMask 연결 요청이 아직 승인되지 않았습니다. Chrome 오른쪽 위 MetaMask 아이콘을 열어 대기 중인 요청을 승인한 뒤 다시 시도해 주세요.',
+        );
         const address = (Array.isArray(rawAccounts) ? rawAccounts : []).find((item): item is string => typeof item === 'string');
         if (!address) throw new Error('연결된 지갑 주소를 가져오지 못했습니다.');
+        setWalletAddress(address);
         await completeWalletAuth(injectedProvider, address);
       } catch (error: any) {
+        setLoading(false);
         setFeedback({ type: 'error', message: walletMessage(error, '지갑 연결에 실패했습니다.') });
       }
       return;

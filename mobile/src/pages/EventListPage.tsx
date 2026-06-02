@@ -18,7 +18,7 @@ const CATEGORIES = [
 
 const STATUS_FILTERS = [
   { id: 'ALL', label: '전체' },
-  { id: 'PUBLISHED', label: '예매 가능' },
+  { id: 'ACTIVE', label: '예매 가능' },
 ] as const;
 
 function eventName(event: EventSummary) {

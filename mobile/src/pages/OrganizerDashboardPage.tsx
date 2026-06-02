@@ -30,7 +30,7 @@ const APPLICATION_LABEL: Record<string, string> = {
 };
 
 const STATUS_BADGE: Record<string, { label: string; style: 'live' | 'soon' | 'draft' }> = {
-  PUBLISHED: { label: '게시중', style: 'live' },
+  ACTIVE: { label: '게시중', style: 'live' },
   DRAFT: { label: '초안', style: 'draft' },
   INACTIVE: { label: '비공개', style: 'draft' },
 };
@@ -108,7 +108,7 @@ function publishedMonthDelta(events: EventSummary[], now = new Date()) {
   let previousCount = 0;
 
   events.forEach((event) => {
-    if (String(event.status ?? '').toUpperCase() !== 'PUBLISHED') return;
+    if (String(event.status ?? '').toUpperCase() !== 'ACTIVE') return;
     const date = eventMetricDate(event);
     if (!date) return;
     const key = monthKey(date);
@@ -197,16 +197,16 @@ export default function OrganizerDashboardPage({ navigation }: any) {
   const canApply = !latestApplication || latestStatus === 'REJECTED';
 
   const totalEvents = events.length;
-  const publishedEvents = events.filter((event) => String(event.status ?? '').toUpperCase() === 'PUBLISHED').length;
+  const publishedEvents = events.filter((event) => String(event.status ?? '').toUpperCase() === 'ACTIVE').length;
   const publishedTrend = formatDelta(publishedMonthDelta(events));
   const todayScheduledEvents = events.filter((event) => {
-    if (String(event.status ?? '').toUpperCase() === 'CANCELLED') return false;
+    if (String(event.status ?? '').toUpperCase() === 'CANCELED') return false;
     const nextRoundTime = getNextRoundTime(event);
     return !Number.isNaN(nextRoundTime) && isToday(new Date(nextRoundTime).toISOString());
   }).length;
 
   const upcomingEvents = events
-    .filter((event) => String(event.status ?? '').toUpperCase() !== 'CANCELLED')
+    .filter((event) => String(event.status ?? '').toUpperCase() !== 'CANCELED')
     .sort((left, right) => {
       const leftTime = getNextRoundTime(left);
       const rightTime = getNextRoundTime(right);

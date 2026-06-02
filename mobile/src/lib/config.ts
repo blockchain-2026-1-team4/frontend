@@ -90,8 +90,10 @@ export const config = {
   dappUrl: process.env.EXPO_PUBLIC_DAPP_URL || "https://trust-ticket.local",
   appScheme: process.env.EXPO_PUBLIC_APP_SCHEME || "trustticket",
   reownProjectId: process.env.EXPO_PUBLIC_REOWN_PROJECT_ID || "",
-  chainRpcUrl: process.env.EXPO_PUBLIC_CHAIN_RPC_URL || "http://10.0.2.2:8545",
-  chainId: Number(process.env.EXPO_PUBLIC_CHAIN_ID || 31337),
+  chainRpcUrl: process.env.EXPO_PUBLIC_CHAIN_RPC_URL || "https://public-en-kairos.node.kaia.io",
+  chainId: Number(process.env.EXPO_PUBLIC_CHAIN_ID || 1001),
   trustTicketContractAddress:
-    process.env.EXPO_PUBLIC_TRUST_TICKET_CONTRACT_ADDRESS || "",
+    process.env.EXPO_PUBLIC_TRUST_TICKET_CONTRACT_ADDRESS || "0x3e1B4b3F8B61D12DFe7Ba1d8893Ff4E84bdb378C",
+  fanClubMembershipContractAddress:
+    process.env.EXPO_PUBLIC_FANCLUB_MEMBERSHIP_CONTRACT_ADDRESS || "0x73aF7a3B647a81ab7003817c9Cb99137fF6A6b4D",
 };

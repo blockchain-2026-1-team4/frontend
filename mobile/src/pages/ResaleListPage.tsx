@@ -59,7 +59,7 @@ function statusLabelOf(status?: string) {
   if (['ACTIVE', 'LISTED', 'OPEN', 'ON_SALE'].includes(normalized)) return '판매중';
   if (['SOLD', 'COMPLETED', 'PURCHASED'].includes(normalized)) return '판매완료';
   if (['CLOSED', 'EXPIRED'].includes(normalized)) return '판매종료';
-  if (['CANCELED', 'CANCELLED'].includes(normalized)) return '취소됨';
+  if (normalized === 'CANCELED') return '취소됨';
   return status || '-';
 }
 

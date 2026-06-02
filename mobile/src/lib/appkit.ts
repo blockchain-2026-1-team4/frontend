@@ -5,10 +5,6 @@ import { createAppKit, type AppKitNetwork } from '@reown/appkit-react-native';
 import { config } from './config';
 import { appKitStorage } from './appkitStorage';
 
-const fallbackProjectId = '00000000000000000000000000000000';
-
-export const isWalletConnectConfigured = Boolean(config.reownProjectId);
-
 type ChainMeta = { name: string; currencyName: string; symbol: string };
 
 const CHAIN_META: Record<number, ChainMeta> = {
@@ -23,11 +19,6 @@ function resolveChainMeta(chainId: number): ChainMeta {
 
 const meta = resolveChainMeta(config.chainId);
 
-// Single network used for both WalletConnect sessions and on-chain operations.
-// EXPO_PUBLIC_CHAIN_ID controls which chain is requested in the WC session proposal.
-// Currently set to Sepolia (11155111) for login-flow verification — MetaMask Mobile
-// includes Sepolia by default, avoiding network-add prompts during testing.
-// Switch back to Kaia Kairos (1001) by updating EXPO_PUBLIC_CHAIN_ID in .env.
 export const walletNetwork: AppKitNetwork = {
   id: config.chainId,
   name: meta.name,
@@ -68,7 +59,7 @@ const walletConnectMethods = [
 const ethersAdapter = new EthersAdapter();
 
 export const appKit = createAppKit({
-  projectId: config.reownProjectId || fallbackProjectId,
+  projectId: config.reownProjectId,
   networks: appKitNetworks,
   defaultNetwork: walletNetwork,
   adapters: [ethersAdapter],

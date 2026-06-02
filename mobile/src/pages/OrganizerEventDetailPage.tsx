@@ -86,7 +86,7 @@ export default function OrganizerEventDetailPage({ navigation, route }: any) {
   const [tickets, setTickets] = useState<TicketDetail[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [statusDraft, setStatusDraft] = useState('PUBLISHED');
+  const [statusDraft, setStatusDraft] = useState('ACTIVE');
   const [statusSaving, setStatusSaving] = useState(false);
   const [statusAccordionOpen, setStatusAccordionOpen] = useState(false);
 
@@ -106,7 +106,7 @@ export default function OrganizerEventDetailPage({ navigation, route }: any) {
       const detail = await backendApi.getEvent(eventId);
       const eventTickets = await backendApi.getEventTickets(eventId).catch(() => []);
       setEvent(detail);
-      setStatusDraft(detail.status || 'PUBLISHED');
+      setStatusDraft(detail.status || 'ACTIVE');
       setTickets(eventTickets);
     } catch (error: any) {
       Alert.alert('이벤트 로드 실패', errorMessage(error, '이벤트 정보를 불러오지 못했습니다.'));
@@ -120,7 +120,7 @@ export default function OrganizerEventDetailPage({ navigation, route }: any) {
 
   const saveStatus = async (newStatus: string) => {
     if (!event) return;
-    if (event.adminCanceled && newStatus !== 'CANCELLED') {
+    if (event.adminCanceled && newStatus !== 'CANCELED') {
       Alert.alert('변경 불가', '관리자가 취소한 이벤트는 주최자가 복구할 수 없습니다.');
       return;
     }
@@ -137,11 +137,11 @@ export default function OrganizerEventDetailPage({ navigation, route }: any) {
     }
   };
 
-  const isCancelled = statusDraft === 'CANCELLED';
+  const isCancelled = statusDraft === 'CANCELED';
 
   const handleStatusSelect = (newStatus: string) => {
     if (newStatus === statusDraft || statusSaving) return;
-    if (isCancelled && newStatus !== 'CANCELLED') {
+    if (isCancelled && newStatus !== 'CANCELED') {
       if (typeof window !== 'undefined' && typeof window.confirm === 'function') {
         window.alert('변경 불가\n취소된 이벤트는 되돌릴 수 없습니다.');
         return;
@@ -149,7 +149,7 @@ export default function OrganizerEventDetailPage({ navigation, route }: any) {
       Alert.alert('변경 불가', '취소된 이벤트는 되돌릴 수 없습니다.');
       return;
     }
-    if (newStatus === 'CANCELLED') {
+    if (newStatus === 'CANCELED') {
       if (typeof window !== 'undefined' && typeof window.confirm === 'function') {
         if (window.confirm('이벤트 취소\n취소 후 되돌릴 수 없습니다. 이벤트를 취소하시겠습니까?')) {
           void saveStatus(newStatus);
@@ -271,18 +271,18 @@ export default function OrganizerEventDetailPage({ navigation, route }: any) {
             </Text>
             <View style={styles.statusOptionList}>
               <TouchableOpacity
-                style={[styles.statusOptionRow, statusDraft === 'PUBLISHED' && styles.statusOptionRowCurrent, isCancelled && styles.statusOptionRowDisabled]}
+                style={[styles.statusOptionRow, statusDraft === 'ACTIVE' && styles.statusOptionRowCurrent, isCancelled && styles.statusOptionRowDisabled]}
                 disabled={statusSaving || !!event.adminCanceled || isCancelled}
-                onPress={() => handleStatusSelect('PUBLISHED')}
+                onPress={() => handleStatusSelect('ACTIVE')}
               >
                 <View style={[styles.statusOptionIcon, { backgroundColor: '#EEEDFE' }]}>
                   <DetailIcon name="broadcast" color="#534AB7" size={14} />
                 </View>
                 <View style={styles.statusOptionCopy}>
-                  <Text style={[styles.statusOptionTitle, statusDraft === 'PUBLISHED' && styles.statusOptionTitleActive]}>게시중</Text>
+                  <Text style={[styles.statusOptionTitle, statusDraft === 'ACTIVE' && styles.statusOptionTitleActive]}>게시중</Text>
                   <Text style={styles.statusOptionSub}>사용자에게 이벤트가 공개됩니다.</Text>
                 </View>
-                {statusDraft === 'PUBLISHED' ? (
+                {statusDraft === 'ACTIVE' ? (
                   <View style={styles.statusCurrentBadge}>
                     <Text style={styles.statusCurrentBadgeText}>현재</Text>
                   </View>
@@ -291,7 +291,7 @@ export default function OrganizerEventDetailPage({ navigation, route }: any) {
 
               <TouchableOpacity
                 style={[styles.statusOptionRow, statusDraft === 'INACTIVE' && styles.statusOptionRowCurrent, isCancelled && styles.statusOptionRowDisabled]}
-                disabled={statusSaving || (!!event.adminCanceled && statusDraft !== 'CANCELLED') || isCancelled}
+                disabled={statusSaving || (!!event.adminCanceled && statusDraft !== 'CANCELED') || isCancelled}
                 onPress={() => handleStatusSelect('INACTIVE')}
               >
                 <View style={[styles.statusOptionIcon, { backgroundColor: '#F3F4F6' }]}>
@@ -309,9 +309,9 @@ export default function OrganizerEventDetailPage({ navigation, route }: any) {
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={[styles.statusOptionRow, styles.statusOptionRowDanger, statusDraft === 'CANCELLED' && styles.statusOptionRowCurrent]}
+                style={[styles.statusOptionRow, styles.statusOptionRowDanger, statusDraft === 'CANCELED' && styles.statusOptionRowCurrent]}
                 disabled={statusSaving}
-                onPress={() => handleStatusSelect('CANCELLED')}
+                onPress={() => handleStatusSelect('CANCELED')}
               >
                 <View style={[styles.statusOptionIcon, { backgroundColor: '#FCEBEB' }]}>
                   <DetailIcon name="x-icon" color="#A32D2D" size={14} />
@@ -320,7 +320,7 @@ export default function OrganizerEventDetailPage({ navigation, route }: any) {
                   <Text style={[styles.statusOptionTitle, { color: '#A32D2D' }]}>이벤트 취소</Text>
                   <Text style={[styles.statusOptionSub, { color: '#A32D2D', opacity: 0.7 }]}>취소 후 되돌릴 수 없습니다.</Text>
                 </View>
-                {statusDraft === 'CANCELLED' ? (
+                {statusDraft === 'CANCELED' ? (
                   <View style={styles.statusCurrentBadge}>
                     <Text style={styles.statusCurrentBadgeText}>현재</Text>
                   </View>

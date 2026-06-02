@@ -5,14 +5,14 @@ const TICKET_STATUS_LABEL: Record<string, string> = {
   SOLD: '보유 중',
   LISTED: '리셀 판매중',
   USED: '사용 완료',
-  CANCELLED: '취소됨',
+  CANCELED: '취소됨',
 };
 
 const TICKET_ENTRY_STATUS_LABEL: Record<string, string> = {
   SOLD: '입장 가능',
   LISTED: '입장 가능',
   USED: '체크인 완료',
-  CANCELLED: '사용 불가',
+  CANCELED: '사용 불가',
 };
 
 const VALIDITY_REASON_LABEL: Record<string, string> = {
@@ -21,15 +21,14 @@ const VALIDITY_REASON_LABEL: Record<string, string> = {
   USED: '이미 사용됨',
   EXPIRED: '만료',
   CANCELED: '취소',
-  CANCELLED: '취소',
   NOT_OWNER: '소유자 불일치',
 };
 
 const EVENT_STATUS_LABEL: Record<string, string> = {
   DRAFT: '초안',
-  PUBLISHED: '게시중',
+  ACTIVE: '게시중',
   INACTIVE: '비공개',
-  CANCELLED: '이벤트 취소',
+  CANCELED: '이벤트 취소',
 };
 
 export type DisplayStatus = {
@@ -180,7 +179,7 @@ export function formatSalesStatus(start?: string | null, end?: string | null, no
 export function getEventDisplayStatus(event?: EventSummary | null, now = new Date()): DisplayStatus {
   if (!event) return { label: '-', tone: 'gray' };
   const status = normalized(event.status);
-  if (status === 'CANCELLED') return { label: '취소', tone: 'red' };
+  if (status === 'CANCELED') return { label: '취소', tone: 'red' };
   if (status === 'DRAFT') return { label: '초안', tone: 'gray' };
   if (status === 'INACTIVE') return { label: '비공개', tone: 'gray' };
 
@@ -216,7 +215,7 @@ export function getEventDisplayStatus(event?: EventSummary | null, now = new Dat
 export function getSalesDisplayStatus(event?: EventSummary | null, now = new Date()): DisplayStatus {
   if (!event) return { label: '-', tone: 'gray' };
   const status = normalized(event.status);
-  if (status === 'CANCELLED') return { label: '취소', tone: 'red' };
+  if (status === 'CANCELED') return { label: '취소', tone: 'red' };
   if (status === 'DRAFT' || status === 'INACTIVE') return { label: '티켓 미발행', tone: 'gray' };
 
   const total = Number(event.totalTicketCount ?? 0);
@@ -238,7 +237,7 @@ export function getUserEventDisplayStatus(event?: EventSummary | null, now = new
   if (!event) return null;
   const status = normalized(event.status);
   // 우선순위 1: 비공개/초안/취소는 사용자에게 노출하지 않음
-  if (status === 'DRAFT' || status === 'INACTIVE' || status === 'CANCELLED') return null;
+  if (status === 'DRAFT' || status === 'INACTIVE' || status === 'CANCELED') return null;
 
   const current = now.getTime();
   const roundStarts = event.rounds?.map(roundStartAt).filter((v) => !Number.isNaN(v)) ?? [];
@@ -344,7 +343,7 @@ export function getTicketDisplayStatus(
   if (!ticket) return { label: '-', tone: 'gray' };
   const status = normalized(ticket.status);
 
-  if (status === 'CANCELLED') return { label: '취소됨', tone: 'red' };
+  if (status === 'CANCELED') return { label: '취소됨', tone: 'red' };
   if (status === 'USED') return { label: '체크인 완료', tone: 'gray' };
 
   if (event) {

@@ -15,7 +15,7 @@ const STATUS_FILTERS = [
   { value: 'SOLD_GROUP' as const, label: '판매됨',   tone: 'red' as const },
   { value: 'LISTED' as const,     label: '리셀',     tone: 'amber' as const },
   { value: 'USED' as const,       label: '입장 완료', tone: 'blue' as const },
-  { value: 'CANCELLED' as const,  label: '취소',     tone: undefined },
+  { value: 'CANCELED' as const,  label: '취소',     tone: undefined },
 ];
 
 type SortMode = 'latest' | 'seat' | 'priceAsc' | 'priceDesc';

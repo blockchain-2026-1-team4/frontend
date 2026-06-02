@@ -1,7 +1,9 @@
+import { useProvider } from '@reown/appkit-react-native';
 import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import WalletRequiredView from '../components/WalletRequiredView';
 import { backendApi } from '../lib/backend';
+import { purchaseTicketOnChain } from '../lib/blockchain/client';
 import { showDialog } from '../lib/dialog';
 import { formatCompactDateTime, formatTicketStatus, weiToEth } from '../lib/ticketDisplay';
 import type { EventDetail, TicketDetail, UserProfile } from '../types/api';
@@ -65,6 +67,7 @@ export default function TicketPurchasePage({ route, navigation }: any) {
   const [me, setMe] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const { provider } = useProvider();
 
   useEffect(() => {
     const load = async () => {
@@ -92,7 +95,12 @@ export default function TicketPurchasePage({ route, navigation }: any) {
   const submitPurchase = async () => {
     setSubmitting(true);
     try {
-      const purchased = await backendApi.purchasePrimary(String(ticketId));
+      const tokenId = ticket?.contractTokenId;
+      const priceWei = ticket?.originalPriceWei ?? ticket?.priceWei ?? event?.ticketPriceWei;
+      if (!tokenId) throw new Error('온체인 tokenId가 없는 티켓입니다. 주최자가 티켓을 다시 발행해야 합니다.');
+      if (!priceWei) throw new Error('티켓 가격 정보를 확인할 수 없습니다.');
+      const transactionHash = await purchaseTicketOnChain(provider, String(tokenId), String(priceWei));
+      const purchased = await backendApi.purchasePrimary(String(ticketId), transactionHash);
       navigation.replace('PurchaseComplete', { type: 'primary', ticketId: purchased.id ?? purchased.ticketId, eventId: purchased.eventId });
     } catch (error: any) {
       showDialog('구매 실패', error.message || '티켓 구매에 실패했습니다.');

@@ -1,7 +1,9 @@
+import { useProvider } from '@reown/appkit-react-native';
 import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { errorMessage } from '../lib/account';
 import { backendApi } from '../lib/backend';
+import { purchaseResaleTicketOnChain } from '../lib/blockchain/client';
 import { showDialog } from '../lib/dialog';
 import { isEventEnded } from '../lib/ticketDisplay';
 import type { EventDetail, ResaleListing, TicketDetail, UserProfile } from '../types/api';
@@ -11,7 +13,6 @@ const STATUS_LABEL: Record<string, string> = {
   SOLD: '판매완료',
   CLOSED: '판매종료',
   CANCELED: '취소됨',
-  CANCELLED: '취소됨',
 };
 
 function statusLabel(status?: string, event?: EventDetail | null) {
@@ -27,7 +28,7 @@ function blockedPurchaseMessage(listing: ResaleListing | null, isMyListing: bool
   if (isEventEnded(event)) return '공연이 종료되어 판매가 종료된 리셀 티켓입니다.';
   if (status === 'SOLD') return '이미 판매 완료된 리셀 티켓입니다.';
   if (status === 'CLOSED') return '판매가 종료된 리셀 티켓입니다.';
-  if (status === 'CANCELED' || status === 'CANCELLED') return '취소된 리셀 티켓입니다.';
+  if (status === 'CANCELED') return '취소된 리셀 티켓입니다.';
   if (status !== 'ACTIVE') return '현재 구매할 수 없는 리셀 티켓입니다.';
   return '';
 }
@@ -41,6 +42,7 @@ export default function ResaleDetailPage({ route, navigation }: any) {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [feedback, setFeedback] = useState('');
+  const { provider } = useProvider();
 
   useEffect(() => {
     const load = async () => {
@@ -76,7 +78,7 @@ export default function ResaleDetailPage({ route, navigation }: any) {
     const status = listing?.status?.toUpperCase();
     if (status === 'SOLD') return '판매완료';
     if (status === 'CLOSED') return '판매종료';
-    if (status === 'CANCELED' || status === 'CANCELLED') return '취소됨';
+    if (status === 'CANCELED') return '취소됨';
     if (status !== 'ACTIVE') return '구매 불가';
     return '리셀 티켓 구매하기';
   }, [eventEnded, isMyListing, listing?.status, submitting]);
@@ -106,7 +108,12 @@ export default function ResaleDetailPage({ route, navigation }: any) {
     setFeedback('');
     try {
       const targetListingId = listing?.id ?? listing?.listingId ?? listingId;
-      const purchased = await backendApi.purchaseResale(String(targetListingId));
+      const tokenId = ticket?.contractTokenId;
+      const priceWei = listing?.priceWei ?? listing?.price;
+      if (!tokenId) throw new Error('온체인 tokenId가 없는 티켓입니다. 리셀 구매를 진행할 수 없습니다.');
+      if (!priceWei) throw new Error('리셀 가격 정보를 확인할 수 없습니다.');
+      const transactionHash = await purchaseResaleTicketOnChain(provider, String(tokenId), String(priceWei));
+      const purchased = await backendApi.purchaseResale(String(targetListingId), transactionHash);
       navigation.replace('PurchaseComplete', {
         type: 'resale',
         listingId: purchased.id ?? purchased.listingId,

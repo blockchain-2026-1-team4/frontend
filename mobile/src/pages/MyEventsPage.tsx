@@ -48,13 +48,13 @@ function eventStart(event: EventSummary) {
 
 function isEnded(event: EventSummary) {
   const status = String(event.status ?? '').toUpperCase();
-  if (status === 'CANCELLED') return false;
+  if (status === 'CANCELED') return false;
   const end = new Date(eventEnd(event)).getTime();
   return !Number.isNaN(end) && end < Date.now();
 }
 
 function isCancelled(event: EventSummary) {
-  return String(event.status ?? '').toUpperCase() === 'CANCELLED';
+  return String(event.status ?? '').toUpperCase() === 'CANCELED';
 }
 
 function isInactive(event: EventSummary) {
@@ -88,7 +88,7 @@ function eventBadge(event: EventSummary) {
   const status = String(event.status ?? '').toUpperCase();
   if (isCancelled(event)) return { label: '취소', bg: '#FCEBEB', text: '#A32D2D', grayDate: true };
   if (isEnded(event)) return { label: '종료', bg: '#F3F4F6', text: '#6B7280', grayDate: true };
-  if (status === 'PUBLISHED') return { label: '운영 중', bg: '#E1F5EE', text: '#0F6E56', grayDate: false };
+  if (status === 'ACTIVE') return { label: '운영 중', bg: '#E1F5EE', text: '#0F6E56', grayDate: false };
   if (status === 'DRAFT') return { label: '초안', bg: '#F3F4F6', text: '#9CA3AF', grayDate: true };
   if (status === 'INACTIVE') return { label: '준비 중', bg: '#EEEDFE', text: '#534AB7', grayDate: true };
   return { label: status || '상태 없음', bg: '#FAEEDA', text: '#854F0B', grayDate: true };
@@ -157,7 +157,7 @@ export default function MyEventsPage({ navigation }: any) {
   useFocusEffect(useCallback(() => { void load(); }, [load]));
 
   const publishedCount = useMemo(
-    () => events.filter((event) => String(event.status ?? '').toUpperCase() === 'PUBLISHED' && !isEnded(event) && !isCancelled(event)).length,
+    () => events.filter((event) => String(event.status ?? '').toUpperCase() === 'ACTIVE' && !isEnded(event) && !isCancelled(event)).length,
     [events],
   );
 
@@ -166,7 +166,7 @@ export default function MyEventsPage({ navigation }: any) {
     return events
       .filter((event) => {
         const status = String(event.status ?? '').toUpperCase();
-        if (statusFilter === 'operating') return status === 'PUBLISHED' && !isEnded(event) && !isCancelled(event);
+        if (statusFilter === 'operating') return status === 'ACTIVE' && !isEnded(event) && !isCancelled(event);
         if (statusFilter === 'inactive') return isInactive(event);
         if (statusFilter === 'ended') return isEnded(event);
         if (statusFilter === 'cancelled') return isCancelled(event);

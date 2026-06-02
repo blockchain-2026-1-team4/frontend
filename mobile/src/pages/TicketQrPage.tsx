@@ -1,9 +1,11 @@
+import { useProvider } from '@reown/appkit-react-native';
 import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 import { backendApi } from '../lib/backend';
+import { signCheckInMessageHash } from '../lib/blockchain/client';
 import { formatTicketEntryStatus, isTicketUsableForEntry } from '../lib/ticketDisplay';
-import type { TicketDetail, TicketQr, UserProfile } from '../types/api';
+import type { TicketDetail, TicketQr } from '../types/api';
 
 export default function TicketQrPage({ route }: any) {
   const { ticketId } = route.params;
@@ -11,26 +13,26 @@ export default function TicketQrPage({ route }: any) {
   const [qr, setQr] = useState<TicketQr | null>(null);
   const [messageHash, setMessageHash] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-
-  const createDevelopmentSignature = (_hash?: string) => {
-    // TODO: Replace this with a real mobile wallet signature over the check-in message hash.
-    return 'mobile-dev-signature';
-  };
+  const { provider } = useProvider();
 
   const loadQr = async () => {
     setLoading(true);
     try {
       const ticketData = await backendApi.getTicket(String(ticketId));
       setTicket(ticketData);
-      const claimedOwner = ticketData.ownerWalletAddress || ticketData.ownerAddress || 'mobile-user';
       const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
+      const ownerHint = ticketData.ownerWalletAddress || ticketData.ownerAddress;
+      if (!ownerHint) throw new Error('티켓 소유자 지갑 주소를 찾을 수 없습니다.');
 
-      const checkInMessage = await backendApi.getTicketCheckInMessage(String(ticketId), { claimedOwner, expiresAt });
+      const checkInMessage = await backendApi.getTicketCheckInMessage(String(ticketId), { claimedOwner: ownerHint, expiresAt });
       const hash = String(checkInMessage.messageHash ?? '');
       setMessageHash(hash);
 
-      const signature = createDevelopmentSignature(hash);
-      setQr(await backendApi.createTicketQr(String(ticketId), { claimedOwner, expiresAt, signature }));
+      const signed = await signCheckInMessageHash(provider, hash);
+      if (signed.address.toLowerCase() !== ownerHint.toLowerCase()) {
+        throw new Error('현재 연결된 지갑이 티켓 소유자 지갑과 다릅니다.');
+      }
+      setQr(await backendApi.createTicketQr(String(ticketId), { claimedOwner: ownerHint, expiresAt, signature: signed.signature }));
     } catch (error: any) {
       Alert.alert('QR 생성 실패', error.message || 'QR을 생성하지 못했습니다.');
     } finally {
@@ -79,7 +81,7 @@ export default function TicketQrPage({ route }: any) {
 
       <View style={styles.infoCard}>
         <Text style={styles.infoTitle}>QR 갱신</Text>
-        <Text style={styles.infoText}>QR 새로고침은 5분 유효기간의 체크인 payload를 다시 발급합니다. 현재 모바일 서명은 개발용 서명값을 사용 중입니다.</Text>
+        <Text style={styles.infoText}>QR 새로고침은 5분 유효기간의 체크인 payload를 다시 발급합니다.</Text>
         {messageHash ? <Text style={styles.hashText}>서명 메시지 {messageHash.slice(0, 12)}...</Text> : null}
       </View>
 
