@@ -1,5 +1,6 @@
 export const trustTicketAbi = [
   "function addOrganizer(address organizer)",
+  "function hasRole(bytes32 role, address account) view returns (bool)",
   "function addValidator(address validator)",
   "function addEventValidator(uint256 eventId, address validator)",
   "function createEvent(string eventName,uint256 eventTimestamp,uint256 ticketPrice,uint256 totalTicketCount,uint256 primarySaleStart,uint256 primarySaleEnd,bool resaleAllowed,uint256 maxResalePriceRate,uint256 resaleStart,uint256 resaleEnd) returns (uint256)",

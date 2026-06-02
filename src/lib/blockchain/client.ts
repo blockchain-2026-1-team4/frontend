@@ -2,6 +2,7 @@ import {
   BrowserProvider,
   Contract,
   JsonRpcProvider,
+  ZeroHash,
   getBytes,
   parseEther,
 } from "ethers";
@@ -143,11 +144,23 @@ async function waitForHash(tx: any) {
   return hash as string;
 }
 
+function shortAddress(address: string) {
+  return `${address.slice(0, 6)}...${address.slice(-4)}`;
+}
+
 export async function addOrganizerOnChain(organizerWallet: string) {
   if (!organizerWallet?.trim()) {
     throw new Error("주최자 신청자의 지갑 주소가 없습니다.");
   }
-  const { contract } = await withWalletContract();
+  const { signer, contract } = await withWalletContract();
+  const adminWallet = await signer.getAddress();
+  const isContractAdmin = await contract.hasRole(ZeroHash, adminWallet);
+  if (!isContractAdmin) {
+    throw new Error(
+      `현재 MetaMask 지갑(${shortAddress(adminWallet)})은 TrustTicket 컨트랙트 관리자 권한이 없습니다. ` +
+      "컨트랙트를 배포했거나 DEFAULT_ADMIN_ROLE을 가진 지갑으로 MetaMask 계정을 전환한 뒤 다시 승인해주세요.",
+    );
+  }
   const tx = await contract.addOrganizer(organizerWallet);
   return waitForHash(tx);
 }
