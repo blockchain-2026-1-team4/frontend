@@ -3,7 +3,7 @@ import React from 'react';
 import { AppKit, AppKitProvider } from '@reown/appkit-react-native';
 import { createNavigationContainerRef, NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
-import { Alert, Platform, StyleSheet, View } from 'react-native';
+import { Platform, StyleSheet, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import AuthPage from './src/pages/AuthPage';
@@ -35,6 +35,7 @@ import MyDisputesPage from './src/pages/MyDisputesPage';
 import BottomNavigation from './src/components/BottomNavigation';
 import { backendApi } from './src/lib/backend';
 import { config } from './src/lib/config';
+import { showDialog } from './src/lib/dialog';
 import { hasOrganizerAccess } from './src/lib/roles';
 
 const Stack = createStackNavigator();
@@ -100,7 +101,7 @@ export default function App() {
       if (organizerRoutes.has(routeName)) {
         const profile = await backendApi.getMe().catch(() => null);
         if (!profile || !hasOrganizerAccess(profile.roles)) {
-          Alert.alert('주최자 승인 대기 중입니다.', '관리자 승인 후 주최자 기능을 사용할 수 있습니다.');
+          showDialog('주최자 승인 대기 중입니다.', '관리자 승인 후 주최자 기능을 사용할 수 있습니다.');
           navigationRef.navigate('Organizer');
           return;
         }
