@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
-import { accountStatusMessage, errorMessage, routeForEntry } from '../lib/account';
+import { accountStatusMessage, errorMessage } from '../lib/account';
 import { clearAccessToken, getAccessToken } from '../lib/auth';
 import { backendApi } from '../lib/backend';
 import { resolveImageUrl } from '../lib/config';
@@ -252,7 +252,7 @@ export default function UserHomePage({ navigation }: any) {
     try {
       const token = await getAccessToken();
       if (!token) {
-        navigation.navigate('Auth', { initialRole: role, walletMode: true, autoWalletLogin: true });
+        navigation.navigate('Auth', { initialRole: role });
         return;
       }
 
@@ -266,10 +266,10 @@ export default function UserHomePage({ navigation }: any) {
         navigation.navigate('Organizer');
         return;
       }
-      navigation.navigate(routeForEntry(nextProfile, role));
+      navigation.navigate(role === 'ORGANIZER' ? 'Organizer' : 'EventList');
     } catch (error: any) {
       Alert.alert('세션 확인 실패', errorMessage(error, '다시 로그인해주세요.'));
-      navigation.navigate('Auth', { initialRole: role, walletMode: true, autoWalletLogin: true });
+      navigation.navigate('Auth', { initialRole: role });
     } finally {
       setStartingRole(null);
     }
@@ -330,7 +330,7 @@ export default function UserHomePage({ navigation }: any) {
           <Text style={styles.heroSub}>지갑 하나로 예매하고, QR로 입장하고, 투명하게 리셀하세요.</Text>
           <View style={styles.heroActions}>
             <TouchableOpacity style={styles.heroPrimary} onPress={() => void startWithWallet('USER')} disabled={startingRole !== null}>
-              {startingRole === 'USER' ? <ActivityIndicator color="#1A1A2E" /> : <Text style={styles.heroPrimaryText}>지갑으로 시작</Text>}
+              {startingRole === 'USER' ? <ActivityIndicator color="#1A1A2E" /> : <Text style={styles.heroPrimaryText}>{profile ? '이벤트 보러가기' : '지갑으로 시작'}</Text>}
             </TouchableOpacity>
             <TouchableOpacity style={styles.heroSecondary} onPress={() => openExplore()}>
               <Text style={styles.heroSecondaryText}>이벤트 둘러보기</Text>
@@ -347,7 +347,7 @@ export default function UserHomePage({ navigation }: any) {
             </View>
             <Text style={styles.roleTitle}>티켓 예매</Text>
             <Text style={styles.roleSub}>공연과 스포츠 티켓을 지갑으로 예매합니다.</Text>
-            <Text style={styles.roleAction}>사용자로 시작</Text>
+            <Text style={styles.roleAction}>{profile ? '이벤트 탐색' : '사용자로 시작'}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={[styles.card, styles.roleCard, styles.roleDark]} onPress={() => void startWithWallet('ORGANIZER')} disabled={startingRole !== null}>
             <View style={[styles.roleIcon, styles.roleDarkIcon]}>

@@ -92,7 +92,7 @@ export default function ResaleDetailPage({ route, navigation }: any) {
     if (!me?.walletAddress?.trim()) {
       showDialog('지갑 로그인 필요', '리셀 티켓 구매는 지갑 로그인 후 가능합니다.', [
         { text: '취소', style: 'cancel' },
-        { text: '지갑 로그인', onPress: () => navigation.navigate('Auth', { initialRole: 'USER', walletMode: true, autoWalletLogin: true }) },
+        { text: '지갑 로그인', onPress: () => navigation.navigate('Auth', { initialRole: 'USER' }) },
       ]);
       return;
     }
