@@ -236,7 +236,7 @@ export default function BottomNavigation({ routeName, onNavigate }: BottomNaviga
     <View
       style={[
         styles.container,
-        { paddingBottom: Math.max(insets.bottom, Platform.OS === 'web' ? 8 : 10) },
+        { paddingBottom: Math.max(insets.bottom, 18) },
         Platform.OS === 'web' && styles.webContainer,
       ]}
     >
@@ -270,17 +270,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderTopWidth: 1,
     borderTopColor: '#E5E7EB',
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 6,
-    paddingTop: 8,
+    backgroundColor: 'rgba(255,255,255,0.96)',
+    paddingHorizontal: 0,
+    paddingTop: 9,
   },
   webContainer: {
-    borderBottomLeftRadius: 18,
-    borderBottomRightRadius: 18,
+    borderBottomLeftRadius: 0,
+    borderBottomRightRadius: 0,
   },
   tab: {
     flex: 1,
-    minHeight: 54,
+    minHeight: 52,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 3,
