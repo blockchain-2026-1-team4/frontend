@@ -164,7 +164,7 @@ export default function PurchaseCompletePage({ route, navigation }: any) {
 
       <View style={styles.actions}>
         <View style={styles.actionGrid}>
-          <ActionButton label="내 티켓 보기" icon="list" variant="dark" onPress={() => navigation.replace('MyTickets')} />
+          <ActionButton label="내 티켓 보기" icon="list" variant="dark" onPress={() => navigation.replace('MyTicketFlow')} />
           <ActionButton
             label="QR 확인하기"
             icon="qr"

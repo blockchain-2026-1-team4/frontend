@@ -1,4 +1,4 @@
-﻿import React, { useCallback, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import {
   ActivityIndicator,
@@ -11,6 +11,7 @@ import {
   View,
 } from 'react-native';
 import { TextInput } from '../components/TextInput';
+import { FlowHero, IconButton, TicketIcon, flowShadow } from '../components/TicketFlowKit';
 import { backendApi } from '../lib/backend';
 import { clearAccessToken } from '../lib/auth';
 import { errorMessage } from '../lib/account';
@@ -29,6 +30,28 @@ function profileInitial(name?: string | null) {
   return value ? Array.from(value)[0] : 'T';
 }
 
+function MenuButton({
+  label,
+  icon,
+  danger,
+  onPress,
+}: {
+  label: string;
+  icon: 'ticket' | 'refresh' | 'alert' | 'shield';
+  danger?: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <TouchableOpacity style={[styles.menuButton, danger && styles.dangerButton]} onPress={onPress} activeOpacity={0.86}>
+      <View style={[styles.menuIcon, danger && styles.dangerIcon]}>
+        <TicketIcon name={icon} size={20} color={danger ? '#DC2626' : '#534AB7'} />
+      </View>
+      <Text style={[styles.menuText, danger && styles.dangerText]}>{label}</Text>
+      <TicketIcon name="chevron" size={17} color={danger ? '#DC2626' : '#94A3B8'} />
+    </TouchableOpacity>
+  );
+}
+
 export default function MyPage({ navigation }: any) {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [displayNameDraft, setDisplayNameDraft] = useState('');
@@ -44,11 +67,12 @@ export default function MyPage({ navigation }: any) {
       setDisplayNameDraft(me.displayName || '');
     } catch (error: any) {
       Alert.alert('내 정보 로드 실패', errorMessage(error, '내 정보를 불러오지 못했습니다.'));
+      navigation.navigate('Auth', { initialRole: 'USER' });
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [navigation]);
 
   useFocusEffect(useCallback(() => { void loadProfile(); }, [loadProfile]));
 
@@ -76,105 +100,142 @@ export default function MyPage({ navigation }: any) {
     }
   };
 
-  if (loading) return <View style={styles.center}><ActivityIndicator size="large" color="#2563EB" /></View>;
+  if (loading) return <View style={styles.center}><ActivityIndicator size="large" color="#534AB7" /></View>;
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={styles.content}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void loadProfile(); }} />}
-    >
-      <View style={styles.profileHeader}>
-        <View style={styles.avatar}>
-          <Text style={styles.avatarText}>{profileInitial(profile?.displayName)}</Text>
+    <View style={styles.container}>
+      <View style={styles.topbar}>
+        <View>
+          <Text style={styles.eyebrow}>My Account</Text>
+          <Text style={styles.topTitle}>내 정보</Text>
         </View>
-        <View style={styles.headerCopy}>
-          <Text style={styles.eyebrow}>My account</Text>
-          <Text style={styles.title}>내 정보</Text>
-          <Text style={styles.subtitle}>계정 정보를 확인하고 닉네임을 관리합니다.</Text>
-        </View>
+        <IconButton>
+          <TicketIcon name="wallet" size={21} />
+        </IconButton>
       </View>
 
-      <View style={styles.card}>
-        <Text style={styles.label}>닉네임</Text>
-        {editing ? (
-          <TextInput style={styles.input} value={displayNameDraft} onChangeText={setDisplayNameDraft} placeholder="닉네임" />
-        ) : (
-          <Text style={styles.displayName}>{profile?.displayName || '-'}</Text>
-        )}
+      <ScrollView
+        style={styles.screen}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void loadProfile(); }} />}
+      >
+        <FlowHero
+          height={166}
+          style={styles.hero}
+          badge="계정 관리"
+          title={'내 계정과 티켓 활동을\n한 곳에서 관리하세요'}
+          meta="지갑 주소, 닉네임, 내 티켓과 분쟁 신고 메뉴를 확인합니다."
+        />
 
-        <View style={styles.divider} />
+        <View style={styles.section}>
+          <View style={styles.profileCard}>
+            <View style={styles.profileTop}>
+              <View style={styles.avatar}>
+                <Text style={styles.avatarText}>{profileInitial(profile?.displayName)}</Text>
+              </View>
+              <View style={styles.profileCopy}>
+                <Text style={styles.profileLabel}>닉네임</Text>
+                {editing ? (
+                  <TextInput style={styles.input} value={displayNameDraft} onChangeText={setDisplayNameDraft} placeholder="닉네임" />
+                ) : (
+                  <Text style={styles.displayName}>{profile?.displayName || '-'}</Text>
+                )}
+              </View>
+            </View>
 
-        <Text style={styles.label}>지갑 주소</Text>
-        <Text style={styles.value} numberOfLines={1}>{compactWalletAddress(profile?.walletAddress)}</Text>
+            <View style={styles.infoGrid}>
+              <View style={styles.infoBox}>
+                <Text style={styles.infoLabel}>지갑 주소</Text>
+                <Text style={styles.infoValue} numberOfLines={1}>{compactWalletAddress(profile?.walletAddress)}</Text>
+              </View>
+              <View style={styles.infoBox}>
+                <Text style={styles.infoLabel}>역할</Text>
+                <Text style={styles.infoValue}>{formatRoles(profile?.roles)}</Text>
+              </View>
+            </View>
 
-        <View style={styles.divider} />
-
-        <Text style={styles.label}>역할</Text>
-        <Text style={styles.value}>{formatRoles(profile?.roles)}</Text>
-
-        {!editing ? (
-          <TouchableOpacity style={styles.primaryButton} onPress={() => setEditing(true)}>
-            <Text style={styles.primaryButtonText}>닉네임 수정</Text>
-          </TouchableOpacity>
-        ) : (
-          <View style={styles.editRow}>
-            <TouchableOpacity style={[styles.primaryButton, styles.editButton]} onPress={save} disabled={saving}>
-              <Text style={styles.primaryButtonText}>{saving ? '저장 중...' : '저장'}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.secondaryButton, styles.editButton]} onPress={() => { setDisplayNameDraft(profile?.displayName || ''); setEditing(false); }} disabled={saving}>
-              <Text style={styles.secondaryButtonText}>취소</Text>
-            </TouchableOpacity>
+            {!editing ? (
+              <TouchableOpacity style={styles.primaryButton} onPress={() => setEditing(true)} activeOpacity={0.88}>
+                <Text style={styles.primaryButtonText}>닉네임 수정</Text>
+              </TouchableOpacity>
+            ) : (
+              <View style={styles.editRow}>
+                <TouchableOpacity style={[styles.primaryButton, styles.editButton]} onPress={save} disabled={saving} activeOpacity={0.88}>
+                  <Text style={styles.primaryButtonText}>{saving ? '저장 중...' : '저장'}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.secondaryButton, styles.editButton]}
+                  onPress={() => { setDisplayNameDraft(profile?.displayName || ''); setEditing(false); }}
+                  disabled={saving}
+                  activeOpacity={0.88}
+                >
+                  <Text style={styles.secondaryButtonText}>취소</Text>
+                </TouchableOpacity>
+              </View>
+            )}
           </View>
-        )}
-      </View>
+        </View>
 
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>계정 메뉴</Text>
-        <TouchableOpacity style={styles.menuButton} onPress={() => navigation.navigate('ResaleList')}>
-          <Text style={styles.menuButtonText}>리셀 티켓 보기</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.menuButton} onPress={() => navigation.navigate('MyDisputes')}>
-          <Text style={styles.menuButtonText}>내 분쟁 신고</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.menuButton} onPress={() => navigation.navigate('Organizer')}>
-          <Text style={styles.menuButtonText}>주최자 홈으로</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.menuButton, styles.logoutMenuButton]} onPress={handleLogout}>
-          <Text style={[styles.menuButtonText, styles.logoutMenuText]}>로그아웃</Text>
-        </TouchableOpacity>
-      </View>
-    </ScrollView>
+        <View style={styles.section}>
+          <View style={styles.menuCard}>
+            <Text style={styles.cardTitle}>계정 메뉴</Text>
+            <MenuButton label="내 티켓 보기" icon="ticket" onPress={() => navigation.navigate('MyTicketFlow')} />
+            <MenuButton label="리셀 티켓 보기" icon="refresh" onPress={() => navigation.navigate('ResaleList')} />
+            <MenuButton label="내 분쟁 신고" icon="alert" onPress={() => navigation.navigate('MyDisputes')} />
+            <MenuButton label="주최자 홈으로" icon="shield" onPress={() => navigation.navigate('Organizer')} />
+            <MenuButton label="로그아웃" icon="alert" danger onPress={handleLogout} />
+          </View>
+        </View>
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F4F7FB' },
-  content: { padding: 18, paddingBottom: 112 },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F4F7FB' },
-  profileHeader: { flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: '#FFFFFF', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: '#E2E8F0' },
-  avatar: { width: 56, height: 56, borderRadius: 28, backgroundColor: '#EFF6FF', alignItems: 'center', justifyContent: 'center' },
-  avatarText: { color: '#2563EB', fontSize: 24, fontWeight: '900' },
-  headerCopy: { flex: 1 },
-  eyebrow: { color: '#2563EB', fontWeight: '800', fontSize: 12 },
-  title: { marginTop: 3, fontSize: 25, fontWeight: '900', color: '#0F172A' },
-  subtitle: { marginTop: 5, color: '#64748B', fontSize: 13, lineHeight: 19 },
-  card: { marginTop: 14, backgroundColor: '#FFFFFF', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: '#E2E8F0' },
-  cardTitle: { color: '#0F172A', fontSize: 16, fontWeight: '900', marginBottom: 4 },
-  label: { color: '#64748B', fontSize: 12, fontWeight: '800' },
-  displayName: { marginTop: 6, color: '#0F172A', fontSize: 22, fontWeight: '900' },
-  value: { marginTop: 6, color: '#0F172A', fontSize: 15, fontWeight: '800' },
-  divider: { height: 1, backgroundColor: '#F1F5F9', marginVertical: 14 },
-  helpText: { marginTop: 4, color: '#94A3B8', fontSize: 12, lineHeight: 17 },
-  input: { marginTop: 7, borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 12, padding: 12, backgroundColor: '#FFFFFF', color: '#0F172A' },
-  primaryButton: { marginTop: 16, backgroundColor: '#2563EB', borderRadius: 12, minHeight: 50, alignItems: 'center', justifyContent: 'center' },
-  primaryButtonText: { color: '#FFFFFF', fontSize: 16, fontWeight: '900' },
-  secondaryButton: { borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 12, minHeight: 50, alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFFFFF' },
-  secondaryButtonText: { color: '#0F172A', fontSize: 16, fontWeight: '900' },
-  editRow: { flexDirection: 'row', gap: 8, marginTop: 12 },
+  container: { flex: 1, backgroundColor: '#F6F7FB' },
+  screen: { flex: 1 },
+  content: { paddingBottom: 112 },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F6F7FB' },
+  topbar: {
+    backgroundColor: 'rgba(246,247,251,0.96)',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(226,232,240,0.72)',
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    paddingBottom: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  eyebrow: { fontSize: 10, fontWeight: '900', color: '#938CF0', letterSpacing: 0, textTransform: 'uppercase', marginBottom: 2 },
+  topTitle: { fontSize: 18, fontWeight: '900', color: '#0F172A', letterSpacing: 0 },
+  hero: { marginHorizontal: 16, marginTop: 14, marginBottom: 14 },
+  section: { paddingHorizontal: 16, paddingBottom: 14 },
+  profileCard: { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 24, padding: 16, ...flowShadow },
+  profileTop: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  avatar: { width: 58, height: 58, borderRadius: 20, backgroundColor: '#EEEDFE', alignItems: 'center', justifyContent: 'center' },
+  avatarText: { color: '#534AB7', fontSize: 25, fontWeight: '900' },
+  profileCopy: { flex: 1, minWidth: 0 },
+  profileLabel: { color: '#64748B', fontSize: 11, fontWeight: '900', marginBottom: 5 },
+  displayName: { color: '#0F172A', fontSize: 22, fontWeight: '900', letterSpacing: 0 },
+  input: { borderWidth: 1, borderColor: '#D9E1EE', borderRadius: 17, paddingHorizontal: 13, paddingVertical: 10, backgroundColor: '#FFFFFF', color: '#0F172A', fontWeight: '900' },
+  infoGrid: { flexDirection: 'row', gap: 10, marginTop: 16 },
+  infoBox: { flex: 1, backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#EDF2F7', borderRadius: 17, padding: 12 },
+  infoLabel: { color: '#94A3B8', fontSize: 10, fontWeight: '900', marginBottom: 5 },
+  infoValue: { color: '#0F172A', fontSize: 13, fontWeight: '900', lineHeight: 18 },
+  primaryButton: { marginTop: 16, minHeight: 52, borderRadius: 17, backgroundColor: '#534AB7', alignItems: 'center', justifyContent: 'center', ...flowShadow },
+  primaryButtonText: { color: '#FFFFFF', fontSize: 15, fontWeight: '900' },
+  secondaryButton: { minHeight: 52, borderRadius: 17, backgroundColor: '#FFFFFF', borderWidth: 1.5, borderColor: '#CECBF6', alignItems: 'center', justifyContent: 'center' },
+  secondaryButtonText: { color: '#534AB7', fontSize: 15, fontWeight: '900' },
+  editRow: { flexDirection: 'row', gap: 10, marginTop: 16 },
   editButton: { flex: 1, marginTop: 0 },
-  menuButton: { marginTop: 10, borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 12, minHeight: 50, alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFFFFF' },
-  menuButtonText: { color: '#0F172A', fontSize: 16, fontWeight: '900' },
-  logoutMenuButton: { borderColor: '#FECACA', backgroundColor: '#FEF2F2' },
-  logoutMenuText: { color: '#DC2626' },
+  menuCard: { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 24, padding: 16, ...flowShadow },
+  cardTitle: { color: '#0F172A', fontSize: 17, fontWeight: '900', letterSpacing: 0, marginBottom: 10 },
+  menuButton: { minHeight: 54, borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 18, backgroundColor: '#FFFFFF', flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 12, marginTop: 10 },
+  menuIcon: { width: 38, height: 38, borderRadius: 14, backgroundColor: '#EEEDFE', alignItems: 'center', justifyContent: 'center' },
+  menuText: { flex: 1, color: '#0F172A', fontSize: 14, fontWeight: '900' },
+  dangerButton: { borderColor: '#FECACA', backgroundColor: '#FEF2F2' },
+  dangerIcon: { backgroundColor: '#FEE2E2' },
+  dangerText: { color: '#DC2626' },
 });

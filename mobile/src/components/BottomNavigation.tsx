@@ -24,8 +24,8 @@ const userTabs: TabItem[] = [
   { label: '\uD0D0\uC0C9', target: 'EventList', matches: ['EventList', 'EventDetail', 'TicketPurchase', 'PurchaseComplete'], icon: 'search' },
   {
     label: '\uB0B4 \uD2F0\uCF13',
-    target: 'MyTickets',
-    matches: ['MyTickets', 'TicketDetail', 'TicketQr', 'TicketResaleCreate', 'ResaleRegisterComplete'],
+    target: 'MyTicketFlow',
+    matches: ['MyTicketFlow', 'MyTickets', 'TicketDetail', 'TicketQr', 'TicketResaleCreate', 'ResaleRegisterComplete'],
     icon: 'ticket',
   },
   { label: '\uB0B4 \uC815\uBCF4', target: 'MyPage', matches: ['MyPage', 'ResaleList', 'ResaleDetail', 'MyDisputes', 'DisputeCreate'], icon: 'user' },

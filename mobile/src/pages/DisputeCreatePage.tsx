@@ -1,8 +1,18 @@
-﻿import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { TextInput } from '../components/TextInput';
+import { FlowBadge, FlowHero, IconButton, PosterArt, TicketIcon, flowShadow } from '../components/TicketFlowKit';
 import { errorMessage } from '../lib/account';
 import { backendApi } from '../lib/backend';
+import {
+  eventDateLabel,
+  eventTitle,
+  eventVenue,
+  formatDateTime,
+  sectionNameOf,
+  ticketIdOf,
+  weiToEthLabel,
+} from '../lib/ticketFlowDisplay';
 import type { DisputeRecord, EventDetail, ResaleListing, TicketDetail } from '../types/api';
 
 type TargetType = 'ticket' | 'resale';
@@ -18,6 +28,12 @@ type ResaleOption = {
   event?: EventDetail;
 };
 
+const DISPUTE_TYPES = [
+  { value: 'PAYMENT_ISSUE', label: '결제 문제' },
+  { value: 'FRAUD_SUSPECTED', label: '사기 의심' },
+  { value: 'OTHER', label: '기타' },
+];
+
 function isActiveDispute(status?: string) {
   return ['OPEN', 'RECEIVED', 'REVIEWING', 'PROCESSING'].includes(String(status ?? '').toUpperCase());
 }
@@ -30,29 +46,39 @@ function normalizeDisputeFailure(cause: any, fallback: string) {
   return message || fallback;
 }
 
-const DISPUTE_TYPES = [
-  { value: 'PAYMENT_ISSUE', label: '결제 문제' },
-  { value: 'FRAUD_SUSPECTED', label: '사기 의심' },
-  { value: 'OTHER', label: '기타' },
-];
-
-function formatDate(value?: string) {
-  if (!value) return '-';
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? value : date.toLocaleString('ko-KR');
+function selectedTargetTitle(targetType: TargetType, ticket?: TicketOption | null, resale?: ResaleOption | null) {
+  if (targetType === 'resale') return eventTitle(resale?.event, resale?.ticket) || resale?.listing.eventName || '리셀 거래 신고';
+  return eventTitle(ticket?.event, ticket?.ticket);
 }
 
-function ticketIdOf(ticket?: TicketDetail | null) {
-  return ticket?.id ? String(ticket.id) : ticket?.ticketId ? String(ticket.ticketId) : '';
-}
-
-function normalizeFailureMessage(cause: any, fallback: string) {
-  const message = errorMessage(cause, fallback);
-  if (message.includes('이미 처리 중')) return '동일한 거래/티켓에 대해 이미 신고하셨습니다.';
-  if (message.includes('권한') || message.includes('Forbidden') || message.includes('FORBIDDEN')) return '본인의 티켓 또는 거래만 신고할 수 있습니다.';
-  if (message.includes('상태') || message.includes('status')) return '접수 가능한 상태의 티켓 또는 거래가 아닙니다.';
-  if (message.includes('티켓') || message.includes('리셀')) return message;
-  return message || fallback;
+function TargetSummary({
+  title,
+  venue,
+  date,
+  seat,
+  price,
+  selected,
+}: {
+  title: string;
+  venue?: string;
+  date?: string;
+  seat?: string;
+  price?: string;
+  selected?: boolean;
+}) {
+  return (
+    <View style={[styles.selectedTicket, selected && styles.selectedTicketActive]}>
+      <PosterArt title={title} variant={2} style={styles.targetPoster} />
+      <View style={styles.targetCopy}>
+        {selected ? <FlowBadge label="선택됨" /> : null}
+        <Text style={styles.ticketName} numberOfLines={2}>{title}</Text>
+        <Text style={styles.ticketMeta}>{venue || '-'}</Text>
+        <Text style={styles.ticketMeta}>{formatDateTime(date)}</Text>
+        <Text style={styles.ticketMeta}>{seat || '-'}</Text>
+        {price ? <Text style={styles.ticketMeta}>{price}</Text> : null}
+      </View>
+    </View>
+  );
 }
 
 export default function DisputeCreatePage({ route, navigation }: any) {
@@ -80,13 +106,13 @@ export default function DisputeCreatePage({ route, navigation }: any) {
   const [feedback, setFeedback] = useState('');
 
   useEffect(() => {
-    const loadTicketSummary = async (ticketId: string) => {
+    const loadTicketSummary = async (targetTicketId: string) => {
       try {
-        const ticket = await backendApi.getTicket(ticketId);
+        const ticket = await backendApi.getTicket(targetTicketId);
         const event = ticket.eventId ? await backendApi.getEvent(String(ticket.eventId)).catch(() => undefined) : undefined;
         const summary = { ticket, event };
         setSelectedTicketSummary(summary);
-        setSelectedTicketId(ticketIdOf(ticket) || ticketId);
+        setSelectedTicketId(ticketIdOf(ticket) || targetTicketId);
       } catch {
         setSelectedTicketSummary(null);
       }
@@ -170,7 +196,7 @@ export default function DisputeCreatePage({ route, navigation }: any) {
     [selectedResaleListingId, selectedResaleSummary, resaleOptions],
   );
 
-  const title = isEditing ? '분쟁 신고 수정' : '새 분쟁 신고';
+  const title = isEditing ? '분쟁 신고 수정' : '내 분쟁 신고';
   const submitText = useMemo(() => {
     if (submitting) return isEditing ? '수정 중...' : '접수 중...';
     return isEditing ? '분쟁 신고 수정' : '분쟁 신고 접수';
@@ -190,7 +216,7 @@ export default function DisputeCreatePage({ route, navigation }: any) {
   };
 
   const submit = async () => {
-    const resolvedTicketId = targetType === 'ticket' ? selectedTicketId : selectedTicketId;
+    const resolvedTicketId = selectedTicketId;
     const resolvedResaleListingId = targetType === 'resale' ? selectedResaleListingId : '';
 
     if (!isEditing && !resolvedTicketId.trim() && !resolvedResaleListingId.trim()) {
@@ -223,9 +249,8 @@ export default function DisputeCreatePage({ route, navigation }: any) {
           const sameTicket = resolvedTicketId.trim() && String(item.ticketId ?? '') === resolvedTicketId.trim();
           return Boolean(sameResale || sameTicket);
         });
-        if (duplicate) {
-          throw new Error('동일한 거래/티켓에 대해 이미 신고하셨습니다.');
-        }
+        if (duplicate) throw new Error('동일한 거래/티켓에 대해 이미 신고하셨습니다.');
+
         await backendApi.createDispute({
           ticketId: resolvedTicketId.trim() || null,
           resaleListingId: resolvedResaleListingId.trim() || null,
@@ -247,215 +272,231 @@ export default function DisputeCreatePage({ route, navigation }: any) {
     }
   };
 
+  const hasSelectedTarget = targetType === 'ticket' ? Boolean(selectedTicket) : Boolean(selectedResale);
+
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.eyebrow}>Dispute</Text>
-      <Text style={styles.title}>{title}</Text>
-      <Text style={styles.subtitle}>
-        {isEditing ? '접수 단계의 분쟁 신고 사유와 내용을 수정합니다.' : '신고할 티켓 또는 리셀 거래를 선택한 뒤 내용을 작성합니다.'}
-      </Text>
-
-      <View style={styles.card}>
-        <Text style={styles.sectionTitle}>신고 대상</Text>
-        <View style={styles.targetTypeRow}>
-          <TouchableOpacity
-            style={[styles.targetTypeButton, targetType === 'ticket' && styles.activeTargetTypeButton, (isEditing || hasDirectTarget) && styles.lockedButton]}
-            onPress={() => chooseTargetType('ticket')}
-          >
-            <Text style={[styles.targetTypeText, targetType === 'ticket' && styles.activeTargetTypeText]}>내 티켓 문제 신고</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.targetTypeButton, targetType === 'resale' && styles.activeTargetTypeButton, (isEditing || hasDirectTarget) && styles.lockedButton]}
-            onPress={() => chooseTargetType('resale')}
-          >
-            <Text style={[styles.targetTypeText, targetType === 'resale' && styles.activeTargetTypeText]}>리셀 거래 문제 신고</Text>
-          </TouchableOpacity>
+    <View style={styles.container}>
+      <View style={styles.topbar}>
+        <TouchableOpacity onPress={() => navigation.goBack()} activeOpacity={0.84}>
+          <IconButton><TicketIcon name="arrowLeft" size={20} /></IconButton>
+        </TouchableOpacity>
+        <View style={styles.topTitleWrap}>
+          <Text style={styles.eyebrow}>Dispute</Text>
+          <Text style={styles.topTitle}>{title}</Text>
         </View>
-
-        {loadingTargets ? <ActivityIndicator style={styles.loader} color="#2563EB" /> : null}
-
-        {!isEditing && !hasDirectTarget && targetType === 'ticket' ? (
-          <View style={styles.optionList}>
-            {ticketOptions.length ? ticketOptions.map((option) => {
-              const optionId = ticketIdOf(option.ticket);
-              return (
-                <TouchableOpacity key={optionId} style={[styles.optionCard, selectedTicketId === optionId && styles.selectedOptionCard]} onPress={() => setSelectedTicketId(optionId)}>
-                  {selectedTicketId === optionId ? <Text style={styles.selectedBadge}>선택됨</Text> : null}
-                  <TargetSummary
-                    title={option.event?.name || option.event?.title || option.ticket.eventTitle || option.ticket.eventName || '티켓 신고'}
-                    venue={option.event?.venue || option.ticket.venue}
-                    date={option.event?.eventAt || option.event?.eventDateTime || option.ticket.eventDateTime}
-                    seat={option.ticket.seatInfo}
-                  />
-                </TouchableOpacity>
-              );
-            }) : <Text style={styles.emptyText}>신고할 수 있는 내 티켓을 찾지 못했습니다.</Text>}
-          </View>
-        ) : null}
-
-        {!isEditing && !hasDirectTarget && targetType === 'resale' ? (
-          <View style={styles.optionList}>
-            {resaleOptions.length ? resaleOptions.map((option) => {
-              const optionId = String(option.listing.id ?? option.listing.listingId);
-              return (
-                <TouchableOpacity key={optionId} style={[styles.optionCard, selectedResaleListingId === optionId && styles.selectedOptionCard]} onPress={() => {
-                  setSelectedResaleListingId(optionId);
-                  setSelectedTicketId(ticketIdOf(option.ticket) || String(option.listing.ticketId));
-                }}>
-                  {selectedResaleListingId === optionId ? <Text style={styles.selectedBadge}>선택됨</Text> : null}
-                  <TargetSummary
-                    title={option.event?.name || option.event?.title || option.listing.eventName || option.ticket?.eventTitle || '리셀 거래 신고'}
-                    venue={option.event?.venue || option.ticket?.venue}
-                    date={option.event?.eventAt || option.event?.eventDateTime || option.ticket?.eventDateTime}
-                    seat={option.ticket?.seatInfo || option.listing.seatInfo}
-                    price={`${option.listing.priceWei ?? option.listing.price ?? '-'} WEI`}
-                    transactionDate={option.listing.purchasedAt || option.listing.createdAt}
-                  />
-                </TouchableOpacity>
-              );
-            }) : <Text style={styles.emptyText}>관련 리셀 거래를 찾지 못했습니다.</Text>}
-          </View>
-        ) : null}
-
-        {(hasDirectTarget || isEditing) && targetType === 'ticket' && selectedTicket ? (
-          <View style={[styles.optionCard, styles.selectedOptionCard, styles.directTargetCard]}>
-            <Text style={styles.selectedBadge}>선택됨</Text>
-            <TargetSummary
-              title={selectedTicket.event?.name || selectedTicket.event?.title || selectedTicket.ticket.eventTitle || selectedTicket.ticket.eventName || '티켓 신고'}
-              venue={selectedTicket.event?.venue || selectedTicket.ticket.venue}
-              date={selectedTicket.event?.eventAt || selectedTicket.event?.eventDateTime || selectedTicket.ticket.eventDateTime}
-              seat={selectedTicket.ticket.seatInfo}
-            />
-          </View>
-        ) : null}
-
-        {(hasDirectTarget || isEditing) && targetType === 'resale' && selectedResale ? (
-          <View style={[styles.optionCard, styles.selectedOptionCard, styles.directTargetCard]}>
-            <Text style={styles.selectedBadge}>선택됨</Text>
-            <TargetSummary
-              title={selectedResale.event?.name || selectedResale.event?.title || selectedResale.listing.eventName || selectedResale.ticket?.eventTitle || '리셀 거래 신고'}
-              venue={selectedResale.event?.venue || selectedResale.ticket?.venue}
-              date={selectedResale.event?.eventAt || selectedResale.event?.eventDateTime || selectedResale.ticket?.eventDateTime}
-              seat={selectedResale.ticket?.seatInfo || selectedResale.listing.seatInfo}
-              price={`${selectedResale.listing.priceWei ?? selectedResale.listing.price ?? '-'} WEI`}
-              transactionDate={selectedResale.listing.purchasedAt || selectedResale.listing.createdAt}
-            />
-          </View>
-        ) : null}
-
-        {((targetType === 'ticket' && !selectedTicket) || (targetType === 'resale' && !selectedResale)) && !loadingTargets ? (
-          <View style={styles.emptyTargetBox}>
-            <Text style={styles.emptyTargetTitle}>신고 대상을 선택해주세요.</Text>
-            <Text style={styles.emptyTargetText}>
-              {targetType === 'ticket'
-                ? '내 티켓 목록에서 문제가 있는 티켓을 선택하면 이벤트명, 좌석, 일시가 표시됩니다.'
-                : '관련 리셀 거래를 선택하면 이벤트명, 좌석, 가격 정보를 확인할 수 있습니다.'}
-            </Text>
-          </View>
-        ) : null}
-
-        {isEditing ? <Text style={styles.helper}>신고 수정 시에는 분쟁 유형과 신고 내용만 변경할 수 있습니다.</Text> : null}
-        {hasDirectTarget && !isEditing ? <Text style={styles.helper}>리셀 상세에서 선택한 신고 대상이 자동으로 설정되었습니다.</Text> : null}
+        <IconButton><TicketIcon name="help" size={20} /></IconButton>
       </View>
 
-      <View style={styles.card}>
-        <Text style={styles.label}>분쟁 유형</Text>
-        <View style={styles.typeGrid}>
-          {DISPUTE_TYPES.map((item) => (
-            <TouchableOpacity key={item.value} style={[styles.typeChip, type === item.value && styles.activeTypeChip]} onPress={() => setType(item.value)}>
-              <Text style={[styles.typeChipText, type === item.value && styles.activeTypeChipText]}>{item.label}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        <Text style={styles.label}>신고 내용</Text>
-        <TextInput
-          style={[styles.input, styles.textArea]}
-          value={description}
-          onChangeText={setDescription}
-          placeholder="상황을 구체적으로 입력해 주세요."
-          multiline
+      <ScrollView style={styles.screen} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <FlowHero
+          height={166}
+          style={styles.disputeHero}
+          posters={false}
+          badge="분쟁 신고"
+          title={'문제 상황을\n간단히 알려주세요'}
+          meta="티켓 또는 리셀 거래와 관련된 문제를 접수합니다."
         />
-      </View>
 
-      {feedback ? (
-        <View style={styles.feedbackBox}>
-          <Text style={styles.feedbackText}>{feedback}</Text>
+        <View style={styles.section}>
+          <View style={styles.formCard}>
+            <View style={styles.head}>
+              <View>
+                <Text style={styles.headTitle}>신고 대상</Text>
+                <Text style={styles.headSub}>신고할 대상을 선택하세요</Text>
+              </View>
+            </View>
+
+            <View style={styles.choiceGrid}>
+              <TouchableOpacity
+                style={[styles.choice, targetType === 'ticket' && styles.choiceActive, (isEditing || hasDirectTarget) && styles.choiceLocked]}
+                onPress={() => chooseTargetType('ticket')}
+                activeOpacity={0.84}
+              >
+                <Text style={[styles.choiceText, targetType === 'ticket' && styles.choiceTextActive]}>내 티켓 문제</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.choice, targetType === 'resale' && styles.choiceActive, (isEditing || hasDirectTarget) && styles.choiceLocked]}
+                onPress={() => chooseTargetType('resale')}
+                activeOpacity={0.84}
+              >
+                <Text style={[styles.choiceText, targetType === 'resale' && styles.choiceTextActive]}>리셀 거래 문제</Text>
+              </TouchableOpacity>
+            </View>
+
+            {loadingTargets ? <ActivityIndicator style={styles.loader} color="#534AB7" /> : null}
+
+            {targetType === 'ticket' && selectedTicket ? (
+              <TargetSummary
+                selected
+                title={selectedTargetTitle(targetType, selectedTicket, selectedResale)}
+                venue={eventVenue(selectedTicket.event, selectedTicket.ticket)}
+                date={selectedTicket.event?.eventAt || selectedTicket.event?.eventStartAt || selectedTicket.ticket.eventDateTime}
+                seat={`${sectionNameOf(selectedTicket.ticket)} · ${selectedTicket.ticket.seatInfo}`}
+              />
+            ) : null}
+
+            {targetType === 'resale' && selectedResale ? (
+              <TargetSummary
+                selected
+                title={selectedTargetTitle(targetType, selectedTicket, selectedResale)}
+                venue={eventVenue(selectedResale.event, selectedResale.ticket)}
+                date={selectedResale.event?.eventAt || selectedResale.event?.eventStartAt || selectedResale.ticket?.eventDateTime}
+                seat={selectedResale.ticket?.seatInfo || selectedResale.listing.seatInfo}
+                price={weiToEthLabel(selectedResale.listing.priceWei ?? selectedResale.listing.price)}
+              />
+            ) : null}
+
+            {!hasDirectTarget && !isEditing && targetType === 'ticket' && !selectedTicket ? (
+              <View style={styles.optionList}>
+                {ticketOptions.length ? ticketOptions.map((option) => {
+                  const optionId = ticketIdOf(option.ticket);
+                  return (
+                    <TouchableOpacity key={optionId} onPress={() => setSelectedTicketId(optionId)} activeOpacity={0.84}>
+                      <TargetSummary
+                        title={eventTitle(option.event, option.ticket)}
+                        venue={eventVenue(option.event, option.ticket)}
+                        date={eventDateLabel(option.event, option.ticket)}
+                        seat={`${sectionNameOf(option.ticket)} · ${option.ticket.seatInfo}`}
+                      />
+                    </TouchableOpacity>
+                  );
+                }) : <Text style={styles.emptyText}>신고할 수 있는 내 티켓을 찾지 못했습니다.</Text>}
+              </View>
+            ) : null}
+
+            {!hasDirectTarget && !isEditing && targetType === 'resale' && !selectedResale ? (
+              <View style={styles.optionList}>
+                {resaleOptions.length ? resaleOptions.map((option) => {
+                  const optionId = String(option.listing.id ?? option.listing.listingId);
+                  return (
+                    <TouchableOpacity
+                      key={optionId}
+                      onPress={() => {
+                        setSelectedResaleListingId(optionId);
+                        setSelectedTicketId(ticketIdOf(option.ticket) || String(option.listing.ticketId));
+                      }}
+                      activeOpacity={0.84}
+                    >
+                      <TargetSummary
+                        title={eventTitle(option.event, option.ticket) || option.listing.eventName || '리셀 거래 신고'}
+                        venue={eventVenue(option.event, option.ticket)}
+                        date={option.event?.eventAt || option.event?.eventStartAt || option.ticket?.eventDateTime}
+                        seat={option.ticket?.seatInfo || option.listing.seatInfo}
+                        price={weiToEthLabel(option.listing.priceWei ?? option.listing.price)}
+                      />
+                    </TouchableOpacity>
+                  );
+                }) : <Text style={styles.emptyText}>관련 리셀 거래를 찾지 못했습니다.</Text>}
+              </View>
+            ) : null}
+
+            {!loadingTargets && !hasSelectedTarget ? (
+              <View style={styles.emptyTarget}>
+                <TicketIcon name="alert" size={20} color="#94A3B8" />
+                <Text style={styles.emptyTargetText}>신고 대상을 선택해주세요.</Text>
+              </View>
+            ) : null}
+          </View>
         </View>
-      ) : null}
 
-      <TouchableOpacity style={[styles.submitButton, submitting && styles.disabled]} disabled={submitting} onPress={submit}>
-        <Text style={styles.submitButtonText}>{submitText}</Text>
-      </TouchableOpacity>
-    </ScrollView>
-  );
-}
+        <View style={styles.section}>
+          <View style={styles.formCard}>
+            <Text style={styles.label}>분쟁 유형</Text>
+            <View style={styles.typeRow}>
+              {DISPUTE_TYPES.map((item) => {
+                const active = type === item.value;
+                return (
+                  <TouchableOpacity key={item.value} style={[styles.type, active && styles.typeActive]} onPress={() => setType(item.value)} activeOpacity={0.84}>
+                    <Text style={[styles.typeText, active && styles.typeTextActive]}>{item.label}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
 
-function TargetSummary({
-  title,
-  venue,
-  date,
-  seat,
-  price,
-  transactionDate,
-}: {
-  title: string;
-  venue?: string;
-  date?: string;
-  seat?: string;
-  price?: string;
-  transactionDate?: string;
-}) {
-  return (
-    <View>
-      <Text style={styles.summaryTitle}>{title}</Text>
-      <Text style={styles.summaryMeta}>장소: {venue || '-'}</Text>
-      <Text style={styles.summaryMeta}>날짜/시간: {formatDate(date)}</Text>
-      <Text style={styles.summaryMeta}>좌석: {seat || '-'}</Text>
-      {price ? <Text style={styles.summaryMeta}>거래 가격: {price}</Text> : null}
-      {transactionDate ? <Text style={styles.summaryMeta}>거래 일시: {formatDate(transactionDate)}</Text> : null}
+            <Text style={styles.label}>신고 내용</Text>
+            <TextInput
+              style={styles.textarea}
+              value={description}
+              onChangeText={setDescription}
+              placeholder="상황을 구체적으로 입력해 주세요."
+              multiline
+              textAlignVertical="top"
+            />
+          </View>
+        </View>
+
+        {feedback ? (
+          <View style={styles.section}>
+            <View style={styles.feedbackBox}>
+              <TicketIcon name="alert" size={20} color="#DC2626" />
+              <Text style={styles.feedbackText}>{feedback}</Text>
+            </View>
+          </View>
+        ) : null}
+
+        <View style={styles.section}>
+          <TouchableOpacity style={[styles.primaryButton, submitting && styles.primaryDisabled]} disabled={submitting} onPress={submit} activeOpacity={0.88}>
+            <TicketIcon name="alert" size={20} color="#FFFFFF" />
+            <Text style={styles.primaryButtonText}>{submitText}</Text>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F4F7FB' },
-  content: { padding: 18, paddingBottom: 96 },
-  eyebrow: { color: '#2563EB', fontWeight: '800', fontSize: 12 },
-  title: { marginTop: 4, fontSize: 28, fontWeight: '900', color: '#0F172A' },
-  subtitle: { marginTop: 8, color: '#64748B', fontSize: 14, lineHeight: 21 },
-  card: { marginTop: 16, backgroundColor: '#FFFFFF', borderRadius: 18, padding: 16, borderWidth: 1, borderColor: '#E2E8F0' },
-  sectionTitle: { color: '#0F172A', fontSize: 16, fontWeight: '900', marginBottom: 12 },
-  targetTypeRow: { flexDirection: 'row', gap: 8 },
-  targetTypeButton: { flex: 1, borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 12, paddingVertical: 12, paddingHorizontal: 10, alignItems: 'center', backgroundColor: '#FFFFFF' },
-  activeTargetTypeButton: { borderColor: '#2563EB', backgroundColor: '#EFF6FF' },
-  lockedButton: { opacity: 0.7 },
-  targetTypeText: { color: '#475569', fontWeight: '900', fontSize: 13, textAlign: 'center' },
-  activeTargetTypeText: { color: '#2563EB' },
-  loader: { marginTop: 16 },
-  optionList: { marginTop: 14, gap: 10 },
-  optionCard: { borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 14, padding: 14, backgroundColor: '#FFFFFF' },
-  selectedOptionCard: { borderColor: '#2563EB', backgroundColor: '#EFF6FF' },
-  directTargetCard: { marginTop: 14 },
-  selectedBadge: { alignSelf: 'flex-start', overflow: 'hidden', borderRadius: 999, backgroundColor: '#2563EB', color: '#FFFFFF', paddingHorizontal: 9, paddingVertical: 4, fontSize: 11, fontWeight: '900', marginBottom: 8 },
-  emptyTargetBox: { marginTop: 14, borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 14, padding: 14, backgroundColor: '#F8FAFC' },
-  emptyTargetTitle: { color: '#0F172A', fontWeight: '900', fontSize: 14 },
-  emptyTargetText: { marginTop: 5, color: '#64748B', fontSize: 12, lineHeight: 18 },
-  summaryTitle: { color: '#0F172A', fontSize: 16, fontWeight: '900', marginBottom: 6 },
-  summaryMeta: { color: '#64748B', fontSize: 13, lineHeight: 20 },
+  container: { flex: 1, backgroundColor: '#F6F7FB' },
+  screen: { flex: 1 },
+  content: { paddingBottom: 112 },
+  topbar: {
+    backgroundColor: 'rgba(246,247,251,0.96)',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(226,232,240,0.72)',
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    paddingBottom: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  topTitleWrap: { flex: 1, alignItems: 'center' },
+  eyebrow: { fontSize: 10, fontWeight: '900', color: '#938CF0', letterSpacing: 0, textTransform: 'uppercase', marginBottom: 2 },
+  topTitle: { fontSize: 18, fontWeight: '900', color: '#0F172A', letterSpacing: 0 },
+  disputeHero: { marginHorizontal: 16, marginTop: 14, marginBottom: 14 },
+  section: { paddingHorizontal: 16, paddingBottom: 14 },
+  formCard: { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 24, padding: 16, ...flowShadow },
+  head: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12, marginBottom: 10 },
+  headTitle: { fontSize: 17, fontWeight: '900', color: '#0F172A', letterSpacing: 0 },
+  headSub: { fontSize: 11, color: '#64748B', marginTop: 3, fontWeight: '700' },
+  choiceGrid: { flexDirection: 'row', gap: 10, marginBottom: 12 },
+  choice: { flex: 1, borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 17, backgroundColor: '#FFFFFF', paddingVertical: 13, paddingHorizontal: 10, alignItems: 'center' },
+  choiceActive: { borderColor: '#534AB7', backgroundColor: '#EEEDFE' },
+  choiceLocked: { opacity: 0.72 },
+  choiceText: { fontSize: 12, fontWeight: '900', color: '#64748B', textAlign: 'center' },
+  choiceTextActive: { color: '#534AB7' },
+  loader: { marginVertical: 12 },
+  optionList: { gap: 10, marginTop: 8 },
+  selectedTicket: { marginTop: 12, backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 20, padding: 14, flexDirection: 'row', gap: 10 },
+  selectedTicketActive: { borderWidth: 1.5, borderColor: '#534AB7' },
+  targetPoster: { width: 76, height: 100, borderRadius: 16 },
+  targetCopy: { flex: 1, minWidth: 0, gap: 4 },
+  ticketName: { fontSize: 15, fontWeight: '900', lineHeight: 19, letterSpacing: 0, color: '#0F172A', marginTop: 2 },
+  ticketMeta: { fontSize: 11, color: '#64748B', lineHeight: 16, fontWeight: '700' },
   emptyText: { color: '#94A3B8', textAlign: 'center', fontWeight: '800', paddingVertical: 18 },
-  helper: { marginTop: 10, color: '#64748B', fontSize: 12, lineHeight: 18 },
-  label: { marginTop: 12, marginBottom: 6, color: '#334155', fontSize: 13, fontWeight: '800' },
-  input: { borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 12, padding: 12, backgroundColor: '#FFFFFF', color: '#0F172A' },
-  textArea: { minHeight: 140, textAlignVertical: 'top' },
-  typeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  typeChip: { borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: '#FFFFFF' },
-  activeTypeChip: { borderColor: '#2563EB', backgroundColor: '#EFF6FF' },
-  typeChipText: { color: '#475569', fontWeight: '800', fontSize: 13 },
-  activeTypeChipText: { color: '#2563EB' },
-  feedbackBox: { marginTop: 14, backgroundColor: '#FEF2F2', borderWidth: 1, borderColor: '#FCA5A5', borderRadius: 12, padding: 12 },
-  feedbackText: { color: '#B91C1C', fontWeight: '800', lineHeight: 20 },
-  submitButton: { backgroundColor: '#2563EB', borderRadius: 14, paddingVertical: 15, alignItems: 'center', marginTop: 16 },
-  submitButtonText: { color: '#FFFFFF', fontSize: 16, fontWeight: '900' },
-  disabled: { opacity: 0.55 },
+  emptyTarget: { marginTop: 12, backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 18, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  emptyTargetText: { color: '#64748B', fontWeight: '800', fontSize: 12 },
+  label: { fontSize: 11, fontWeight: '900', color: '#64748B', marginBottom: 8 },
+  typeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 },
+  type: { borderWidth: 1, borderColor: '#E2E8F0', backgroundColor: '#FFFFFF', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8 },
+  typeActive: { borderColor: '#534AB7', backgroundColor: '#EEEDFE' },
+  typeText: { fontSize: 12, fontWeight: '900', color: '#64748B' },
+  typeTextActive: { color: '#534AB7' },
+  textarea: { width: '100%', minHeight: 134, borderWidth: 1, borderColor: '#D9E1EE', borderRadius: 17, padding: 13, fontSize: 13, color: '#0F172A', backgroundColor: '#FFFFFF' },
+  feedbackBox: { backgroundColor: '#FEF2F2', borderWidth: 1, borderColor: '#FCA5A5', borderRadius: 19, padding: 13, flexDirection: 'row', gap: 10, alignItems: 'flex-start' },
+  feedbackText: { flex: 1, color: '#B91C1C', fontWeight: '800', lineHeight: 20 },
+  primaryButton: { minHeight: 52, borderRadius: 17, backgroundColor: '#534AB7', flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'center', ...flowShadow },
+  primaryDisabled: { opacity: 0.55 },
+  primaryButtonText: { color: '#FFFFFF', fontSize: 15, fontWeight: '900' },
 });

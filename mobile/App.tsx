@@ -82,6 +82,16 @@ export default function App() {
 
   const navigateFromBottom = React.useCallback(async (routeName: string) => {
     const eventScopedRoutes = new Set(['TicketIssue', 'TicketExplore', 'CheckInStatus', 'EventSettings', 'CheckInManage']);
+    const userProtectedRoutes = new Set([
+      'MyPage',
+      'MyTicketFlow',
+      'MyTickets',
+      'TicketDetail',
+      'TicketQr',
+      'TicketResaleCreate',
+      'MyDisputes',
+      'DisputeCreate',
+    ]);
     const organizerRoutes = new Set([
       'Organizer',
       'MyEvents',
@@ -98,6 +108,14 @@ export default function App() {
     ]);
 
     if (navigationRef.isReady()) {
+      if (userProtectedRoutes.has(routeName)) {
+        const profile = await backendApi.getMe().catch(() => null);
+        if (!profile) {
+          navigationRef.navigate('Auth', { initialRole: 'USER' });
+          return;
+        }
+      }
+
       if (organizerRoutes.has(routeName)) {
         const profile = await backendApi.getMe().catch(() => null);
         if (!profile || !hasOrganizerAccess(profile.roles)) {
@@ -159,6 +177,7 @@ export default function App() {
           <Stack.Screen name="ResaleDetail" component={ResaleDetailPage} options={{ title: '리셀 상세' }} />
           <Stack.Screen name="PurchaseComplete" component={PurchaseCompletePage} options={{ title: '구매 완료' }} />
           <Stack.Screen name="MyPage" component={MyPage} options={{ title: '마이페이지' }} />
+          <Stack.Screen name="MyTicketFlow" component={MyTicketsPage} options={{ title: '내 티켓' }} />
           <Stack.Screen name="MyTickets" component={MyTicketsPage} options={{ title: '내 티켓' }} />
           <Stack.Screen name="TicketDetail" component={TicketDetailPage} options={{ title: '티켓 상세' }} />
           <Stack.Screen name="TicketQr" component={TicketQrPage} options={{ title: 'QR 보기' }} />
