@@ -1,15 +1,25 @@
 import { useProvider } from '@reown/appkit-react-native';
 import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { FlowBadge, FlowHero, IconButton, TicketIcon, flowShadow } from '../components/TicketFlowKit';
 import { errorMessage } from '../lib/account';
 import { backendApi } from '../lib/backend';
 import { purchaseResaleTicketOnChain } from '../lib/blockchain/client';
 import { showDialog } from '../lib/dialog';
-import { isEventEnded } from '../lib/ticketDisplay';
+import {
+  compactId,
+  eventTitle,
+  isEventEnded,
+  sectionNameOf,
+  weiToEthLabel,
+} from '../lib/ticketFlowDisplay';
 import type { EventDetail, ResaleListing, TicketDetail, UserProfile } from '../types/api';
 
 const STATUS_LABEL: Record<string, string> = {
   ACTIVE: '판매중',
+  LISTED: '판매중',
+  OPEN: '판매중',
+  ON_SALE: '판매중',
   SOLD: '판매완료',
   CLOSED: '판매종료',
   CANCELED: '취소됨',
@@ -21,6 +31,14 @@ function statusLabel(status?: string, event?: EventDetail | null) {
   return STATUS_LABEL[key] ?? status ?? '-';
 }
 
+function statusTone(status?: string, event?: EventDetail | null): 'green' | 'gray' | 'red' | 'purple' {
+  const label = statusLabel(status, event);
+  if (label === '판매중') return 'green';
+  if (label === '취소됨') return 'red';
+  if (label === '판매완료' || label === '판매종료') return 'gray';
+  return 'purple';
+}
+
 function blockedPurchaseMessage(listing: ResaleListing | null, isMyListing: boolean, event?: EventDetail | null) {
   if (!listing) return '리셀 티켓 정보를 확인할 수 없습니다.';
   const status = listing.status?.toUpperCase();
@@ -29,8 +47,39 @@ function blockedPurchaseMessage(listing: ResaleListing | null, isMyListing: bool
   if (status === 'SOLD') return '이미 판매 완료된 리셀 티켓입니다.';
   if (status === 'CLOSED') return '판매가 종료된 리셀 티켓입니다.';
   if (status === 'CANCELED') return '취소된 리셀 티켓입니다.';
-  if (status !== 'ACTIVE') return '현재 구매할 수 없는 리셀 티켓입니다.';
+  if (!['ACTIVE', 'LISTED', 'OPEN', 'ON_SALE'].includes(status ?? '')) return '현재 구매할 수 없는 리셀 티켓입니다.';
   return '';
+}
+
+function seatLabel(ticket?: TicketDetail | null, listing?: ResaleListing | null) {
+  const seat = ticket?.seatInfo || listing?.seatInfo || '-';
+  const section = sectionNameOf(ticket);
+  return section && section !== '-' && !seat.includes(section) ? `${section}-${seat}` : seat;
+}
+
+function resalePercent(listing?: ResaleListing | null, ticket?: TicketDetail | null) {
+  const original = ticket?.originalPriceWei || ticket?.priceWei;
+  const price = listing?.priceWei || listing?.price;
+  if (!original || !price) return '-';
+  try {
+    const percent = (BigInt(String(price)) * 100n) / BigInt(String(original));
+    return `${percent.toString()}%`;
+  } catch {
+    return '-';
+  }
+}
+
+function sellerLabel(listing?: ResaleListing | null) {
+  return listing?.sellerDisplayName || compactId(listing?.sellerId, 6, 4);
+}
+
+function InfoBox({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={styles.kv}>
+      <Text style={styles.k}>{label}</Text>
+      <Text style={styles.v} numberOfLines={2}>{value}</Text>
+    </View>
+  );
 }
 
 export default function ResaleDetailPage({ route, navigation }: any) {
@@ -79,7 +128,7 @@ export default function ResaleDetailPage({ route, navigation }: any) {
     if (status === 'SOLD') return '판매완료';
     if (status === 'CLOSED') return '판매종료';
     if (status === 'CANCELED') return '취소됨';
-    if (status !== 'ACTIVE') return '구매 불가';
+    if (!['ACTIVE', 'LISTED', 'OPEN', 'ON_SALE'].includes(status ?? '')) return '구매 불가';
     return '리셀 티켓 구매하기';
   }, [eventEnded, isMyListing, listing?.status, submitting]);
 
@@ -129,73 +178,136 @@ export default function ResaleDetailPage({ route, navigation }: any) {
     }
   };
 
-  if (loading) return <View style={styles.center}><ActivityIndicator size="large" color="#007AFF" /></View>;
-  if (!listing) return <View style={styles.center}><Text>리셀 등록을 찾을 수 없습니다.</Text></View>;
+  if (loading) return <View style={styles.center}><ActivityIndicator size="large" color="#534AB7" /></View>;
+  if (!listing) return <View style={styles.center}><Text style={styles.empty}>리셀 등록을 찾을 수 없습니다.</Text></View>;
+
+  const title = eventTitle(event, ticket);
+  const seat = seatLabel(ticket, listing);
+  const status = statusLabel(listing.status, event);
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <View style={styles.card}>
-        <Text style={styles.status}>{statusLabel(listing.status, event)}</Text>
-        <Text style={styles.title}>{event?.name || listing.eventName || '리셀 티켓'}</Text>
-        <Text style={styles.meta}>{event?.venue || '-'}</Text>
-        <Text style={styles.meta}>{event?.eventAt ? new Date(event.eventAt).toLocaleString() : '-'}</Text>
-      </View>
-
-      <View style={styles.card}>
-        <Info label="좌석" value={ticket?.seatInfo || listing.seatInfo || '-'} />
-        <Info label="리셀 가격" value={`${listing.priceWei ?? listing.price ?? '-'} WEI`} />
-        <Info label="티켓 ID" value={String(listing.ticketId)} />
-      </View>
-
-      {(feedback || isBlocked) ? (
-        <View style={styles.feedbackBox}>
-          <Text style={styles.feedbackText}>{feedback || blockMessage}</Text>
+    <View style={styles.container}>
+      <View style={styles.topbar}>
+        <TouchableOpacity onPress={() => navigation.goBack()} activeOpacity={0.84}>
+          <IconButton><TicketIcon name="arrowLeft" size={20} /></IconButton>
+        </TouchableOpacity>
+        <View style={styles.topTitleWrap}>
+          <Text style={styles.eyebrow}>Resale Detail</Text>
+          <Text style={styles.topTitle}>리셀 거래 상세</Text>
         </View>
-      ) : null}
+        <FlowBadge label={status} tone={statusTone(listing.status, event)} />
+      </View>
 
-      <TouchableOpacity
-        style={[styles.button, (submitting || isBlocked) && styles.disabledButton]}
-        disabled={submitting || isBlocked}
-        onPress={purchase}
-      >
-        <Text style={styles.buttonText}>{buttonText}</Text>
-      </TouchableOpacity>
+      <ScrollView style={styles.screen} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <FlowHero
+          height={176}
+          style={styles.hero}
+          posters={false}
+          badge="리셀 티켓"
+          title={'구매 전 소유권과\n가격을 확인하세요.'}
+          meta={`${title} · ${seat} · ${weiToEthLabel(listing.priceWei ?? listing.price)}`}
+        />
 
-      <TouchableOpacity
-        style={styles.secondaryButton}
-        onPress={() => navigation.navigate('DisputeCreate', { resaleListingId: listing.id ?? listing.listingId, ticketId: listing.ticketId })}
-      >
-        <Text style={styles.secondaryButtonText}>이 리셀 거래 분쟁 신고</Text>
-      </TouchableOpacity>
-    </ScrollView>
-  );
-}
+        <View style={styles.section}>
+          <View style={styles.detailCard}>
+            <FlowBadge label={status} tone={statusTone(listing.status, event)} />
+            <Text style={styles.detailTitle}>좌석 {seat}</Text>
+            <Text style={styles.meta}>블록체인 기록으로 소유권이 확인된 리셀 티켓입니다.</Text>
+            <View style={styles.grid2}>
+              <InfoBox label="리셀 가격" value={weiToEthLabel(listing.priceWei ?? listing.price)} />
+              <InfoBox label="원가 대비" value={resalePercent(listing, ticket)} />
+              <InfoBox label="티켓 ID" value={compactId(listing.ticketId, 8, 4)} />
+              <InfoBox label="판매자" value={sellerLabel(listing)} />
+            </View>
+          </View>
+        </View>
 
-function Info({ label, value }: { label: string; value: string }) {
-  return (
-    <View style={styles.infoRow}>
-      <Text style={styles.infoLabel}>{label}</Text>
-      <Text style={styles.infoValue}>{value}</Text>
+        <View style={styles.section}>
+          <View style={styles.sellerCard}>
+            <View style={styles.ico}>
+              <TicketIcon name="userCheck" size={21} color="#534AB7" />
+            </View>
+            <View style={styles.sellerCopy}>
+              <Text style={styles.tipTitle}>검증된 판매자</Text>
+              <Text style={styles.tipSub}>현재 티켓 소유자와 판매 등록자가 일치합니다.</Text>
+            </View>
+          </View>
+        </View>
+
+        {(feedback || isBlocked) ? (
+          <View style={styles.section}>
+            <View style={styles.alert}>
+              <TicketIcon name="alert" size={20} color="#EA580C" />
+              <Text style={styles.alertText}>{feedback || blockMessage}</Text>
+            </View>
+          </View>
+        ) : null}
+
+        <View style={styles.actions}>
+          <TouchableOpacity
+            style={[styles.btn, styles.primary, (submitting || isBlocked) && styles.disabledButton]}
+            disabled={submitting || isBlocked}
+            onPress={purchase}
+            activeOpacity={0.88}
+          >
+            <Text style={styles.primaryText}>{buttonText}</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.btn, styles.outline]}
+            onPress={() => navigation.navigate('DisputeCreate', { resaleListingId: listing.id ?? listing.listingId, ticketId: listing.ticketId })}
+            activeOpacity={0.88}
+          >
+            <Text style={styles.outlineText}>이 리셀 거래 분쟁 신고</Text>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F8F9FA' },
-  content: { padding: 20 },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  card: { backgroundColor: '#fff', borderRadius: 12, padding: 20, marginBottom: 14, borderWidth: 1, borderColor: '#E9ECEF' },
-  status: { color: '#007AFF', fontWeight: '900', marginBottom: 8 },
-  title: { color: '#212529', fontSize: 22, fontWeight: '900', marginBottom: 8 },
-  meta: { color: '#868E96', marginBottom: 4 },
-  infoRow: { paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#F1F3F5' },
-  infoLabel: { color: '#868E96', fontSize: 12, fontWeight: '800', marginBottom: 4 },
-  infoValue: { color: '#212529', fontWeight: '900' },
-  feedbackBox: { backgroundColor: '#FFF7ED', borderWidth: 1, borderColor: '#FDBA74', borderRadius: 12, padding: 12, marginBottom: 12 },
-  feedbackText: { color: '#9A3412', fontWeight: '800', lineHeight: 20 },
-  button: { backgroundColor: '#007AFF', padding: 18, borderRadius: 12, alignItems: 'center', marginTop: 8 },
-  disabledButton: { backgroundColor: '#94A3B8' },
-  secondaryButton: { borderWidth: 1, borderColor: '#007AFF', padding: 18, borderRadius: 12, alignItems: 'center', marginTop: 12 },
-  secondaryButtonText: { color: '#007AFF', fontSize: 16, fontWeight: '900' },
-  buttonText: { color: '#fff', fontSize: 17, fontWeight: '900' },
+  container: { flex: 1, backgroundColor: '#F6F7FB' },
+  screen: { flex: 1 },
+  content: { paddingBottom: 112 },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F6F7FB', padding: 24 },
+  topbar: {
+    backgroundColor: 'rgba(246,247,251,0.96)',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(226,232,240,0.72)',
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    paddingBottom: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  topTitleWrap: { flex: 1, alignItems: 'center' },
+  eyebrow: { fontSize: 10, fontWeight: '900', color: '#938CF0', letterSpacing: 0, textTransform: 'uppercase', marginBottom: 2 },
+  topTitle: { fontSize: 18, fontWeight: '900', color: '#0F172A', letterSpacing: 0 },
+  hero: { marginHorizontal: 16, marginTop: 14, marginBottom: 14 },
+  section: { paddingHorizontal: 16, paddingBottom: 14 },
+  detailCard: { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 24, padding: 16, ...flowShadow },
+  detailTitle: { fontSize: 22, fontWeight: '900', color: '#0F172A', lineHeight: 27, letterSpacing: 0, marginTop: 8, marginBottom: 8 },
+  meta: { fontSize: 11, color: '#64748B', lineHeight: 17, fontWeight: '700' },
+  grid2: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, paddingTop: 14 },
+  kv: { width: '48%', minHeight: 72, backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#EDF2F7', borderRadius: 17, padding: 12 },
+  k: { fontSize: 10, fontWeight: '900', color: '#94A3B8', marginBottom: 5 },
+  v: { fontSize: 13, fontWeight: '900', color: '#0F172A', lineHeight: 18 },
+  sellerCard: { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 24, padding: 14, flexDirection: 'row', gap: 12, alignItems: 'center', ...flowShadow },
+  ico: { width: 42, height: 42, borderRadius: 16, backgroundColor: '#EEEDFE', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  sellerCopy: { flex: 1, minWidth: 0 },
+  tipTitle: { fontSize: 14, fontWeight: '900', color: '#0F172A', marginBottom: 3 },
+  tipSub: { fontSize: 10, color: '#64748B', lineHeight: 15, fontWeight: '700' },
+  alert: { borderRadius: 19, paddingHorizontal: 14, paddingVertical: 13, flexDirection: 'row', gap: 10, alignItems: 'flex-start', backgroundColor: '#FFF7ED', borderWidth: 1, borderColor: '#FED7AA' },
+  alertText: { flex: 1, color: '#EA580C', fontWeight: '800', lineHeight: 20, fontSize: 12 },
+  actions: { paddingHorizontal: 16, paddingBottom: 14, gap: 10 },
+  btn: { width: '100%', minHeight: 52, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
+  primary: { backgroundColor: '#534AB7', ...flowShadow },
+  disabledButton: { backgroundColor: '#CBD5E1' },
+  primaryText: { color: '#FFFFFF', fontSize: 15, fontWeight: '900' },
+  outline: { backgroundColor: '#FFFFFF', borderWidth: 1.5, borderColor: '#CECBF6' },
+  outlineText: { color: '#534AB7', fontSize: 15, fontWeight: '900' },
+  empty: { color: '#64748B', fontWeight: '800', textAlign: 'center' },
 });

@@ -22,7 +22,12 @@ export type TicketIconName =
   | 'chevron'
   | 'check'
   | 'seat'
-  | 'tag';
+  | 'tag'
+  | 'user'
+  | 'settings'
+  | 'plus'
+  | 'adjustments'
+  | 'userCheck';
 
 export const flowShadow = {
   shadowColor: '#0F172A',
@@ -60,6 +65,11 @@ export function TicketIcon({ name, color = '#64748B', size = 20 }: { name: Ticke
   if (name === 'check') return <Svg width={size} height={size} viewBox="0 0 24 24"><Path d="M5 12l4 4L19 6" {...common} /></Svg>;
   if (name === 'seat') return <Svg width={size} height={size} viewBox="0 0 24 24"><Path d="M7 11V6a3 3 0 016 0v5M6 11h10a3 3 0 013 3v5H5v-5a3 3 0 013-3zM8 19v2M16 19v2" {...common} /></Svg>;
   if (name === 'tag') return <Svg width={size} height={size} viewBox="0 0 24 24"><Path d="M4 12V5h7l9 9-7 7-9-9zM8 8h.01" {...common} /></Svg>;
+  if (name === 'user') return <Svg width={size} height={size} viewBox="0 0 24 24"><Circle cx="12" cy="8" r="4" {...common} /><Path d="M4.5 21a7.5 7.5 0 0115 0" {...common} /></Svg>;
+  if (name === 'settings') return <Svg width={size} height={size} viewBox="0 0 24 24"><Path d="M12 8.5a3.5 3.5 0 100 7 3.5 3.5 0 000-7zM19.4 15a1.7 1.7 0 00.3 1.9l.1.1-2 3.4-.2-.1a1.7 1.7 0 00-2.1.5l-.1.2h-4l-.1-.2a1.7 1.7 0 00-2.1-.5l-.2.1-2-3.4.1-.1a1.7 1.7 0 00.3-1.9l-.1-.2-2-1.2v-3.2l2-1.2.1-.2a1.7 1.7 0 00-.3-1.9L7 7l2-3.4.2.1a1.7 1.7 0 002.1-.5l.1-.2h4l.1.2a1.7 1.7 0 002.1.5l.2-.1 2 3.4-.1.1a1.7 1.7 0 00-.3 1.9l.1.2 2 1.2v3.2l-2 1.2-.1.2z" {...common} /></Svg>;
+  if (name === 'plus') return <Svg width={size} height={size} viewBox="0 0 24 24"><Path d="M12 5v14M5 12h14" {...common} /></Svg>;
+  if (name === 'adjustments') return <Svg width={size} height={size} viewBox="0 0 24 24"><Path d="M4 7h10M18 7h2M4 17h3M11 17h9M14 5v4M7 15v4" {...common} /></Svg>;
+  if (name === 'userCheck') return <Svg width={size} height={size} viewBox="0 0 24 24"><Circle cx="9" cy="8" r="4" {...common} /><Path d="M2.5 21a6.5 6.5 0 0113 0M16 11l2 2 4-5" {...common} /></Svg>;
   return <Svg width={size} height={size} viewBox="0 0 24 24"><Path d="M9 18l6-6-6-6" {...common} /></Svg>;
 }
 

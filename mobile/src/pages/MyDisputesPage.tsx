@@ -1,8 +1,19 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
-import { ActivityIndicator, Alert, FlatList, RefreshControl, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import { FlowBadge, FlowHero, IconButton, PosterArt, TicketIcon, flowShadow } from '../components/TicketFlowKit';
 import { errorMessage } from '../lib/account';
 import { backendApi } from '../lib/backend';
+import { formatDateTime, weiToEthLabel } from '../lib/ticketFlowDisplay';
 import type { DisputeRecord, ResaleListing, TicketDetail } from '../types/api';
 
 const STATUS_LABEL: Record<string, string> = {
@@ -27,6 +38,8 @@ const EDITABLE_STATUSES = new Set(['OPEN', 'RECEIVED']);
 const PROCESSING_STATUSES = new Set(['REVIEWING', 'PROCESSING']);
 const DONE_STATUSES = new Set(['RESOLVED', 'REJECTED', 'CLOSED', 'CANCELED']);
 
+type StatusFilter = 'ALL' | 'ACTIVE' | 'DONE';
+
 type DisputeTargetSummary = {
   title: string;
   venue?: string;
@@ -37,18 +50,52 @@ type DisputeTargetSummary = {
   kind: string;
 };
 
+const FILTERS: { id: StatusFilter; label: string }[] = [
+  { id: 'ALL', label: '전체' },
+  { id: 'ACTIVE', label: '처리중' },
+  { id: 'DONE', label: '완료' },
+];
+
+function disputeKey(item: DisputeRecord, index: number) {
+  return String(item.id ?? `dispute-${index}`);
+}
+
 function getStatusBadge(status?: string) {
   const key = status?.toUpperCase() ?? 'OPEN';
-  if (EDITABLE_STATUSES.has(key)) return { label: '수정/취소 가능', style: styles.badgeEditable, textStyle: styles.badgeEditableText };
-  if (PROCESSING_STATUSES.has(key)) return { label: '처리 중', style: styles.badgeProcessing, textStyle: styles.badgeProcessingText };
-  if (DONE_STATUSES.has(key)) return { label: STATUS_LABEL[key] ?? '완료', style: styles.badgeDone, textStyle: styles.badgeDoneText };
-  return { label: STATUS_LABEL[key] ?? key, style: styles.badgeDefault, textStyle: styles.badgeDefaultText };
+  if (EDITABLE_STATUSES.has(key)) return { label: '수정/취소 가능', tone: 'purple' as const };
+  if (PROCESSING_STATUSES.has(key)) return { label: '처리 중', tone: 'yellow' as const };
+  if (DONE_STATUSES.has(key)) return { label: STATUS_LABEL[key] ?? '완료', tone: 'gray' as const };
+  return { label: STATUS_LABEL[key] ?? key, tone: 'purple' as const };
+}
+
+function statusTone(status?: string): 'green' | 'purple' | 'gray' | 'red' | 'yellow' {
+  const key = String(status ?? 'OPEN').toUpperCase();
+  if (EDITABLE_STATUSES.has(key)) return 'purple';
+  if (PROCESSING_STATUSES.has(key)) return 'yellow';
+  if (key === 'CANCELED' || key === 'REJECTED') return 'red';
+  if (DONE_STATUSES.has(key)) return 'gray';
+  return 'purple';
+}
+
+function FilterRow({ value, onChange }: { value: StatusFilter; onChange: (value: StatusFilter) => void }) {
+  return (
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filters}>
+      {FILTERS.map((item) => {
+        const active = value === item.id;
+        return (
+          <TouchableOpacity key={item.id} style={[styles.filter, active && styles.filterActive]} onPress={() => onChange(item.id)} activeOpacity={0.86}>
+            <Text style={[styles.filterText, active && styles.filterTextActive]}>{item.label}</Text>
+          </TouchableOpacity>
+        );
+      })}
+    </ScrollView>
+  );
 }
 
 export default function MyDisputesPage({ navigation }: any) {
   const [items, setItems] = useState<DisputeRecord[]>([]);
   const [targetSummaries, setTargetSummaries] = useState<Record<string, DisputeTargetSummary>>({});
-  const [statusFilter, setStatusFilter] = useState('ALL');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
@@ -63,7 +110,7 @@ export default function MyDisputesPage({ navigation }: any) {
 
       const entries = await Promise.all(
         disputeItems.map(async (item, index) => {
-          const key = String(item.id ?? index);
+          const key = disputeKey(item, index);
           const summary = await loadTargetSummary(item);
           return [key, summary] as const;
         }),
@@ -85,9 +132,17 @@ export default function MyDisputesPage({ navigation }: any) {
       const status = item.status?.toUpperCase() ?? 'OPEN';
       return EDITABLE_STATUSES.has(status) || PROCESSING_STATUSES.has(status);
     });
-    if (statusFilter === 'DONE') return items.filter((item) => DONE_STATUSES.has(item.status?.toUpperCase() ?? ''));
-    return items;
+    return items.filter((item) => DONE_STATUSES.has(item.status?.toUpperCase() ?? ''));
   }, [items, statusFilter]);
+
+  const activeCount = useMemo(
+    () => items.filter((item) => {
+      const status = item.status?.toUpperCase() ?? 'OPEN';
+      return EDITABLE_STATUSES.has(status) || PROCESSING_STATUSES.has(status);
+    }).length,
+    [items],
+  );
+  const doneCount = useMemo(() => items.filter((item) => DONE_STATUSES.has(item.status?.toUpperCase() ?? '')).length, [items]);
 
   const cancelDispute = (item: DisputeRecord) => {
     const disputeId = String(item.id ?? '');
@@ -113,80 +168,96 @@ export default function MyDisputesPage({ navigation }: any) {
     ]);
   };
 
-  if (loading) return <View style={styles.center}><ActivityIndicator size="large" color="#2563EB" /></View>;
+  if (loading) return <View style={styles.center}><ActivityIndicator size="large" color="#534AB7" /></View>;
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.eyebrow}>Disputes</Text>
-        <Text style={styles.title}>내 분쟁 신고</Text>
-        <Text style={styles.subtitle}>접수한 신고의 처리 상태를 확인하고, 접수 단계 신고는 수정하거나 취소할 수 있습니다.</Text>
-        <TouchableOpacity style={styles.button} onPress={() => navigation.navigate('DisputeCreate')}>
-          <Text style={styles.buttonText}>새 분쟁 신고</Text>
+      <View style={styles.topbar}>
+        <TouchableOpacity onPress={() => (navigation.canGoBack() ? navigation.goBack() : navigation.navigate('MyPage'))} activeOpacity={0.84}>
+          <IconButton><TicketIcon name="arrowLeft" size={20} /></IconButton>
         </TouchableOpacity>
-        {error ? <Text style={styles.error}>{error}</Text> : null}
+        <View style={styles.topTitleWrap}>
+          <Text style={styles.eyebrow}>Disputes</Text>
+          <Text style={styles.topTitle}>내 분쟁 신고</Text>
+        </View>
+        <TouchableOpacity onPress={() => navigation.navigate('DisputeCreate')} activeOpacity={0.84}>
+          <IconButton><TicketIcon name="plus" size={20} /></IconButton>
+        </TouchableOpacity>
       </View>
 
-      <FlatList
-        contentContainerStyle={styles.list}
-        data={filteredItems}
-        keyExtractor={(item, index) => String(item.id ?? index)}
+      <ScrollView
+        style={styles.screen}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} />}
-        ListHeaderComponent={(
-          <View style={styles.filterRow}>
-            {[
-              { id: 'ALL', label: '전체' },
-              { id: 'ACTIVE', label: '처리중' },
-              { id: 'DONE', label: '완료' },
-            ].map((item) => (
-              <TouchableOpacity key={item.id} style={[styles.filterChip, statusFilter === item.id && styles.activeFilterChip]} onPress={() => setStatusFilter(item.id)}>
-                <Text style={[styles.filterText, statusFilter === item.id && styles.activeFilterText]}>{item.label}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        )}
-        ListEmptyComponent={<Text style={styles.empty}>접수한 분쟁 신고가 없습니다.</Text>}
-        renderItem={({ item }) => {
-          const statusKey = item.status?.toUpperCase() ?? 'OPEN';
-          const editable = EDITABLE_STATUSES.has(statusKey);
-          const badge = getStatusBadge(statusKey);
-          const disabled = cancelingId === String(item.id ?? '');
-          const summary = targetSummaries[String(item.id ?? '')];
+      >
+        <FlowHero
+          height={176}
+          style={styles.hero}
+          badge="처리 상태 확인"
+          title={'접수한 신고를\n한 곳에서 관리하세요.'}
+          meta={`진행중 ${activeCount}건 · 처리완료 ${doneCount}건 · 접수 단계 신고는 수정할 수 있습니다.`}
+        />
 
-          return (
-            <View style={styles.card}>
-              <View style={styles.cardHeader}>
-                <Text style={styles.status}>{STATUS_LABEL[statusKey] ?? item.status ?? '접수됨'}</Text>
-                <View style={[styles.badge, badge.style]}>
-                  <Text style={[styles.badgeText, badge.textStyle]}>{badge.label}</Text>
-                </View>
-              </View>
-              <View style={styles.targetBox}>
-                <Text style={styles.targetKind}>{summary?.kind ?? (item.resaleListingId ? '리셀 거래' : '내 티켓')}</Text>
-                <Text style={styles.targetTitle}>{summary?.title ?? '분쟁 대상 정보를 불러오는 중입니다.'}</Text>
-                <Text style={styles.meta}>장소 {summary?.venue || '-'}</Text>
-                <Text style={styles.meta}>날짜/시간 {formatDate(summary?.eventDate || item.createdAt)}</Text>
-                <Text style={styles.meta}>좌석 {summary?.seat || '-'}</Text>
-                {summary?.price ? <Text style={styles.meta}>가격 {summary.price} WEI</Text> : null}
-                {summary?.transactionDate ? <Text style={styles.meta}>거래 일시 {formatDate(summary.transactionDate)}</Text> : null}
-              </View>
-              <Text style={styles.cardTitle}>신고 유형: {TYPE_LABEL[item.type ?? 'OTHER'] ?? item.type ?? '분쟁'}</Text>
-              <Text style={styles.description}>{item.description}</Text>
-              {item.resolutionNote ? <Text style={styles.note}>처리 메모: {item.resolutionNote}</Text> : null}
-              {editable ? (
-                <View style={styles.actionRow}>
-                  <TouchableOpacity style={[styles.editButton, styles.actionButton]} onPress={() => navigation.navigate('DisputeCreate', { dispute: item })}>
-                    <Text style={styles.editButtonText}>신고 내용 수정</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={[styles.cancelButton, styles.actionButton, disabled && styles.disabled]} disabled={disabled} onPress={() => cancelDispute(item)}>
-                    <Text style={styles.cancelButtonText}>{disabled ? '취소 중...' : '신고 취소'}</Text>
-                  </TouchableOpacity>
-                </View>
-              ) : null}
+        <FilterRow value={statusFilter} onChange={setStatusFilter} />
+
+        {error ? (
+          <View style={styles.section}>
+            <View style={styles.errorBox}>
+              <TicketIcon name="alert" size={19} color="#DC2626" />
+              <Text style={styles.errorText}>{error}</Text>
             </View>
-          );
-        }}
-      />
+          </View>
+        ) : null}
+
+        <View style={styles.disputeList}>
+          {filteredItems.map((item, index) => {
+            const key = disputeKey(item, index);
+            const statusKey = item.status?.toUpperCase() ?? 'OPEN';
+            const editable = EDITABLE_STATUSES.has(statusKey);
+            const badge = getStatusBadge(statusKey);
+            const disabled = cancelingId === String(item.id ?? '');
+            const summary = targetSummaries[key];
+
+            return (
+              <View key={key} style={styles.disputeCard}>
+                <View style={styles.disputeCardTop}>
+                  <FlowBadge label={STATUS_LABEL[statusKey] ?? item.status ?? '접수됨'} tone={statusTone(statusKey)} />
+                  <FlowBadge label={badge.label} tone={badge.tone} />
+                </View>
+
+                <View style={styles.targetBox}>
+                  <PosterArt title={summary?.title ?? '분쟁 대상'} variant={index + 1} style={styles.targetPoster} />
+                  <View style={styles.targetCopy}>
+                    <FlowBadge label={summary?.kind ?? (item.resaleListingId ? '리셀 거래' : '내 티켓')} />
+                    <Text style={styles.targetName} numberOfLines={2}>{summary?.title ?? '분쟁 대상 정보를 불러오는 중입니다.'}</Text>
+                    <Text style={styles.meta} numberOfLines={2}>{summary?.venue || '-'}</Text>
+                    <Text style={styles.meta}>{summary?.seat || '-'}</Text>
+                    <Text style={styles.meta}>신고 유형: {TYPE_LABEL[item.type ?? 'OTHER'] ?? item.type ?? '분쟁'}</Text>
+                  </View>
+                </View>
+
+                <Text style={styles.description} numberOfLines={3}>신고 내용: {item.description || '-'}</Text>
+                {summary?.price ? <Text style={styles.meta}>거래 가격: {weiToEthLabel(summary.price)}</Text> : null}
+                {summary?.transactionDate ? <Text style={styles.meta}>거래 일시: {formatDateTime(summary.transactionDate)}</Text> : null}
+                {item.resolutionNote ? <Text style={styles.note}>처리 메모: {item.resolutionNote}</Text> : null}
+
+                {editable ? (
+                  <View style={styles.disputeActions}>
+                    <TouchableOpacity style={[styles.btn, styles.outline]} onPress={() => navigation.navigate('DisputeCreate', { dispute: item })} activeOpacity={0.86}>
+                      <Text style={styles.outlineText}>신고 내용 수정</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={[styles.btn, styles.danger, disabled && styles.disabled]} disabled={disabled} onPress={() => cancelDispute(item)} activeOpacity={0.86}>
+                      <Text style={styles.dangerText}>{disabled ? '취소 중...' : '신고 취소'}</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : null}
+              </View>
+            );
+          })}
+          {!filteredItems.length ? <Text style={styles.empty}>접수한 분쟁 신고가 없습니다.</Text> : null}
+        </View>
+      </ScrollView>
     </View>
   );
 }
@@ -256,54 +327,51 @@ async function loadTargetSummary(item: DisputeRecord): Promise<DisputeTargetSumm
   };
 }
 
-function formatDate(value?: string) {
-  if (!value) return '-';
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? value : date.toLocaleString('ko-KR');
-}
-
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F4F7FB' },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F4F7FB' },
-  header: { padding: 18, backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: '#E2E8F0' },
-  eyebrow: { color: '#2563EB', fontWeight: '800', fontSize: 12 },
-  title: { marginTop: 4, fontSize: 28, fontWeight: '900', color: '#0F172A' },
-  subtitle: { marginTop: 8, color: '#64748B', fontSize: 14, lineHeight: 21 },
-  button: { marginTop: 14, backgroundColor: '#2563EB', borderRadius: 14, paddingVertical: 13, alignItems: 'center' },
-  buttonText: { color: '#FFFFFF', fontWeight: '900', fontSize: 15 },
-  error: { marginTop: 12, color: '#DC2626', fontWeight: '800' },
-  list: { padding: 18, paddingBottom: 96 },
-  filterRow: { flexDirection: 'row', gap: 8, marginBottom: 14 },
-  filterChip: { borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: '#FFFFFF' },
-  activeFilterChip: { borderColor: '#2563EB', backgroundColor: '#EFF6FF' },
-  filterText: { color: '#475569', fontSize: 12, fontWeight: '900' },
-  activeFilterText: { color: '#2563EB' },
-  empty: { color: '#94A3B8', textAlign: 'center', marginTop: 40, fontWeight: '800' },
-  card: { backgroundColor: '#FFFFFF', borderRadius: 16, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: '#E2E8F0' },
-  cardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
-  status: { color: '#2563EB', fontWeight: '900', marginBottom: 6 },
-  cardTitle: { marginTop: 10, color: '#0F172A', fontSize: 14, fontWeight: '900' },
-  targetBox: { marginTop: 10, borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 12, padding: 12, backgroundColor: '#F8FAFC' },
-  targetKind: { color: '#2563EB', fontWeight: '900', fontSize: 12 },
-  targetTitle: { marginTop: 4, color: '#0F172A', fontSize: 15, fontWeight: '900' },
-  meta: { marginTop: 6, color: '#64748B', fontSize: 12 },
-  description: { marginTop: 10, color: '#334155', lineHeight: 20 },
-  note: { marginTop: 10, color: '#166534', fontWeight: '800', lineHeight: 20 },
-  badge: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 },
-  badgeText: { fontSize: 12, fontWeight: '900' },
-  badgeEditable: { backgroundColor: '#EFF6FF' },
-  badgeEditableText: { color: '#2563EB' },
-  badgeProcessing: { backgroundColor: '#FFF7ED' },
-  badgeProcessingText: { color: '#C2410C' },
-  badgeDone: { backgroundColor: '#F1F5F9' },
-  badgeDoneText: { color: '#475569' },
-  badgeDefault: { backgroundColor: '#F8FAFC' },
-  badgeDefaultText: { color: '#64748B' },
-  actionRow: { flexDirection: 'row', gap: 8, marginTop: 14 },
-  actionButton: { flex: 1 },
-  editButton: { borderWidth: 1, borderColor: '#2563EB', borderRadius: 12, paddingVertical: 11, alignItems: 'center' },
-  editButtonText: { color: '#2563EB', fontWeight: '900' },
-  cancelButton: { borderWidth: 1, borderColor: '#FCA5A5', backgroundColor: '#FEF2F2', borderRadius: 12, paddingVertical: 11, alignItems: 'center' },
-  cancelButtonText: { color: '#DC2626', fontWeight: '900' },
+  container: { flex: 1, backgroundColor: '#F6F7FB' },
+  screen: { flex: 1 },
+  content: { paddingBottom: 112 },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F6F7FB' },
+  topbar: {
+    backgroundColor: 'rgba(246,247,251,0.96)',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(226,232,240,0.72)',
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    paddingBottom: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  topTitleWrap: { flex: 1, alignItems: 'center' },
+  eyebrow: { fontSize: 10, fontWeight: '900', color: '#938CF0', letterSpacing: 0, textTransform: 'uppercase', marginBottom: 2 },
+  topTitle: { fontSize: 18, fontWeight: '900', color: '#0F172A', letterSpacing: 0 },
+  hero: { marginHorizontal: 16, marginTop: 14, marginBottom: 14 },
+  filters: { gap: 8, paddingHorizontal: 16, paddingBottom: 14 },
+  filter: { borderWidth: 1, borderColor: '#E2E8F0', backgroundColor: '#FFFFFF', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8 },
+  filterActive: { backgroundColor: '#1A1A2E', borderColor: '#1A1A2E' },
+  filterText: { color: '#64748B', fontSize: 12, fontWeight: '900' },
+  filterTextActive: { color: '#FFFFFF' },
+  section: { paddingHorizontal: 16, paddingBottom: 14 },
+  errorBox: { backgroundColor: '#FEF2F2', borderWidth: 1, borderColor: '#FCA5A5', borderRadius: 19, padding: 13, flexDirection: 'row', gap: 10, alignItems: 'flex-start' },
+  errorText: { flex: 1, color: '#B91C1C', fontWeight: '800', lineHeight: 20 },
+  disputeList: { gap: 12, paddingHorizontal: 16, paddingBottom: 14 },
+  disputeCard: { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 24, padding: 14, ...flowShadow },
+  disputeCardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 10, marginBottom: 10 },
+  targetBox: { backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#DBE3EF', borderRadius: 18, padding: 13, marginBottom: 12, flexDirection: 'row', gap: 10 },
+  targetPoster: { width: 58, height: 78, borderRadius: 15 },
+  targetCopy: { flex: 1, minWidth: 0, gap: 4 },
+  targetName: { fontSize: 16, fontWeight: '900', color: '#0F172A', lineHeight: 20, letterSpacing: 0, marginTop: 4 },
+  meta: { fontSize: 11, color: '#64748B', lineHeight: 17, fontWeight: '700' },
+  description: { color: '#334155', lineHeight: 20, fontSize: 12, fontWeight: '800' },
+  note: { marginTop: 8, color: '#0F6E56', fontWeight: '800', lineHeight: 20 },
+  disputeActions: { flexDirection: 'row', gap: 10, marginTop: 12 },
+  btn: { flex: 1, minHeight: 48, borderRadius: 17, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8 },
+  outline: { backgroundColor: '#FFFFFF', borderWidth: 1.5, borderColor: '#CECBF6' },
+  outlineText: { color: '#534AB7', fontSize: 13, fontWeight: '900' },
+  danger: { backgroundColor: '#FFF1F2', borderWidth: 1, borderColor: '#FECDD3' },
+  dangerText: { color: '#DC2626', fontSize: 13, fontWeight: '900' },
   disabled: { opacity: 0.55 },
+  empty: { textAlign: 'center', color: '#94A3B8', paddingVertical: 40, fontWeight: '800' },
 });

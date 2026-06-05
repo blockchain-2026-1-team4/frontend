@@ -197,6 +197,17 @@ export default function DisputeCreatePage({ route, navigation }: any) {
   );
 
   const title = isEditing ? '분쟁 신고 수정' : '내 분쟁 신고';
+  const heroConfig = isEditing
+    ? {
+      badge: '수정 가능',
+      title: '신고 내용을\n다시 정리하세요.',
+      meta: '접수 단계 신고만 수정할 수 있습니다. 대상 티켓은 변경되지 않습니다.',
+    }
+    : {
+      badge: '분쟁 신고',
+      title: '문제 상황을\n간단히 알려주세요',
+      meta: '티켓 또는 리셀 거래와 관련된 문제를 접수합니다.',
+    };
   const submitText = useMemo(() => {
     if (submitting) return isEditing ? '수정 중...' : '접수 중...';
     return isEditing ? '분쟁 신고 수정' : '분쟁 신고 접수';
@@ -289,12 +300,12 @@ export default function DisputeCreatePage({ route, navigation }: any) {
 
       <ScrollView style={styles.screen} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <FlowHero
-          height={166}
+          height={176}
           style={styles.disputeHero}
           posters={false}
-          badge="분쟁 신고"
-          title={'문제 상황을\n간단히 알려주세요'}
-          meta="티켓 또는 리셀 거래와 관련된 문제를 접수합니다."
+          badge={heroConfig.badge}
+          title={heroConfig.title}
+          meta={heroConfig.meta}
         />
 
         <View style={styles.section}>
@@ -302,7 +313,7 @@ export default function DisputeCreatePage({ route, navigation }: any) {
             <View style={styles.head}>
               <View>
                 <Text style={styles.headTitle}>신고 대상</Text>
-                <Text style={styles.headSub}>신고할 대상을 선택하세요</Text>
+                <Text style={styles.headSub}>{isEditing ? '신고 대상은 수정할 수 없습니다.' : '신고할 대상을 선택하세요'}</Text>
               </View>
             </View>
 
@@ -312,14 +323,14 @@ export default function DisputeCreatePage({ route, navigation }: any) {
                 onPress={() => chooseTargetType('ticket')}
                 activeOpacity={0.84}
               >
-                <Text style={[styles.choiceText, targetType === 'ticket' && styles.choiceTextActive]}>내 티켓 문제</Text>
+                <Text style={[styles.choiceText, targetType === 'ticket' && styles.choiceTextActive]}>내 티켓 문제 신고</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.choice, targetType === 'resale' && styles.choiceActive, (isEditing || hasDirectTarget) && styles.choiceLocked]}
                 onPress={() => chooseTargetType('resale')}
                 activeOpacity={0.84}
               >
-                <Text style={[styles.choiceText, targetType === 'resale' && styles.choiceTextActive]}>리셀 거래 문제</Text>
+                <Text style={[styles.choiceText, targetType === 'resale' && styles.choiceTextActive]}>리셀 거래 문제 신고</Text>
               </TouchableOpacity>
             </View>
 
