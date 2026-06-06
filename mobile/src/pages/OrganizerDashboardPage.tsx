@@ -11,9 +11,15 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
+import {
+  OrganizerEmpty,
+  OrganizerHero,
+  OrganizerSectionHead,
+  OrganizerTopBar,
+  organizerColors,
+} from '../components/OrganizerTabKit';
+import { FlowBadge, flowShadow } from '../components/TicketFlowKit';
 import { accountStatusMessage, errorMessage } from '../lib/account';
 import { clearAccessToken } from '../lib/auth';
 import { backendApi } from '../lib/backend';
@@ -62,11 +68,6 @@ function formatDate(dateStr?: string | null) {
   };
 }
 
-function formatTodayChip(todayCount: number) {
-  const today = new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' });
-  return todayCount === 0 ? `오늘 예정 이벤트 없음 · ${today}` : `오늘 예정 이벤트 ${todayCount}개 · ${today}`;
-}
-
 function eventTimeLabel(dateStr?: string | null) {
   if (!dateStr) return '시간 미정';
   const date = new Date(dateStr);
@@ -88,41 +89,6 @@ function getEventBadge(event: EventSummary): { label: string; style: 'live' | 's
     return { label: '마감임박', style: 'soon' };
   }
   return { label: status || '상태 없음', style: 'draft' };
-}
-
-function monthKey(date: Date) {
-  return `${date.getFullYear()}-${date.getMonth()}`;
-}
-
-function eventMetricDate(event: EventSummary) {
-  const value = event.createdAt || event.updatedAt || event.eventStartAt || event.startsAt || event.eventAt || event.eventDateTime;
-  if (!value) return null;
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? null : date;
-}
-
-function publishedMonthDelta(events: EventSummary[], now = new Date()) {
-  const currentMonth = monthKey(now);
-  const previousMonth = monthKey(new Date(now.getFullYear(), now.getMonth() - 1, 1));
-  let currentCount = 0;
-  let previousCount = 0;
-
-  events.forEach((event) => {
-    if (String(event.status ?? '').toUpperCase() !== 'ACTIVE') return;
-    const date = eventMetricDate(event);
-    if (!date) return;
-    const key = monthKey(date);
-    if (key === currentMonth) currentCount += 1;
-    if (key === previousMonth) previousCount += 1;
-  });
-
-  return currentCount - previousCount;
-}
-
-function formatDelta(delta: number) {
-  if (delta > 0) return `전월 대비 +${delta}`;
-  if (delta < 0) return `전월 대비 ${delta}`;
-  return '전월 대비 0';
 }
 
 function AppIcon({ name, color = '#534AB7', size = 18 }: { name: IconName; color?: string; size?: number }) {
@@ -174,10 +140,7 @@ function AppIcon({ name, color = '#534AB7', size = 18 }: { name: IconName; color
   );
 }
 
-const HeroGradient = LinearGradient as unknown as React.ComponentType<any>;
-
 export default function OrganizerDashboardPage({ navigation }: any) {
-  const insets = useSafeAreaInsets();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [applications, setApplications] = useState<OrganizerApplication[]>([]);
   const [events, setEvents] = useState<EventSummary[]>([]);
@@ -198,7 +161,6 @@ export default function OrganizerDashboardPage({ navigation }: any) {
 
   const totalEvents = events.length;
   const publishedEvents = events.filter((event) => String(event.status ?? '').toUpperCase() === 'ACTIVE').length;
-  const publishedTrend = formatDelta(publishedMonthDelta(events));
   const todayScheduledEvents = events.filter((event) => {
     if (String(event.status ?? '').toUpperCase() === 'CANCELED') return false;
     const nextRoundTime = getNextRoundTime(event);
@@ -330,21 +292,14 @@ export default function OrganizerDashboardPage({ navigation }: any) {
   }
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}>
-      <HeroGradient colors={['#1A1A2E', '#2D2B6B']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.hero, { paddingTop: Math.max(insets.top + 18, 40) }]}>
-        <View style={styles.heroTop}>
-          <Text style={styles.eyebrow}>Organizer</Text>
-          <TouchableOpacity accessibilityRole="button" accessibilityLabel="알림" style={styles.heroAction} onPress={showNotifications}>
-            <AppIcon name="bell" color="rgba(255,255,255,0.88)" size={18} />
-          </TouchableOpacity>
-        </View>
-        <Text style={styles.heroTitle}>주최자 센터</Text>
-        <Text style={styles.heroSub}>이벤트 등록부터 티켓 발급, 체크인 운영까지 한곳에서 관리하세요.</Text>
-        <View style={styles.heroChip}>
-          <View style={styles.heroDot} />
-          <Text style={styles.heroChipText}>{formatTodayChip(todayScheduledEvents)}</Text>
-        </View>
-      </HeroGradient>
+    <ScrollView style={styles.mockContainer} contentContainerStyle={styles.mockContent} stickyHeaderIndices={[0]} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}>
+      <OrganizerTopBar eyebrow="Organizer" title="주최자 센터" rightIcon="bell" rightLabel="알림" onRightPress={showNotifications} />
+      <OrganizerHero
+        size="lg"
+        badge="오늘 해야 할 일"
+        title={todayScheduledEvents === 0 ? '오늘 운영할 이벤트는\n없습니다.' : `오늘 운영할 이벤트는\n${todayScheduledEvents}개 있습니다.`}
+        meta="다가오는 이벤트와 티켓 판매 상태를 먼저 확인하세요."
+      />
 
       {blockedMessage ? (
         <View style={styles.card}>
@@ -379,72 +334,54 @@ export default function OrganizerDashboardPage({ navigation }: any) {
         </View>
       ) : (
         <>
-          <View style={styles.metricGrid}>
-            <MetricCard icon="calendar" iconBg="#EEEDFE" iconColor="#534AB7" value={totalEvents} label="전체 이벤트" />
-            <MetricCard icon="broadcast" iconBg="#E1F5EE" iconColor="#0F6E56" value={publishedEvents} label="게시중 이벤트" trend={publishedTrend} />
-            <MetricCard icon="ticket" iconBg="#FAEEDA" iconColor="#854F0B" value={ticketMetrics.totalTickets} label="총 발급 티켓" />
-            <MetricCard icon="users" iconBg="#E6F1FB" iconColor="#185FA5" value={ticketMetrics.totalParticipants} label="누적 체크인" />
-          </View>
-
-          <View style={styles.sectionHeader}><Text style={styles.sectionTitle}>빠른 실행</Text></View>
+          <OrganizerSectionHead title="빠른 실행" subtitle="자주 쓰는 운영 작업" />
           <View style={styles.quickActions}>
-            <TouchableOpacity style={styles.primaryAction} onPress={() => navigation.navigate('EventCreate')}>
-              <View style={styles.primaryActionIcon}><AppIcon name="plus" color="#FFFFFF" size={18} /></View>
-              <Text style={styles.primaryActionText}>새 이벤트 등록</Text>
-            </TouchableOpacity>
-            <QuickAction icon="list" title="내 이벤트" subtitle="전체 목록 보기" onPress={() => navigation.navigate('MyEvents')} />
-            <QuickAction icon="qr" title="체크인 관리" subtitle="QR 스캔" onPress={() => navigation.navigate('CheckInHome')} />
+            <QuickAction icon="plus" title="새 이벤트 등록" subtitle="회차/티켓 생성" tone="purple" onPress={() => navigation.navigate('EventCreate')} />
+            <QuickAction icon="qr" title="체크인 관리" subtitle="QR 스캔" tone="green" onPress={() => navigation.navigate('CheckInHome')} />
+            <QuickAction icon="calendar" title="내 이벤트" subtitle="전체 목록" tone="blue" onPress={() => navigation.navigate('MyEvents')} />
+            <QuickAction icon="ticket" title="티켓 판매" subtitle="판매 현황" tone="orange" onPress={() => navigation.navigate('SalesStatus')} />
           </View>
 
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>오늘 체크인 현황</Text>
-            <TouchableOpacity onPress={() => navigation.navigate('CheckInHome')}><Text style={styles.sectionLink}>전체 보기</Text></TouchableOpacity>
-          </View>
-          <View style={styles.checkinRow}>
-            <View style={styles.checkinLeft}>
-              <View style={styles.checkinCircle}><AppIcon name="pin" color="#185FA5" size={15} /></View>
-              <View>
-                <Text style={styles.checkinTitle}>{todayScheduledEvents > 0 ? '오늘 운영 중인 이벤트' : '오늘 예정 이벤트 없음'}</Text>
-                <Text style={styles.checkinSub}>{ticketMetrics.checkedInTickets.toLocaleString()}명 체크인 완료</Text>
-              </View>
-            </View>
-            <View style={styles.progressWrap}>
-              <View style={styles.progressBarBg}><View style={[styles.progressBarFill, { width: `${Math.min(100, ticketMetrics.checkedInTickets)}%` }]} /></View>
-              <Text style={styles.progressPct}>{ticketMetrics.checkedInTickets}</Text>
-            </View>
-          </View>
-
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>다가오는 이벤트</Text>
-            <TouchableOpacity onPress={() => navigation.navigate('MyEvents')}><Text style={styles.sectionLink}>더 보기</Text></TouchableOpacity>
-          </View>
-          {upcomingEvents.length > 0 ? upcomingEvents.map((event) => {
+          <OrganizerSectionHead title="다가오는 운영 이벤트" subtitle="가장 가까운 일정" actionLabel="더 보기" onAction={() => navigation.navigate('MyEvents')} />
+          {upcomingEvents.length > 0 ? upcomingEvents.slice(0, 1).map((event) => {
             const nextTime = getNextRoundTime(event);
             const dateStr = !Number.isNaN(nextTime) ? new Date(nextTime).toISOString() : null;
             const { month, day } = formatDate(dateStr);
             const badge = getEventBadge(event);
-            const isDraft = badge.style === 'draft';
+            const sold = Number(event.soldTicketCount ?? 0);
+            const total = Number(event.totalTicketCount ?? 0);
+            const pct = total > 0 ? Math.min(100, Math.round((sold / total) * 100)) : 0;
             return (
-              <TouchableOpacity key={event.id} style={styles.eventItem} onPress={() => navigation.navigate('OrganizerEventDetail', { eventId: event.id })}>
-                <View style={[styles.eventDateBox, isDraft && styles.eventDateBoxGray]}>
-                  <Text style={[styles.eventMonth, isDraft && styles.eventMonthGray]}>{month}</Text>
-                  <Text style={[styles.eventDay, isDraft && styles.eventDayGray]}>{day}</Text>
+              <TouchableOpacity key={event.id} style={styles.upcomingCard} onPress={() => navigation.navigate('OrganizerEventDetail', { eventId: event.id })}>
+                <View style={styles.upcomingTop}>
+                  <View style={styles.upcomingDate}>
+                    <Text style={styles.upcomingMonth}>{month}</Text>
+                    <Text style={styles.upcomingDay}>{day}</Text>
+                  </View>
+                  <View style={styles.upcomingCopy}>
+                    <Text style={styles.upcomingName} numberOfLines={2}>{eventTitle(event)}</Text>
+                    <Text style={styles.upcomingMeta}>{event.venue || '장소 미정'} · {eventTimeLabel(dateStr)}</Text>
+                  </View>
+                  <FlowBadge label={badge.label} tone={badge.style === 'live' ? 'green' : badge.style === 'soon' ? 'yellow' : 'gray'} />
                 </View>
-                <View style={styles.eventInfo}>
-                  <Text style={styles.eventName} numberOfLines={1}>{eventTitle(event)}</Text>
-                  <Text style={styles.eventMeta}>{eventTimeLabel(dateStr)} · {ticketCountLabel(event)}</Text>
+                <View style={styles.upcomingProgressTop}>
+                  <Text style={styles.upcomingProgressLabel}>{ticketCountLabel(event)}</Text>
+                  <Text style={styles.upcomingProgressValue}>{pct}%</Text>
                 </View>
-                <View style={[styles.eventBadge, styles[`badge_${badge.style}` as keyof typeof styles] as any]}>
-                  <Text style={[styles.eventBadgeText, styles[`badgeText_${badge.style}` as keyof typeof styles] as any]}>{badge.label}</Text>
-                </View>
+                <View style={styles.upcomingProgressBg}><View style={[styles.upcomingProgressFill, { width: `${pct}%` }]} /></View>
               </TouchableOpacity>
             );
           }) : (
-            <View style={styles.emptyBox}>
-              <Text style={styles.emptyTitle}>다가오는 이벤트가 없습니다.</Text>
-              <TouchableOpacity style={styles.emptyButton} onPress={() => navigation.navigate('EventCreate')}><Text style={styles.emptyButtonText}>이벤트 등록</Text></TouchableOpacity>
-            </View>
+            <OrganizerEmpty title="다가오는 이벤트가 없습니다." actionLabel="이벤트 등록" onAction={() => navigation.navigate('EventCreate')} />
           )}
+
+          <OrganizerSectionHead title="운영 통계" subtitle="전체 누적 기준" />
+          <View style={styles.metricGrid}>
+            <MetricCard icon="calendar" iconBg="#EEEDFE" iconColor="#534AB7" value={totalEvents} label="전체 이벤트" />
+            <MetricCard icon="broadcast" iconBg="#E1F5EE" iconColor="#0F6E56" value={publishedEvents} label="게시중 이벤트" trend="진행 대기" />
+            <MetricCard icon="ticket" iconBg="#FAEEDA" iconColor="#854F0B" value={ticketMetrics.totalTickets} label="총 발급 티켓" />
+            <MetricCard icon="users" iconBg="#E6F1FB" iconColor="#185FA5" value={ticketMetrics.totalParticipants} label="누적 체크인" />
+          </View>
         </>
       )}
     </ScrollView>
@@ -462,10 +399,16 @@ function MetricCard({ icon, iconBg, iconColor, value, label, trend }: { icon: Ic
   );
 }
 
-function QuickAction({ icon, title, subtitle, onPress }: { icon: IconName; title: string; subtitle: string; onPress: () => void }) {
+function QuickAction({ icon, title, subtitle, tone, onPress }: { icon: IconName; title: string; subtitle: string; tone: 'purple' | 'green' | 'blue' | 'orange'; onPress: () => void }) {
+  const toneStyle = {
+    purple: { backgroundColor: '#EEEDFE', color: '#534AB7' },
+    green: { backgroundColor: '#DCFCE7', color: '#0F6E56' },
+    blue: { backgroundColor: '#E0F2FE', color: '#0369A1' },
+    orange: { backgroundColor: '#FFF3E6', color: '#A16207' },
+  }[tone];
   return (
     <TouchableOpacity style={styles.quickBtn} onPress={onPress}>
-      <View style={styles.quickIconWrap}><AppIcon name={icon} color="#534AB7" size={16} /></View>
+      <View style={[styles.quickIconWrap, { backgroundColor: toneStyle.backgroundColor }]}><AppIcon name={icon} color={toneStyle.color} size={18} /></View>
       <View style={styles.quickText}>
         <Text style={styles.quickBtnLabel}>{title}</Text>
         <Text style={styles.quickBtnSub}>{subtitle}</Text>
@@ -475,6 +418,8 @@ function QuickAction({ icon, title, subtitle, onPress }: { icon: IconName; title
 }
 
 const styles = StyleSheet.create({
+  mockContainer: { flex: 1, backgroundColor: organizerColors.background },
+  mockContent: { paddingBottom: 108 },
   container: { flex: 1, backgroundColor: '#F5F5F5' },
   content: { paddingBottom: 96 },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20, backgroundColor: '#F5F5F5' },
@@ -488,24 +433,37 @@ const styles = StyleSheet.create({
   heroChip: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: 'rgba(255,255,255,0.1)', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.2)', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4, marginTop: 12 },
   heroDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#6EE7B7' },
   heroChipText: { color: 'rgba(255,255,255,0.85)', fontSize: 10, fontWeight: '700' },
-  metricGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingHorizontal: 14, marginTop: -18, marginBottom: 10 },
-  metricCard: { width: '48.7%', backgroundColor: '#FFFFFF', borderRadius: 12, padding: 11, borderWidth: 0.5, borderColor: '#E5E7EB' },
-  metricIconBox: { width: 26, height: 26, borderRadius: 7, alignItems: 'center', justifyContent: 'center', marginBottom: 7 },
-  metricValue: { fontSize: 20, fontWeight: '900', color: '#1A1A2E', lineHeight: 22 },
+  metricGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, paddingHorizontal: 16, marginBottom: 10 },
+  metricCard: { width: '48.5%', minHeight: 104, backgroundColor: '#FFFFFF', borderRadius: 22, padding: 15, borderWidth: 1, borderColor: '#E5E7EB', ...flowShadow },
+  metricIconBox: { width: 34, height: 34, borderRadius: 11, alignItems: 'center', justifyContent: 'center', marginBottom: 9 },
+  metricValue: { fontSize: 22, fontWeight: '900', color: '#1A1A2E', lineHeight: 24 },
   metricLabel: { fontSize: 10, color: '#9CA3AF', marginTop: 2, fontWeight: '700' },
   metricTrend: { fontSize: 9, color: '#0F6E56', marginTop: 3, fontWeight: '700' },
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 14, marginBottom: 6, marginTop: 2 },
   sectionTitle: { fontSize: 12, fontWeight: '900', color: '#1A1A2E' },
   sectionLink: { fontSize: 10, color: '#534AB7', fontWeight: '900' },
-  quickActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, paddingHorizontal: 14, marginBottom: 14 },
+  quickActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, paddingHorizontal: 16, marginBottom: 14 },
   primaryAction: { width: '100%', backgroundColor: '#1A1A2E', borderRadius: 12, padding: 13, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 9 },
   primaryActionIcon: { width: 30, height: 30, borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' },
   primaryActionText: { color: '#FFFFFF', fontSize: 12, fontWeight: '900' },
-  quickBtn: { flex: 1, minWidth: 0, backgroundColor: '#FFFFFF', borderRadius: 12, padding: 12, borderWidth: 0.5, borderColor: '#E5E7EB', flexDirection: 'row', alignItems: 'center', gap: 9 },
-  quickIconWrap: { width: 30, height: 30, borderRadius: 8, backgroundColor: '#EEEDFE', alignItems: 'center', justifyContent: 'center' },
+  quickBtn: { width: '48.5%', minHeight: 66, backgroundColor: '#FFFFFF', borderRadius: 24, padding: 14, borderWidth: 1, borderColor: '#E5E7EB', flexDirection: 'row', alignItems: 'center', gap: 12, ...flowShadow },
+  quickIconWrap: { width: 36, height: 36, borderRadius: 14, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   quickText: { flex: 1, minWidth: 0 },
-  quickBtnLabel: { fontSize: 11, fontWeight: '900', color: '#1A1A2E' },
-  quickBtnSub: { fontSize: 9, color: '#9CA3AF', marginTop: 1, fontWeight: '700' },
+  quickBtnLabel: { fontSize: 13, fontWeight: '900', color: '#1A1A2E', marginBottom: 2 },
+  quickBtnSub: { fontSize: 10, color: '#64748B', fontWeight: '700' },
+  upcomingCard: { marginHorizontal: 16, marginBottom: 8, padding: 16, backgroundColor: '#FFFFFF', borderRadius: 24, borderWidth: 1, borderColor: organizerColors.border, ...flowShadow },
+  upcomingTop: { flexDirection: 'row', alignItems: 'center', gap: 11 },
+  upcomingDate: { width: 54, height: 62, borderRadius: 17, backgroundColor: '#EEEDFE', alignItems: 'center', justifyContent: 'center' },
+  upcomingMonth: { color: organizerColors.purple, fontSize: 8, fontWeight: '900' },
+  upcomingDay: { color: '#3C3489', fontSize: 22, fontWeight: '900', lineHeight: 25 },
+  upcomingCopy: { flex: 1, minWidth: 0 },
+  upcomingName: { color: organizerColors.ink, fontSize: 14, fontWeight: '900', lineHeight: 18 },
+  upcomingMeta: { color: organizerColors.muted, fontSize: 9, fontWeight: '700', marginTop: 4 },
+  upcomingProgressTop: { marginTop: 14, marginBottom: 7, flexDirection: 'row', justifyContent: 'space-between' },
+  upcomingProgressLabel: { color: organizerColors.muted, fontSize: 10, fontWeight: '800' },
+  upcomingProgressValue: { color: organizerColors.purple, fontSize: 10, fontWeight: '900' },
+  upcomingProgressBg: { height: 7, borderRadius: 999, overflow: 'hidden', backgroundColor: '#EEEDFE' },
+  upcomingProgressFill: { height: '100%', borderRadius: 999, backgroundColor: organizerColors.purple },
   checkinRow: { backgroundColor: '#FFFFFF', borderRadius: 12, padding: 11, borderWidth: 0.5, borderColor: '#E5E7EB', marginHorizontal: 14, marginBottom: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   checkinLeft: { flexDirection: 'row', alignItems: 'center', gap: 9, flex: 1, minWidth: 0 },
   checkinCircle: { width: 34, height: 34, borderRadius: 17, backgroundColor: '#E6F1FB', alignItems: 'center', justifyContent: 'center' },

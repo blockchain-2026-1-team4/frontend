@@ -129,7 +129,7 @@ export default function CheckInStatusPage({ navigation, route }: any) {
 
   const goBack = () => {
     if (navigation.canGoBack?.()) navigation.goBack();
-    else navigation.navigate('OrganizerDashboard');
+    else navigation.navigate('Organizer');
   };
 
   if (loading) {

@@ -4,6 +4,16 @@ import { ActivityIndicator, Alert, RefreshControl, ScrollView, StyleSheet, Text,
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
+import {
+  OrganizerEmpty,
+  OrganizerFilterBar,
+  OrganizerHero,
+  OrganizerSearch,
+  OrganizerSectionHead,
+  OrganizerTopBar,
+  organizerColors,
+} from '../components/OrganizerTabKit';
+import { FlowBadge, flowShadow } from '../components/TicketFlowKit';
 
 function BackIcon() {
   return (
@@ -50,7 +60,9 @@ function isEnded(event: EventSummary) {
 function ticketStats(event: EventSummary, tickets: TicketDetail[]) {
   const total = Number(event.totalTicketCount ?? 0) || tickets.length;
   const sold = Number(event.soldTicketCount ?? 0) || tickets.filter((ticket) => ['SOLD', 'LISTED', 'USED'].includes(String(ticket.status).toUpperCase())).length;
-  const available = Number(event.remainingTicketCount ?? 0) || tickets.filter((ticket) => String(ticket.status).toUpperCase() === 'AVAILABLE').length;
+  const available = event.remainingTicketCount != null
+    ? Number(event.remainingTicketCount)
+    : tickets.filter((ticket) => String(ticket.status).toUpperCase() === 'AVAILABLE').length;
   const listed = tickets.filter((ticket) => String(ticket.status).toUpperCase() === 'LISTED').length;
   const used = tickets.filter((ticket) => String(ticket.status).toUpperCase() === 'USED').length;
   const cancelled = tickets.filter((ticket) => String(ticket.status).toUpperCase() === 'CANCELED').length;
@@ -71,7 +83,7 @@ function matchesTicketFilter(ticket: TicketDetail, filter: SalesFilter) {
 function matchesEventFilter(stat: ReturnType<typeof ticketStats>, filter: SalesFilter) {
   if (filter === 'all') return true;
   if (filter === 'available') return stat.available > 0;
-  if (filter === 'sold') return stat.sold > 0;
+  if (filter === 'sold') return stat.total > 0 && stat.available === 0;
   if (filter === 'listed') return stat.listed > 0;
   if (filter === 'used') return stat.used > 0;
   if (filter === 'cancelled') return stat.cancelled > 0;
@@ -254,79 +266,66 @@ export default function SalesStatusPage({ navigation, route }: any) {
   }
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} />}>
-      <HeroGradient colors={['#1A1A2E', '#2D2B6B']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.hero, { paddingTop: Math.max(insets.top + 14, 36) }]}>
-        <View style={styles.heroTopBar}>
-          <TouchableOpacity style={styles.heroBackBtn} onPress={() => navigation.goBack()}>
-            <BackIcon />
-          </TouchableOpacity>
-          <Text style={styles.eyebrow}>Ticket Operations</Text>
-        </View>
-        <Text style={styles.heroTitle}>티켓 판매 현황</Text>
-        <Text style={styles.heroSub}>이벤트별 판매 상태와 좌석 현황을 관리합니다.</Text>
-        <View style={styles.heroChip}><View style={styles.heroDotAmber} /><Text style={styles.heroChipText}>운영중 이벤트 {items.length}개</Text></View>
-      </HeroGradient>
-
-      <View style={styles.metricGrid}>
-        <MetricCard icon="ticket" iconBg="#EEEDFE" iconColor="#534AB7" value={totals.issued} label="총 발급 티켓" />
-        <MetricCard icon="cart" iconBg="#E1F5EE" iconColor="#0F6E56" value={totals.sold} label="판매 완료" />
-      </View>
-
-      <View style={styles.searchWrap}>
-        <View style={styles.searchBox}>
-          <AppIcon name="search" color="#9CA3AF" size={15} />
-          <TextInput style={styles.searchInput} value={query} onChangeText={setQuery} placeholder="이벤트명 검색" returnKeyType="search" />
-        </View>
-      </View>
-
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterWrap}>
-        {FILTERS.map((item) => {
-          const active = filter === item.key;
-          return (
-            <TouchableOpacity key={item.key} style={[styles.filterPill, active && styles.filterPillActive, !active && item.tone === 'teal' && styles.filterPillTeal, !active && item.tone === 'amber' && styles.filterPillAmber, !active && item.tone === 'blue' && styles.filterPillBlue, !active && item.tone === 'red' && styles.filterPillRed]} onPress={() => setFilter(item.key)}>
-              <Text style={[styles.filterText, active && styles.filterTextActive, !active && item.tone === 'teal' && styles.filterTextTeal, !active && item.tone === 'amber' && styles.filterTextAmber, !active && item.tone === 'blue' && styles.filterTextBlue, !active && item.tone === 'red' && styles.filterTextRed]}>{item.label}</Text>
-            </TouchableOpacity>
-          );
-        })}
-      </ScrollView>
-
-      <View style={styles.resultLabel}>
-        <Text style={styles.resultText}>운영중 이벤트 {visibleItems.length}건</Text>
-        <Text style={styles.sortText}>최신순</Text>
-      </View>
+    <ScrollView style={styles.mockContainer} contentContainerStyle={styles.mockContent} stickyHeaderIndices={[0]} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} />}>
+      <OrganizerTopBar
+        eyebrow="Ticket Operations"
+        title="티켓 판매 현황"
+        leftIcon="arrowLeft"
+        leftLabel="뒤로"
+        onLeftPress={() => navigation.canGoBack?.() ? navigation.goBack() : navigation.navigate('Organizer')}
+        rightIcon="adjustments"
+        rightLabel="필터 초기화"
+        onRightPress={() => { setFilter('all'); setQuery(''); }}
+      />
+      <OrganizerHero
+        badge="판매 운영"
+        title={'이벤트별 판매율과\n리셀 현황을 확인하세요.'}
+        meta="발급, 판매, 잔여, 리셀 수량을 한 화면에서 관리합니다."
+      />
+      <OrganizerSearch value={query} onChangeText={setQuery} placeholder="이벤트명 또는 장소 검색" />
+      <OrganizerFilterBar items={FILTERS} value={filter} onChange={setFilter} />
+      <OrganizerSectionHead title={`판매 운영 ${visibleItems.length}건`} subtitle={`총 발급 ${totals.issued.toLocaleString()}장 · 판매 ${totals.sold.toLocaleString()}장`} actionLabel="최신순" onAction={() => setFilter('all')} />
 
       {visibleItems.length === 0 ? (
-        <View style={styles.emptyBox}><Text style={styles.emptyTitle}>운영할 판매 이벤트가 없습니다.</Text></View>
+        <OrganizerEmpty title="운영할 판매 이벤트가 없습니다." actionLabel="내 이벤트 보기" onAction={() => navigation.navigate('MyEvents')} />
       ) : visibleItems.map((item) => {
         const stat = ticketStats(item.event, item.tickets);
         const soldPct = stat.total > 0 ? Math.min(100, Math.round((stat.sold / stat.total) * 100)) : 0;
-        const remainPct = stat.total > 0 ? Math.min(100, Math.round((stat.available / stat.total) * 100)) : 0;
-        const resalePct = stat.total > 0 ? Math.min(100, Math.round((stat.listed / stat.total) * 100)) : 0;
         const missing = stat.total <= 0;
+        const soldOut = stat.total > 0 && stat.available <= 0;
         return (
-          <TouchableOpacity key={item.event.id} style={styles.ticketCard} onPress={() => navigation.navigate('SalesStatus', { eventId: item.event.id })}>
-            <View style={styles.cardTop}>
-              <View style={styles.cardCopy}>
-                <Text style={styles.cardName} numberOfLines={1}>{eventTitle(item.event)}</Text>
-                <Text style={styles.cardMeta}>{item.event.venue || '장소 미정'} · {eventDateText(item.event)}</Text>
+          <TouchableOpacity key={item.event.id} style={styles.operationCard} onPress={() => navigation.navigate('SalesStatus', { eventId: item.event.id })}>
+            <View style={styles.operationTop}>
+              <View style={styles.operationCopy}>
+                <Text style={styles.operationName} numberOfLines={1}>{eventTitle(item.event)}</Text>
+                <Text style={styles.operationMeta}>{item.event.venue || '장소 미정'} · {eventDateText(item.event)}</Text>
               </View>
-              <View style={[styles.badge, missing ? styles.badgeWarn : styles.badgeSell]}>
-                <Text style={[styles.badgeText, missing ? styles.badgeTextWarn : styles.badgeTextSell]}>{missing ? '미발행' : '판매 중'}</Text>
-              </View>
+              <FlowBadge label={missing ? '미발행' : soldOut ? '매진' : stat.listed > 0 ? '리셀 중' : '판매 중'} tone={missing ? 'yellow' : soldOut ? 'red' : stat.listed > 0 ? 'yellow' : 'green'} />
             </View>
-            {missing ? (
-              <View style={styles.warnBox}><AppIcon name="alert" color="#854F0B" size={13} /><Text style={styles.warnText}>티켓이 아직 발행되지 않았습니다. 티켓 발행 후 판매가 시작됩니다.</Text></View>
-            ) : (
-              <View style={styles.bars}>
-                <BarRow label="판매" value={`${stat.sold}/${stat.total}`} pct={soldPct} color="#534AB7" />
-                <BarRow label="잔여" value={`${stat.available}`} pct={remainPct} color="#CECBF6" muted />
-                <BarRow label="리셀" value={`${stat.listed}`} pct={resalePct} color="#FAC775" muted />
-              </View>
-            )}
+            <View style={styles.salesProgressTop}>
+              <Text style={styles.salesProgressLabel}>판매율</Text>
+              <Text style={styles.salesProgressValue}>{soldPct}%</Text>
+            </View>
+            <View style={styles.salesProgressBg}><View style={[styles.salesProgressFill, { width: `${soldPct}%` }]} /></View>
+            <View style={styles.kpiGrid}>
+              <Kpi value={stat.total} label="발급" color="#534AB7" />
+              <Kpi value={stat.sold} label="판매" color="#0F6E56" />
+              <Kpi value={stat.available} label="잔여" color="#185FA5" />
+              <Kpi value={stat.listed} label="리셀" color="#854F0B" />
+            </View>
           </TouchableOpacity>
         );
       })}
     </ScrollView>
+  );
+}
+
+function Kpi({ value, label, color }: { value: number; label: string; color: string }) {
+  return (
+    <View style={styles.kpi}>
+      <Text style={[styles.kpiValue, { color }]}>{value.toLocaleString()}</Text>
+      <Text style={styles.kpiLabel}>{label}</Text>
+    </View>
   );
 }
 
@@ -357,6 +356,22 @@ function BarRow({ label, value, pct, color, muted }: { label: string; value: str
 }
 
 const styles = StyleSheet.create({
+  mockContainer: { flex: 1, backgroundColor: organizerColors.background },
+  mockContent: { paddingBottom: 108 },
+  operationCard: { marginHorizontal: 16, marginBottom: 12, padding: 16, backgroundColor: '#FFFFFF', borderRadius: 24, borderWidth: 1, borderColor: organizerColors.border, ...flowShadow },
+  operationTop: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 },
+  operationCopy: { flex: 1, minWidth: 0 },
+  operationName: { color: organizerColors.ink, fontSize: 15, fontWeight: '900' },
+  operationMeta: { color: organizerColors.muted, fontSize: 10, fontWeight: '700', marginTop: 4 },
+  salesProgressTop: { marginTop: 15, marginBottom: 7, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  salesProgressLabel: { color: organizerColors.muted, fontSize: 10, fontWeight: '800' },
+  salesProgressValue: { color: organizerColors.purple, fontSize: 12, fontWeight: '900' },
+  salesProgressBg: { height: 7, borderRadius: 999, overflow: 'hidden', backgroundColor: '#EEEDFE' },
+  salesProgressFill: { height: '100%', borderRadius: 999, backgroundColor: organizerColors.purple },
+  kpiGrid: { marginTop: 15, flexDirection: 'row', gap: 6 },
+  kpi: { flex: 1, paddingVertical: 9, alignItems: 'center', borderRadius: 14, backgroundColor: '#F6F7FB' },
+  kpiValue: { fontSize: 15, fontWeight: '900' },
+  kpiLabel: { color: organizerColors.muted, fontSize: 8, fontWeight: '800', marginTop: 3 },
   container: { flex: 1, backgroundColor: '#F5F5F5' },
   content: { paddingBottom: 96 },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F5F5F5' },
