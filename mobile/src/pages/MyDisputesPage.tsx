@@ -2,7 +2,6 @@ import React, { useCallback, useMemo, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import {
   ActivityIndicator,
-  Alert,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -12,6 +11,7 @@ import {
 } from 'react-native';
 import { FlowBadge, FlowHero, IconButton, PosterArt, TicketIcon, flowShadow } from '../components/TicketFlowKit';
 import { errorMessage } from '../lib/account';
+import { showDialog } from '../lib/dialog';
 import { backendApi } from '../lib/backend';
 import { formatDateTime, weiToEthLabel } from '../lib/ticketFlowDisplay';
 import type { DisputeRecord, ResaleListing, TicketDetail } from '../types/api';
@@ -37,6 +37,12 @@ const TYPE_LABEL: Record<string, string> = {
 const EDITABLE_STATUSES = new Set(['OPEN', 'RECEIVED']);
 const PROCESSING_STATUSES = new Set(['REVIEWING', 'PROCESSING']);
 const DONE_STATUSES = new Set(['RESOLVED', 'REJECTED', 'CLOSED', 'CANCELED']);
+
+const DISPUTE_STATUS_RANK: Record<string, number> = {
+  OPEN: 0, RECEIVED: 0,
+  REVIEWING: 1, PROCESSING: 1,
+  RESOLVED: 2, REJECTED: 2, CLOSED: 2, CANCELED: 2,
+};
 
 type StatusFilter = 'ALL' | 'ACTIVE' | 'DONE';
 
@@ -127,12 +133,21 @@ export default function MyDisputesPage({ navigation }: any) {
   useFocusEffect(useCallback(() => { void load(); }, [load]));
 
   const filteredItems = useMemo(() => {
-    if (statusFilter === 'ALL') return items;
-    if (statusFilter === 'ACTIVE') return items.filter((item) => {
-      const status = item.status?.toUpperCase() ?? 'OPEN';
-      return EDITABLE_STATUSES.has(status) || PROCESSING_STATUSES.has(status);
+    let result = items.filter((item) => item.status?.toUpperCase() !== 'CANCELED');
+    if (statusFilter === 'ACTIVE') {
+      result = result.filter((item) => {
+        const status = item.status?.toUpperCase() ?? 'OPEN';
+        return EDITABLE_STATUSES.has(status) || PROCESSING_STATUSES.has(status);
+      });
+    } else if (statusFilter === 'DONE') {
+      result = result.filter((item) => DONE_STATUSES.has(item.status?.toUpperCase() ?? ''));
+    }
+    return result.sort((a, b) => {
+      const rankA = DISPUTE_STATUS_RANK[a.status?.toUpperCase() ?? 'OPEN'] ?? 3;
+      const rankB = DISPUTE_STATUS_RANK[b.status?.toUpperCase() ?? 'OPEN'] ?? 3;
+      if (rankA !== rankB) return rankA - rankB;
+      return new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime();
     });
-    return items.filter((item) => DONE_STATUSES.has(item.status?.toUpperCase() ?? ''));
   }, [items, statusFilter]);
 
   const activeCount = useMemo(
@@ -142,12 +157,15 @@ export default function MyDisputesPage({ navigation }: any) {
     }).length,
     [items],
   );
-  const doneCount = useMemo(() => items.filter((item) => DONE_STATUSES.has(item.status?.toUpperCase() ?? '')).length, [items]);
+  const doneCount = useMemo(() => items.filter((item) => {
+    const s = item.status?.toUpperCase() ?? '';
+    return DONE_STATUSES.has(s) && s !== 'CANCELED';
+  }).length, [items]);
 
   const cancelDispute = (item: DisputeRecord) => {
     const disputeId = String(item.id ?? '');
     if (!disputeId) return;
-    Alert.alert('분쟁 신고 취소', '접수한 분쟁 신고를 취소할까요?', [
+    showDialog('분쟁 신고 취소', '접수한 분쟁 신고를 취소할까요?', [
       { text: '아니요', style: 'cancel' },
       {
         text: '취소하기',
@@ -156,10 +174,10 @@ export default function MyDisputesPage({ navigation }: any) {
           setCancelingId(disputeId);
           try {
             await backendApi.cancelDispute(disputeId);
-            Alert.alert('취소 완료', '분쟁 신고가 취소되었습니다.');
+            showDialog('취소 완료', '분쟁 신고가 취소되었습니다.');
             await load();
           } catch (cause: any) {
-            Alert.alert('취소 실패', errorMessage(cause, '처리 중이거나 완료된 분쟁 신고는 취소할 수 없습니다.'));
+            showDialog('취소 실패', errorMessage(cause, '처리 중이거나 완료된 분쟁 신고는 취소할 수 없습니다.'));
           } finally {
             setCancelingId('');
           }
