@@ -24,12 +24,18 @@ const CATEGORIES = [
   { id: 'CONFERENCE', label: '컨퍼런스', icon: 'laptop' },
 ] as const;
 
-const SMART_FILTERS = [
+const STATUS_FILTERS = [
+  { id: 'ALL', label: '전체' },
   { id: 'SALE', label: '예매 가능' },
-  { id: 'THIS_WEEK', label: '이번 주' },
+  { id: 'ONGOING', label: '개최중' },
   { id: 'DEADLINE', label: '마감 임박' },
-  { id: 'LOW_PRICE', label: '가격 낮은순' },
   { id: 'RESALE', label: '리셀 가능' },
+] as const;
+
+const SORT_OPTIONS = [
+  { id: 'SCHEDULE', label: '가까운 일정순' },
+  { id: 'LATEST', label: '최신순' },
+  { id: 'LOW_PRICE', label: '가격 낮은순' },
 ] as const;
 
 const POSTER_GRADIENTS = [
@@ -40,7 +46,8 @@ const POSTER_GRADIENTS = [
 ] as const;
 
 type CategoryId = (typeof CATEGORIES)[number]['id'];
-type SmartFilterId = (typeof SMART_FILTERS)[number]['id'];
+type StatusFilterId = (typeof STATUS_FILTERS)[number]['id'];
+type SortId = (typeof SORT_OPTIONS)[number]['id'];
 type IconName = (typeof CATEGORIES)[number]['icon'] | 'arrowLeft' | 'adjust' | 'search' | 'shield' | 'sparkle' | 'map' | 'calendar' | 'chevron';
 
 function eventName(event: EventSummary) {
@@ -71,11 +78,6 @@ function daysUntilEvent(event: EventSummary) {
   const time = getNextRoundTime(event);
   if (Number.isNaN(time)) return null;
   return Math.ceil((time - Date.now()) / 86400000);
-}
-
-function isThisWeek(event: EventSummary) {
-  const days = daysUntilEvent(event);
-  return days !== null && days >= 0 && days <= 7;
 }
 
 function isDeadlineEvent(event: EventSummary) {
@@ -242,7 +244,8 @@ export default function EventListPage({ navigation, route }: any) {
   const [events, setEvents] = useState<EventSummary[]>([]);
   const [query, setQuery] = useState(String(route?.params?.query ?? ''));
   const [selectedCategory, setSelectedCategory] = useState<CategoryId>(initialCategory);
-  const [selectedSmart, setSelectedSmart] = useState<SmartFilterId>('SALE');
+  const [selectedSmart, setSelectedSmart] = useState<StatusFilterId>('ALL');
+  const [selectedSort, setSelectedSort] = useState<SortId>('SCHEDULE');
   const [loading, setLoading] = useState(true);
 
   const loadEvents = async (nextQuery = query, nextCategory = selectedCategory) => {
@@ -269,9 +272,9 @@ export default function EventListPage({ navigation, route }: any) {
     let visible = events.filter((event) => getUserEventDisplayStatus(event) !== null);
 
     if (selectedSmart === 'SALE') {
-      visible = visible.filter((event) => getUserEventDisplayStatus(event)?.label.includes('예매'));
-    } else if (selectedSmart === 'THIS_WEEK') {
-      visible = visible.filter(isThisWeek);
+      visible = visible.filter((event) => getUserEventDisplayStatus(event)?.label === '예매 가능');
+    } else if (selectedSmart === 'ONGOING') {
+      visible = visible.filter((event) => getUserEventDisplayStatus(event)?.label === '개최중');
     } else if (selectedSmart === 'DEADLINE') {
       visible = visible.filter(isDeadlineEvent);
     } else if (selectedSmart === 'RESALE') {
@@ -279,9 +282,14 @@ export default function EventListPage({ navigation, route }: any) {
     }
 
     return [...visible].sort((left, right) => {
-      if (selectedSmart === 'LOW_PRICE') {
+      if (selectedSort === 'LOW_PRICE') {
         const priceDiff = priceValue(left.ticketPriceWei) - priceValue(right.ticketPriceWei);
         if (priceDiff !== 0) return priceDiff;
+      }
+      if (selectedSort === 'LATEST') {
+        const leftId = Number(left.id) || 0;
+        const rightId = Number(right.id) || 0;
+        if (leftId !== rightId) return rightId - leftId;
       }
 
       const rankDiff = userSortRank(left) - userSortRank(right);
@@ -290,7 +298,7 @@ export default function EventListPage({ navigation, route }: any) {
       const rightTime = getNextRoundTime(right);
       return (Number.isNaN(leftTime) ? Number.MAX_SAFE_INTEGER : leftTime) - (Number.isNaN(rightTime) ? Number.MAX_SAFE_INTEGER : rightTime);
     });
-  }, [events, selectedSmart]);
+  }, [events, selectedSmart, selectedSort]);
 
   const hotEvents = useMemo(() => {
     const deadlineEvents = visibleEvents.filter(isDeadlineEvent);
@@ -319,7 +327,10 @@ export default function EventListPage({ navigation, route }: any) {
             <TouchableOpacity
               style={styles.filterButton}
               activeOpacity={0.84}
-              onPress={() => setSelectedSmart((current) => (current === 'SALE' ? 'DEADLINE' : 'SALE'))}
+              onPress={() => setSelectedSort((current) => {
+                const idx = SORT_OPTIONS.findIndex((o) => o.id === current);
+                return SORT_OPTIONS[(idx + 1) % SORT_OPTIONS.length].id;
+              })}
             >
               <Icon name="adjust" color="#FFFFFF" size={20} />
             </TouchableOpacity>
@@ -363,16 +374,16 @@ export default function EventListPage({ navigation, route }: any) {
         </View>
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.smartRow}>
-          {SMART_FILTERS.map((item) => {
+          {STATUS_FILTERS.map((item) => {
             const active = selectedSmart === item.id;
             return (
               <TouchableOpacity
                 key={item.id}
-                style={[styles.smartChip, active && (item.id === 'THIS_WEEK' ? styles.smartDark : styles.smartActive)]}
+                style={[styles.smartChip, active && styles.smartActive]}
                 onPress={() => setSelectedSmart(item.id)}
                 activeOpacity={0.84}
               >
-                <Text style={[styles.smartText, active && (item.id === 'THIS_WEEK' ? styles.smartDarkText : styles.smartActiveText)]}>
+                <Text style={[styles.smartText, active && styles.smartActiveText]}>
                   {item.label}
                 </Text>
               </TouchableOpacity>
@@ -382,10 +393,17 @@ export default function EventListPage({ navigation, route }: any) {
 
         <View style={styles.resultRow}>
           <Text style={styles.resultText}>검색 결과 <Text style={styles.resultStrong}>{visibleEvents.length}건</Text></Text>
-          <View style={styles.sortChip}>
-            <Text style={styles.sortText}>추천순</Text>
+          <TouchableOpacity
+            style={styles.sortChip}
+            activeOpacity={0.84}
+            onPress={() => setSelectedSort((current) => {
+              const idx = SORT_OPTIONS.findIndex((o) => o.id === current);
+              return SORT_OPTIONS[(idx + 1) % SORT_OPTIONS.length].id;
+            })}
+          >
+            <Text style={styles.sortText}>{SORT_OPTIONS.find((o) => o.id === selectedSort)?.label ?? '가까운 일정순'}</Text>
             <Icon name="chevron" size={14} color="#475569" />
-          </View>
+          </TouchableOpacity>
         </View>
 
         <View style={styles.heroZone}>
