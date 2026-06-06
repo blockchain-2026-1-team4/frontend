@@ -192,7 +192,7 @@ export default function MyPage({ navigation }: any) {
           {/* 아바타 + 이름/역할 가로 배치 */}
           <View style={styles.profileMain}>
             <View style={styles.avatar}>
-              <TicketIcon name="user" size={30} color="#A89CF7" />
+              <TicketIcon name="user" size={28} color="#A89CF7" />
             </View>
             <View style={styles.profileId}>
               {editing ? (
@@ -202,6 +202,8 @@ export default function MyPage({ navigation }: any) {
                   onChangeText={setDisplayNameDraft}
                   placeholder="닉네임"
                   placeholderTextColor="rgba(255,255,255,0.4)"
+                  returnKeyType="done"
+                  onSubmitEditing={() => void save()}
                 />
               ) : (
                 <Text style={styles.profileName} numberOfLines={1}>{displayName}</Text>
@@ -211,52 +213,30 @@ export default function MyPage({ navigation }: any) {
                 {isOrganizer && <RolePill label="주최자 권한 보유" />}
               </View>
             </View>
+            <TouchableOpacity
+              style={styles.editIconButton}
+              onPress={() => editing ? void save() : setEditing(true)}
+              disabled={saving}
+              activeOpacity={0.82}
+              accessibilityRole="button"
+              accessibilityLabel={editing ? '닉네임 저장' : '닉네임 수정'}
+            >
+              {saving
+                ? <ActivityIndicator size="small" color="#FFFFFF" />
+                : <TicketIcon name={editing ? 'check' : 'edit'} size={17} color="#FFFFFF" />}
+            </TouchableOpacity>
           </View>
 
-          {/* 지갑 패널 */}
-          {profile?.walletAddress ? (
-            <View style={styles.walletPanel}>
-              <Text style={styles.walletLabel}>연결된 지갑</Text>
-              <Text style={styles.walletValue}>{profile.walletAddress}</Text>
-            </View>
-          ) : (
-            <View style={styles.walletPanel}>
-              <Text style={styles.walletLabel}>연결된 지갑</Text>
-              <Text style={[styles.walletValue, styles.walletEmpty]}>지갑이 연결되지 않았습니다</Text>
-            </View>
-          )}
-
-          {/* 액션 버튼 */}
-          <View style={styles.profileActions}>
-            {editing ? (
-              <>
-                <TouchableOpacity style={styles.actionPrimary} onPress={save} disabled={saving} activeOpacity={0.86}>
-                  <Text style={styles.actionPrimaryText}>{saving ? '저장 중' : '저장'}</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.actionSecondary}
-                  onPress={() => { setDisplayNameDraft(profile?.displayName || ''); setEditing(false); }}
-                  disabled={saving}
-                  activeOpacity={0.86}
-                >
-                  <Text style={styles.actionSecondaryText}>취소</Text>
-                </TouchableOpacity>
-              </>
-            ) : (
-              <>
-                <TouchableOpacity style={styles.actionPrimary} onPress={() => setEditing(true)} activeOpacity={0.86}>
-                  <Text style={styles.actionPrimaryText}>닉네임 수정</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.actionSecondary}
-                  onPress={() => navigation.navigate('Auth', { initialRole: 'USER' })}
-                  activeOpacity={0.86}
-                >
-                  <Text style={styles.actionSecondaryText}>지갑 관리</Text>
-                </TouchableOpacity>
-              </>
-            )}
+          <View style={styles.walletRow}>
+            <Text style={styles.walletLabel}>연결된 지갑</Text>
+            <Text
+              style={[styles.walletValue, !profile?.walletAddress && styles.walletEmpty]}
+              numberOfLines={1}
+            >
+              {profile?.walletAddress ? shortenAddress(profile.walletAddress) : '지갑이 연결되지 않았습니다'}
+            </Text>
           </View>
+          <View style={styles.profileDivider} />
         </View>
 
         {/* 빠른 통계 */}
@@ -284,24 +264,11 @@ export default function MyPage({ navigation }: any) {
           />
         </View>
 
-        {/* 안내 노트 */}
-        <View style={styles.section}>
-          <View style={styles.noteBox}>
-            <TicketIcon name="info" size={20} color="#534AB7" />
-            <View style={styles.noteBody}>
-              <Text style={styles.noteTitle}>개인 허브</Text>
-              <Text style={styles.noteSub}>
-                티켓, 리셀, 분쟁 기능으로 빠르게 이동합니다. 설정 기능은 구현 전까지 노출하지 않습니다.
-              </Text>
-            </View>
-          </View>
-        </View>
-
         {/* 계정 메뉴 */}
         <View style={styles.section}>
           <View style={styles.sectionHead}>
             <Text style={styles.sectionTitle}>계정 메뉴</Text>
-            <Text style={styles.sectionSub}>자주 쓰는 기능 순서로 정리하였습니다.</Text>
+            <Text style={styles.sectionSub}>티켓과 계정 정보를 관리하세요.</Text>
           </View>
           <View style={styles.menuList}>
             <MenuItem
@@ -371,7 +338,9 @@ const styles = StyleSheet.create({
     borderRadius: 30,
     backgroundColor: '#1A1A2E',
     overflow: 'hidden',
-    padding: 20,
+    paddingHorizontal: 18,
+    paddingTop: 18,
+    paddingBottom: 14,
   },
   profileOrb: {
     position: 'absolute',
@@ -385,13 +354,13 @@ const styles = StyleSheet.create({
   profileMain: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 14,
-    marginBottom: 16,
+    gap: 12,
+    marginBottom: 14,
   },
   avatar: {
-    width: 62,
-    height: 62,
-    borderRadius: 22,
+    width: 56,
+    height: 56,
+    borderRadius: 20,
     backgroundColor: 'rgba(168,156,247,0.18)',
     alignItems: 'center',
     justifyContent: 'center',
@@ -400,11 +369,21 @@ const styles = StyleSheet.create({
   profileId: { flex: 1, minWidth: 0 },
   profileName: {
     color: '#FFFFFF',
-    fontSize: 24,
+    fontSize: 21,
     fontWeight: '900',
     letterSpacing: -0.7,
-    lineHeight: 28,
+    lineHeight: 25,
     marginBottom: 5,
+  },
+  editIconButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    alignSelf: 'flex-start',
+    flexShrink: 0,
   },
   roleRow: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
   rolePill: {
@@ -431,48 +410,22 @@ const styles = StyleSheet.create({
     marginBottom: 5,
   },
 
-  /* 지갑 패널 */
-  walletPanel: {
-    backgroundColor: 'rgba(255,255,255,0.08)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.10)',
-    borderRadius: 18,
-    padding: 12,
-    marginBottom: 14,
-  },
+  /* 지갑 정보 */
+  walletRow: { gap: 5 },
   walletLabel: {
     fontSize: 9,
     fontWeight: '900',
     color: 'rgba(255,255,255,0.42)',
-    marginBottom: 5,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   walletValue: { fontSize: 12, fontWeight: '900', color: '#FFFFFF' },
   walletEmpty: { color: 'rgba(255,255,255,0.38)', fontWeight: '700' },
-
-  /* 액션 버튼 */
-  profileActions: { flexDirection: 'row', gap: 9 },
-  actionPrimary: {
-    flex: 1,
-    height: 40,
-    borderRadius: 14,
-    backgroundColor: '#FFFFFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  actionPrimaryText: { color: '#1A1A2E', fontSize: 12, fontWeight: '900' },
-  actionSecondary: {
-    flex: 1,
-    height: 40,
-    borderRadius: 14,
+  profileDivider: {
+    height: 1,
     backgroundColor: 'rgba(255,255,255,0.12)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.18)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    marginTop: 14,
   },
-  actionSecondaryText: { color: '#FFFFFF', fontSize: 12, fontWeight: '900' },
 
   /* 빠른 통계 */
   statsRow: {
@@ -504,21 +457,7 @@ const styles = StyleSheet.create({
   statLabel: { fontSize: 10, color: '#64748B', fontWeight: '900', marginTop: 3, lineHeight: 13 },
   statSub: { fontSize: 9, color: '#94A3B8', fontWeight: '700', marginTop: 5, lineHeight: 12 },
 
-  /* 안내 노트 */
   section: { paddingHorizontal: 16, paddingBottom: 14 },
-  noteBox: {
-    backgroundColor: '#F8FAFC',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderRadius: 20,
-    padding: 14,
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 10,
-  },
-  noteBody: { flex: 1 },
-  noteTitle: { fontSize: 12, fontWeight: '900', color: '#0F172A', marginBottom: 3 },
-  noteSub: { fontSize: 10, color: '#64748B', lineHeight: 15, fontWeight: '700' },
 
   /* 섹션 헤더 */
   sectionHead: { marginBottom: 10 },
