@@ -2,9 +2,9 @@
 import * as ImagePicker from 'expo-image-picker';
 import { useFocusEffect } from '@react-navigation/native';
 import { ActivityIndicator, Alert, Image, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
+import { EventCategorySummary, EventFlowHero, EventFlowNotice, EventFlowTopBar, EventFormGroup } from '../components/EventFlowKit';
+import { FlowBadge, TicketIcon, flowShadow } from '../components/TicketFlowKit';
 import { TextInput } from '../components/TextInput';
 import { errorMessage } from '../lib/account';
 import { backendApi } from '../lib/backend';
@@ -29,16 +29,6 @@ type MarkedRoundDate = {
   date: string;
   label: string;
 };
-
-const HeroGradient = LinearGradient as unknown as React.ComponentType<any>;
-
-function BackIcon() {
-  return (
-    <Svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.78)" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-      <Path d="M19 12H5m7 7-7-7 7-7" />
-    </Svg>
-  );
-}
 
 type FormIconName = 'tag' | 'align' | 'photo' | 'calendar' | 'upload';
 
@@ -180,15 +170,14 @@ function fallbackRound(event: EventDetail): RoundDraft {
 }
 
 export default function EventSettingsPage({ navigation, route }: any) {
-  const insets = useSafeAreaInsets();
   const eventId = route?.params?.eventId as string;
+  const mode = (route?.params?.mode as 'info' | 'schedule' | 'status' | undefined) ?? 'info';
   const today = useMemo(() => localDate(new Date()), []);
   const [event, setEvent] = useState<EventDetail | null>(null);
   const [name, setName] = useState('');
   const [category, setCategory] = useState('CONCERT');
   const [venue, setVenue] = useState('');
   const [description, setDescription] = useState('');
-  const [descriptionHeight, setDescriptionHeight] = useState(76);
   const [imageUrl, setImageUrl] = useState('');
   const [poster, setPoster] = useState<PosterAsset | null>(null);
   const [posterRemoved, setPosterRemoved] = useState(false);
@@ -200,10 +189,12 @@ export default function EventSettingsPage({ navigation, route }: any) {
   const [loadError, setLoadError] = useState('');
   const [issuedTicketCount, setIssuedTicketCount] = useState(0);
   const [errors, setErrors] = useState<string[]>([]);
+  const [statusDraft, setStatusDraft] = useState('ACTIVE');
+  const [statusSaving, setStatusSaving] = useState(false);
+  const [categoryOpen, setCategoryOpen] = useState(false);
 
   const markedRounds = rounds.map((round, index) => ({ date: round.eventDate, label: `${index + 1}회차` }));
   const scheduleLocked = issuedTicketCount > 0;
-  const filledInputStyle = (value: string) => [styles.input, value.trim() && styles.filledInput];
 
   const load = useCallback(async () => {
     if (!eventId) {
@@ -231,8 +222,9 @@ export default function EventSettingsPage({ navigation, route }: any) {
       setPosterRemoved(false);
       setPosterPreviewOpen(false);
       setRounds(nextRounds);
-      setExpandedRoundIds([]);
+      setExpandedRoundIds(nextRounds[0] ? [nextRounds[0].id] : []);
       setIssuedTicketCount(issuedTickets.length);
+      setStatusDraft(detail.status || 'ACTIVE');
       setErrors([]);
     } catch (error: any) {
       const message = errorMessage(error, '이벤트 정보를 불러오지 못했습니다.');
@@ -388,6 +380,34 @@ export default function EventSettingsPage({ navigation, route }: any) {
     }
   };
 
+  const saveStatus = async () => {
+    if (!event) return;
+    if (event.adminCanceled && statusDraft !== 'CANCELED') {
+      Alert.alert('변경 불가', '관리자가 취소한 이벤트는 주최자가 복구할 수 없습니다.');
+      return;
+    }
+    const applyStatus = async () => {
+      setStatusSaving(true);
+      try {
+        await backendApi.updateEventStatus(event.id, { status: statusDraft });
+        Alert.alert('저장 완료', '이벤트 상태가 변경되었습니다.');
+        navigation.navigate('OrganizerEventDetail', { eventId: event.id });
+      } catch (error: any) {
+        Alert.alert('상태 변경 실패', errorMessage(error, '이벤트 상태를 변경하지 못했습니다.'));
+      } finally {
+        setStatusSaving(false);
+      }
+    };
+    if (statusDraft === 'CANCELED' && String(event.status).toUpperCase() !== 'CANCELED') {
+      Alert.alert('이벤트 취소', '취소 후 되돌릴 수 없습니다. 이벤트를 취소하시겠습니까?', [
+        { text: '돌아가기', style: 'cancel' },
+        { text: '취소 확정', style: 'destructive', onPress: () => void applyStatus() },
+      ]);
+      return;
+    }
+    await applyStatus();
+  };
+
   if (loading) {
     return <View style={styles.center}><ActivityIndicator size="large" color="#2563EB" /></View>;
   }
@@ -404,118 +424,119 @@ export default function EventSettingsPage({ navigation, route }: any) {
     );
   }
 
+  const modeMeta = {
+    info: {
+      eyebrow: 'Event Settings',
+      title: '기본 정보 수정',
+      topBadge: '저장 가능',
+      topTone: 'green' as const,
+      heroBadge: '기본 정보',
+      heroTitle: '사용자에게 보이는\n이벤트 정보를 수정하세요.',
+      heroMeta: '이름, 장소, 소개, 포스터는 판매 중에도 수정할 수 있습니다.',
+    },
+    schedule: {
+      eyebrow: 'Schedule Settings',
+      title: '회차 일정 관리',
+      topBadge: scheduleLocked ? '제한 수정' : '수정 가능',
+      topTone: scheduleLocked ? 'yellow' as const : 'green' as const,
+      heroBadge: '회차 일정',
+      heroTitle: '회차별 날짜와\n시간을 관리하세요.',
+      heroMeta: '이미 발행된 티켓이 있는 회차는 일정 변경이 제한됩니다.',
+    },
+    status: {
+      eyebrow: 'Event Status',
+      title: '이벤트 상태 변경',
+      topBadge: String(event?.status).toUpperCase() === 'ACTIVE' ? '판매 중' : String(event?.status).toUpperCase() === 'CANCELED' ? '취소' : '비공개',
+      topTone: String(event?.status).toUpperCase() === 'ACTIVE' ? 'green' as const : String(event?.status).toUpperCase() === 'CANCELED' ? 'red' as const : 'gray' as const,
+      heroBadge: '공개 상태',
+      heroTitle: '판매와 노출 상태를\n관리하세요.',
+      heroMeta: '취소는 되돌릴 수 없으므로 사용자 안내가 필요합니다.',
+    },
+  }[mode];
+
   return (
     <View style={styles.container}>
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
-        <HeroGradient colors={['#1A1A2E', '#2D2B6B']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.hero, { paddingTop: Math.max(insets.top + 14, 36) }]}>
-          <View style={styles.heroTop}>
-            <TouchableOpacity accessibilityRole="button" accessibilityLabel="뒤로가기" style={styles.heroBackButton} onPress={() => navigation.goBack()}>
-              <BackIcon />
-            </TouchableOpacity>
-            <Text style={styles.heroEyebrow}>Event Settings</Text>
-          </View>
-          <Text style={styles.heroTitle}>이벤트 수정</Text>
-          <Text style={styles.heroSub}>이벤트 정보를 수정한 후 티켓과 좌석 설정을 이어서 관리할 수 있습니다.</Text>
-        </HeroGradient>
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.content} stickyHeaderIndices={[0]}>
+        <EventFlowTopBar eyebrow={modeMeta.eyebrow} title={modeMeta.title} badge={modeMeta.topBadge} badgeTone={modeMeta.topTone} onBack={() => navigation.goBack()} />
+        <EventFlowHero badge={modeMeta.heroBadge} title={modeMeta.heroTitle} meta={modeMeta.heroMeta} />
 
-        <View style={styles.card}>
+        {mode === 'info' ? <>
+        <View style={[styles.card, styles.fieldCard]}>
           <View style={styles.formSectionHead}>
             <View style={[styles.formSectionIcon, { backgroundColor: '#EEEDFE' }]}>
               <FormIcon name="tag" color="#534AB7" />
             </View>
-            <Text style={styles.formSectionTitle}>기본 정보</Text>
+            <View><Text style={styles.formSectionTitle}>이벤트 기본 정보</Text><Text style={styles.formSectionSub}>목록과 상세 화면에 표시되는 정보입니다.</Text></View>
           </View>
-          <Text style={styles.label}>카테고리</Text>
-          <View style={styles.categoryGrid}>
-            {EVENT_CATEGORIES.map((item) => (
-              <TouchableOpacity key={item.value} style={[styles.categoryChip, category === item.value && styles.activeCategoryChip]} onPress={() => setCategory(item.value)}>
-                <Text style={[styles.categoryChipText, category === item.value && styles.activeCategoryChipText]}>{item.label}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          <Text style={styles.label}>이름</Text>
-          <TextInput style={filledInputStyle(name)} value={name} onChangeText={setName} placeholder="예: TRUST LIVE 2026" />
-          <Text style={styles.helpText}>사용자에게 표시될 이벤트 이름을 입력해주세요.</Text>
-
-          <Text style={styles.label}>장소</Text>
-          <TextInput style={filledInputStyle(venue)} value={venue} onChangeText={setVenue} placeholder="예: 올림픽공원 KSPO DOME" />
+          <EventFormGroup icon="category" label="카테고리" helper="이벤트 목록의 필터와 배지에 표시됩니다.">
+            <EventCategorySummary label={EVENT_CATEGORIES.find((item) => item.value === category)?.label || '공연'} onPress={() => setCategoryOpen((value) => !value)} />
+            {categoryOpen ? (
+              <View style={styles.categoryGrid}>
+                {EVENT_CATEGORIES.map((item) => (
+                  <TouchableOpacity key={item.value} style={[styles.categoryChip, category === item.value && styles.activeCategoryChip]} onPress={() => { setCategory(item.value); setCategoryOpen(false); }}>
+                    <Text style={[styles.categoryChipText, category === item.value && styles.activeCategoryChipText]}>{item.label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            ) : null}
+          </EventFormGroup>
+          <EventFormGroup icon="ticket" label="이벤트 이름" helper="사용자에게 가장 크게 표시되는 제목입니다." value={name} onChangeText={setName} />
+          <EventFormGroup icon="map" label="장소" helper="목록, 상세, 티켓 QR 화면에 함께 표시됩니다." value={venue} onChangeText={setVenue} />
         </View>
 
-        <View style={styles.card}>
+        <View style={[styles.card, styles.fieldCard]}>
           <View style={styles.formSectionHead}>
             <View style={[styles.formSectionIcon, { backgroundColor: '#E6F1FB' }]}>
               <FormIcon name="align" color="#185FA5" />
             </View>
-            <Text style={[styles.formSectionTitle, { color: '#185FA5' }]}>소개</Text>
+            <View><Text style={styles.formSectionTitle}>소개 문구</Text><Text style={styles.formSectionSub}>사용자가 상세 화면에서 확인하는 설명입니다.</Text></View>
           </View>
-          <TextInput
-            style={[styles.input, description.trim() && styles.filledInput, styles.textArea, { height: descriptionHeight }]}
+          <EventFormGroup
+            icon="align"
+            label="소개 문구"
+            helper="출연진, 운영 시간, 입장 안내를 포함하면 좋습니다."
             value={description}
             onChangeText={setDescription}
-            onContentSizeChange={(inputEvent) => setDescriptionHeight(Math.max(76, Math.min(180, inputEvent.nativeEvent.contentSize.height + 12)))}
             placeholder="공연 소개, 출연진, 운영 시간, 입장 안내, 주의사항 등을 입력해주세요."
             multiline
+            count={`${description.length}/500`}
           />
         </View>
 
-        <View style={styles.card}>
+        <View style={[styles.card, styles.fieldCard]}>
           <View style={styles.formSectionHead}>
             <View style={[styles.formSectionIcon, { backgroundColor: '#E1F5EE' }]}>
               <FormIcon name="photo" color="#0F6E56" />
             </View>
-            <Text style={[styles.formSectionTitle, { color: '#0F6E56' }]}>포스터</Text>
+            <View><Text style={styles.formSectionTitle}>포스터</Text><Text style={styles.formSectionSub}>탐색, 상세, 티켓 화면에 공통으로 사용됩니다.</Text></View>
           </View>
-          {posterPreviewUri ? (
-            <TouchableOpacity activeOpacity={0.88} onPress={() => setPosterPreviewOpen(true)}>
-              <Image source={{ uri: posterPreviewUri }} style={styles.posterPreview} />
-            </TouchableOpacity>
-          ) : (
-            <TouchableOpacity style={styles.posterPlaceholder} activeOpacity={0.88} onPress={pickPoster}>
-              <Text style={styles.posterPlaceholderText}>포스터를 등록하면 이벤트 목록과 상세에 표시됩니다.</Text>
-              <View style={styles.posterZoneButton}>
-                <FormIcon name="upload" color="#534AB7" size={12} />
-                <Text style={styles.posterZoneButtonText}>이미지 선택</Text>
-              </View>
-            </TouchableOpacity>
-          )}
-          <View style={styles.posterActionRow}>
-            <TouchableOpacity style={styles.posterButton} onPress={pickPoster}>
-              <Text style={styles.posterButtonText}>{posterPreviewUri ? '다른 포스터 등록' : '포스터 등록'}</Text>
-            </TouchableOpacity>
+          <View style={styles.posterUpload}>
             {posterPreviewUri ? (
-              <TouchableOpacity
-                style={[styles.posterButton, styles.posterDeleteButton]}
-                onPress={() => {
-                  setPoster(null);
-                  setPosterRemoved(true);
-                  setImageUrl('');
-                }}
-              >
-                <Text style={styles.posterDeleteText}>포스터 제거</Text>
+              <TouchableOpacity activeOpacity={0.88} onPress={() => setPosterPreviewOpen(true)}>
+                <Image source={{ uri: posterPreviewUri }} style={styles.posterPreview} />
               </TouchableOpacity>
-            ) : null}
+            ) : <View style={styles.posterFallback}><Text style={styles.posterFallbackText}>LIVE{'\n'}POSTER</Text></View>}
+            <View style={styles.uploadInfo}>
+              <Text style={styles.uploadTitle}>현재 포스터</Text>
+              <Text style={styles.uploadSubtitle}>권장 비율 3:4. 이벤트 목록에서 가장 먼저 보입니다.</Text>
+              <TouchableOpacity style={styles.uploadButton} onPress={pickPoster}>
+                <FormIcon name="upload" color="#534AB7" size={13} />
+                <Text style={styles.uploadButtonText}>이미지 변경</Text>
+              </TouchableOpacity>
+            </View>
           </View>
-          <Text style={styles.helpText}>사용자에게 보여질 포스터 이미지를 등록하세요.</Text>
         </View>
+        </> : null}
 
-        <View style={styles.card}>
-          <View style={styles.formSectionHead}>
-            <View style={[styles.formSectionIcon, { backgroundColor: '#FAEEDA' }]}>
-              <FormIcon name="calendar" color="#854F0B" />
-            </View>
-            <Text style={[styles.formSectionTitle, { color: '#854F0B' }]}>회차 일정</Text>
-          </View>
-          <View style={styles.roundDescBlock}>
-            <Text style={styles.cardTitle}>일정</Text>
-            <Text style={styles.helpText}>회차별로 날짜와 시간을 설정하세요.</Text>
-            <Text style={styles.helpText}>장소나 일정 차이가 큰 경우 별도 이벤트 등록을 권장합니다.</Text>
-          </View>
-          {scheduleLocked ? (
-            <View style={styles.warnBox}>
-              <Text style={styles.warnText}>이미 발행된 티켓 {issuedTicketCount}장이 있어 일정을 수정할 수 없습니다.</Text>
-            </View>
-          ) : null}
+        {mode === 'schedule' ? <>
+        <View style={styles.sectionWrap}>
+          <EventFlowNotice
+            tone={scheduleLocked ? 'orange' : 'green'}
+            title={scheduleLocked ? `이미 발행된 티켓 ${issuedTicketCount.toLocaleString()}장이 있습니다.` : '모든 회차 일정을 수정할 수 있습니다.'}
+            subtitle={scheduleLocked ? '사용자 혼선을 막기 위해 주요 일정 변경은 제한됩니다.' : '티켓 발행 전에는 날짜와 시간을 자유롭게 변경할 수 있습니다.'}
+          />
+        </View>
+        <View style={[styles.card, styles.scheduleCard]}>
           <View style={styles.roundList}>
             {rounds.map((round, index) => {
               const expanded = expandedRoundIds.includes(round.id);
@@ -529,7 +550,7 @@ export default function EventSettingsPage({ navigation, route }: any) {
                       <Text style={styles.roundTitle}>{index + 1}회차 · {formatDotDate(round.eventDate)}</Text>
                       <Text style={styles.roundTime}>{round.startTime} ~ {round.endTime}</Text>
                     </View>
-                    <Text style={[styles.roundChev, expanded && styles.roundChevOpen]}>›</Text>
+                    <FlowBadge label={scheduleLocked ? '제한 수정' : '수정 가능'} tone={scheduleLocked ? 'yellow' : 'green'} />
                   </TouchableOpacity>
                   {expanded ? (
                     <View style={styles.roundBody}>
@@ -545,6 +566,14 @@ export default function EventSettingsPage({ navigation, route }: any) {
                           <TimeWheelPicker label="이벤트 종료 시간" value={round.endTime} onChange={(value) => updateRound(round.id, { endTime: value })} disabled={scheduleLocked} />
                         </View>
                       </View>
+                      <Text style={styles.fieldLbl}>회차 제목</Text>
+                      <TextInput
+                        style={[styles.input, scheduleLocked && styles.disabledButton]}
+                        value={round.title}
+                        editable={!scheduleLocked}
+                        onChangeText={(value) => updateRound(round.id, { title: value })}
+                        placeholder={`${index + 1}회차`}
+                      />
                       <TouchableOpacity style={styles.roundSaveBtn} onPress={() => setExpandedRoundIds((current) => current.filter((item) => item !== round.id))}>
                         <Text style={styles.roundSaveBtnText}>회차 저장</Text>
                       </TouchableOpacity>
@@ -563,8 +592,22 @@ export default function EventSettingsPage({ navigation, route }: any) {
             <Text style={styles.addRoundBtnText}>+ 회차 추가</Text>
           </TouchableOpacity>
         </View>
+        </> : null}
 
-        {errors.length > 0 ? (
+        {mode === 'status' ? (
+          <View style={styles.sectionWrap}>
+            <EventFlowNotice
+              tone="orange"
+              title={`현재 상태: ${String(event?.status).toUpperCase() === 'ACTIVE' ? '판매 중' : String(event?.status).toUpperCase() === 'CANCELED' ? '취소' : '비공개'}`}
+              subtitle="게시중 이벤트는 사용자 앱의 탐색 화면에 표시됩니다."
+            />
+            <StatusOption active={statusDraft === 'ACTIVE'} icon="broadcast" title="게시중" subtitle="사용자에게 이벤트가 공개되고 예매가 가능합니다." tone="purple" disabled={String(event?.status).toUpperCase() === 'CANCELED'} onPress={() => setStatusDraft('ACTIVE')} />
+            <StatusOption active={statusDraft === 'INACTIVE'} icon="eyeOff" title="비공개" subtitle="목록에서 숨깁니다. 기존 티켓은 유지됩니다." tone="purple" disabled={String(event?.status).toUpperCase() === 'CANCELED'} onPress={() => setStatusDraft('INACTIVE')} />
+            <StatusOption active={statusDraft === 'CANCELED'} icon="x" title="이벤트 취소" subtitle="취소 후 되돌릴 수 없습니다." tone="red" onPress={() => setStatusDraft('CANCELED')} />
+          </View>
+        ) : null}
+
+        {mode !== 'status' && errors.length > 0 ? (
           <View style={styles.errorPanel}>
             <Text style={styles.errorTitle}>오류</Text>
             {errors.map((message) => <Text key={message} style={styles.errorItem}>· {message}</Text>)}
@@ -573,8 +616,8 @@ export default function EventSettingsPage({ navigation, route }: any) {
       </ScrollView>
 
       <View style={styles.bottomBar}>
-        <TouchableOpacity style={[styles.primaryButton, saving && styles.disabledButton]} disabled={saving} onPress={save}>
-          <Text style={styles.primaryButtonText}>{saving ? '저장 중...' : '수정 완료'}</Text>
+        <TouchableOpacity style={[styles.primaryButton, (saving || statusSaving) && styles.disabledButton]} disabled={saving || statusSaving} onPress={mode === 'status' ? saveStatus : save}>
+          <Text style={styles.primaryButtonText}>{mode === 'status' ? statusSaving ? '저장 중...' : '상태 변경 저장' : saving ? '저장 중...' : mode === 'schedule' ? '회차 저장' : '수정 완료'}</Text>
         </TouchableOpacity>
       </View>
 
@@ -585,6 +628,38 @@ export default function EventSettingsPage({ navigation, route }: any) {
         </TouchableOpacity>
       </Modal>
     </View>
+  );
+}
+
+function StatusOption({
+  active,
+  icon,
+  title,
+  subtitle,
+  tone,
+  disabled,
+  onPress,
+}: {
+  active: boolean;
+  icon: 'broadcast' | 'eyeOff' | 'x';
+  title: string;
+  subtitle: string;
+  tone: 'purple' | 'red';
+  disabled?: boolean;
+  onPress: () => void;
+}) {
+  const danger = tone === 'red';
+  return (
+    <TouchableOpacity style={[styles.statusOption, active && styles.statusOptionActive, danger && styles.statusOptionDanger, disabled && styles.disabledButton]} disabled={disabled} onPress={onPress}>
+      <View style={[styles.statusOptionIcon, danger && styles.statusOptionIconDanger]}>
+        <TicketIcon name={icon} color={danger ? '#DC2626' : '#534AB7'} size={20} />
+      </View>
+      <View style={styles.statusOptionCopy}>
+        <Text style={[styles.statusOptionTitle, danger && styles.statusOptionTitleDanger]}>{title}</Text>
+        <Text style={styles.statusOptionSubtitle}>{subtitle}</Text>
+      </View>
+      {active ? <FlowBadge label="현재" tone={danger ? 'red' : 'green'} /> : null}
+    </TouchableOpacity>
   );
 }
 
@@ -727,9 +802,9 @@ function TimeColumn({ label, options, value, onChange }: { label: string; option
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F5F5F5' },
+  container: { flex: 1, backgroundColor: '#F6F7FB' },
   scroll: { flex: 1 },
-  content: { paddingBottom: 112 },
+  content: { paddingBottom: 118 },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F5F5F5' },
   emptyTitle: { color: '#0F172A', fontSize: 18, fontWeight: '900', textAlign: 'center' },
   emptyText: { marginTop: 8, color: '#64748B', fontSize: 13, textAlign: 'center', lineHeight: 19 },
@@ -739,18 +814,30 @@ const styles = StyleSheet.create({
   heroEyebrow: { color: '#A89CF7', fontSize: 10, fontWeight: '800', letterSpacing: 1, textTransform: 'uppercase' },
   heroTitle: { color: '#FFFFFF', fontSize: 20, fontWeight: '900', lineHeight: 25 },
   heroSub: { color: 'rgba(255,255,255,0.48)', fontSize: 11, lineHeight: 17, marginTop: 3 },
-  card: { marginTop: 11, marginHorizontal: 14, backgroundColor: '#FFFFFF', borderRadius: 12, padding: 12, borderWidth: 0.5, borderColor: '#E5E7EB' },
+  card: { marginTop: 0, marginHorizontal: 16, marginBottom: 14, backgroundColor: '#FFFFFF', borderRadius: 24, padding: 14, borderWidth: 1, borderColor: '#E5E7EB', ...flowShadow },
+  fieldCard: { padding: 0, borderWidth: 0, backgroundColor: 'transparent', shadowOpacity: 0, elevation: 0 },
+  scheduleCard: { padding: 0, overflow: 'visible', borderWidth: 0, backgroundColor: 'transparent', shadowOpacity: 0, elevation: 0 },
+  sectionWrap: { paddingHorizontal: 16, paddingBottom: 14 },
   cardTitle: { color: '#0F172A', fontSize: 16, fontWeight: '900' },
-  formSectionHead: { flexDirection: 'row', alignItems: 'center', gap: 7, marginHorizontal: -12, marginTop: -12, marginBottom: 11, padding: 11, borderBottomWidth: 0.5, borderBottomColor: '#F5F5F5', backgroundColor: '#FAFAFA' },
-  formSectionIcon: { width: 26, height: 26, borderRadius: 7, alignItems: 'center', justifyContent: 'center' },
-  formSectionTitle: { fontSize: 11, fontWeight: '900', color: '#534AB7' },
-  label: { marginTop: 9, marginBottom: 5, color: '#334155', fontSize: 13, fontWeight: '800' },
-  helpText: { marginTop: 5, color: '#64748B', fontSize: 12, lineHeight: 17 },
+  formSectionHead: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10, paddingHorizontal: 2 },
+  formSectionIcon: { width: 36, height: 36, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
+  formSectionTitle: { fontSize: 14, fontWeight: '900', color: '#0F172A' },
+  formSectionSub: { fontSize: 10, color: '#64748B', lineHeight: 14, marginTop: 3 },
+  label: { marginBottom: 8, color: '#26364F', fontSize: 12, fontWeight: '900' },
+  helpText: { marginTop: 7, color: '#94A3B8', fontSize: 10, lineHeight: 15 },
   lockedNotice: { marginTop: 8, borderWidth: 1, borderColor: '#FDE68A', backgroundColor: '#FFFBEB', borderRadius: 8, padding: 10, color: '#92400E', fontSize: 12, fontWeight: '800', lineHeight: 18 },
-  input: { borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 10, backgroundColor: '#FFFFFF', color: '#0F172A' },
-  filledInput: { borderColor: '#CECBF6', backgroundColor: '#FAFAFE' },
-  textArea: { minHeight: 76, maxHeight: 180, textAlignVertical: 'top' },
-  posterPreview: { width: '100%', aspectRatio: 3 / 4, borderRadius: 8, backgroundColor: '#E2E8F0' },
+  input: { borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 22, paddingHorizontal: 15, paddingVertical: 14, backgroundColor: '#FFFFFF', color: '#0F172A', fontSize: 15, fontWeight: '800', marginBottom: 12, ...flowShadow },
+  filledInput: { borderColor: '#E5E7EB', backgroundColor: '#FFFFFF' },
+  textArea: { minHeight: 128, maxHeight: 180, textAlignVertical: 'top', fontWeight: '500' },
+  posterUpload: { flexDirection: 'row', gap: 14, alignItems: 'center', padding: 14, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 24, ...flowShadow },
+  posterPreview: { width: 92, height: 122, borderRadius: 20, backgroundColor: '#E2E8F0' },
+  posterFallback: { width: 92, height: 122, borderRadius: 20, justifyContent: 'flex-end', padding: 10, backgroundColor: '#534AB7' },
+  posterFallbackText: { color: '#FFFFFF', fontSize: 11, lineHeight: 14, fontWeight: '900' },
+  uploadInfo: { flex: 1, minWidth: 0 },
+  uploadTitle: { color: '#0F172A', fontSize: 15, fontWeight: '900', marginBottom: 5 },
+  uploadSubtitle: { color: '#64748B', fontSize: 11, lineHeight: 16, marginBottom: 12 },
+  uploadButton: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 13, paddingVertical: 11, borderRadius: 14, backgroundColor: '#EEEDFE' },
+  uploadButtonText: { color: '#534AB7', fontSize: 12, fontWeight: '900' },
   posterPlaceholder: { minHeight: 96, borderWidth: 1.5, borderColor: '#CECBF6', borderStyle: 'dashed', borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: '#FAFAFE', padding: 18 },
   posterPlaceholderText: { color: '#B4B2A9', fontSize: 11, fontWeight: '800', textAlign: 'center', lineHeight: 16, marginBottom: 8 },
   posterZoneButton: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: '#EEEDFE', borderRadius: 8, paddingHorizontal: 13, paddingVertical: 7 },
@@ -760,7 +847,7 @@ const styles = StyleSheet.create({
   posterButtonText: { color: '#534AB7', fontWeight: '900', fontSize: 13 },
   posterDeleteButton: { borderColor: '#FCA5A5', backgroundColor: '#FFF7F7' },
   posterDeleteText: { color: '#B91C1C', fontWeight: '900', fontSize: 13 },
-  categoryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
+  categoryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginTop: 9 },
   categoryChip: { borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 999, paddingHorizontal: 11, paddingVertical: 7, backgroundColor: '#FFFFFF' },
   activeCategoryChip: { borderColor: '#534AB7', backgroundColor: '#EEEDFE' },
   categoryChipText: { color: '#475569', fontWeight: '800', fontSize: 13 },
@@ -769,27 +856,27 @@ const styles = StyleSheet.create({
   warnBox: { backgroundColor: '#FAEEDA', borderRadius: 8, padding: 10, flexDirection: 'row', alignItems: 'flex-start', gap: 5, marginBottom: 8 },
   warnText: { fontSize: 10, color: '#854F0B', fontWeight: '600', lineHeight: 15, flex: 1 },
   roundList: { gap: 6 },
-  roundItem: { borderWidth: 0.5, borderColor: '#E5E7EB', borderRadius: 10, overflow: 'hidden' },
-  roundHead: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 11, paddingVertical: 9, backgroundColor: '#FFFFFF' },
-  roundNum: { width: 22, height: 22, borderRadius: 6, backgroundColor: '#EEEDFE', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
-  roundNumText: { fontSize: 10, fontWeight: '800', color: '#534AB7' },
-  roundTitle: { fontSize: 11, fontWeight: '700', color: '#1A1A2E' },
-  roundTime: { fontSize: 10, color: '#9CA3AF', marginTop: 1 },
+  roundItem: { borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 24, overflow: 'hidden', backgroundColor: '#FFFFFF' },
+  roundHead: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 15, backgroundColor: '#FBFAFF', borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
+  roundNum: { width: 34, height: 34, borderRadius: 13, backgroundColor: '#EEEDFE', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  roundNumText: { fontSize: 13, fontWeight: '900', color: '#534AB7' },
+  roundTitle: { fontSize: 14, fontWeight: '900', color: '#0F172A' },
+  roundTime: { fontSize: 10, color: '#64748B', marginTop: 3 },
   roundChev: { fontSize: 13, color: '#B4B2A9' },
   roundChevOpen: { transform: [{ rotate: '180deg' }] },
-  roundBody: { backgroundColor: '#FAFAFA', borderTopWidth: 0.5, borderTopColor: '#F3F4F6', padding: 12 },
+  roundBody: { backgroundColor: '#FFFFFF', padding: 14 },
   fieldFull: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderWidth: 0.5, borderColor: '#E5E7EB', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, backgroundColor: '#FFFFFF', marginBottom: 8 },
   fieldVal: { fontSize: 12, fontWeight: '700', color: '#1A1A2E' },
   fieldUnit: { fontSize: 10, color: '#9CA3AF' },
   fieldRow: { flexDirection: 'row', gap: 8, marginBottom: 8 },
   fieldBox: { flex: 1 },
   fieldLbl: { fontSize: 9, fontWeight: '700', color: '#9CA3AF', textTransform: 'uppercase', marginBottom: 3 },
-  roundSaveBtn: { backgroundColor: '#1A1A2E', borderRadius: 8, paddingVertical: 9, alignItems: 'center' },
-  roundSaveBtnText: { color: '#FFFFFF', fontSize: 11, fontWeight: '700' },
+  roundSaveBtn: { backgroundColor: '#534AB7', borderRadius: 17, paddingVertical: 13, alignItems: 'center' },
+  roundSaveBtnText: { color: '#FFFFFF', fontSize: 13, fontWeight: '900' },
   roundDelBtn: { backgroundColor: '#FCEBEB', borderRadius: 8, paddingVertical: 9, alignItems: 'center', marginTop: 6 },
   roundDelBtnText: { color: '#A32D2D', fontSize: 11, fontWeight: '700' },
-  addRoundBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, borderWidth: 1.5, borderStyle: 'dashed', borderColor: '#CECBF6', borderRadius: 10, paddingVertical: 10, backgroundColor: '#FAFAFE', marginTop: 6 },
-  addRoundBtnText: { fontSize: 11, fontWeight: '700', color: '#534AB7' },
+  addRoundBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, borderWidth: 1.5, borderStyle: 'dashed', borderColor: '#C9C2FF', borderRadius: 18, paddingVertical: 14, backgroundColor: '#FBFAFF', marginTop: 10, marginHorizontal: 16, marginBottom: 14 },
+  addRoundBtnText: { fontSize: 13, fontWeight: '900', color: '#534AB7' },
   roundBox: { marginTop: 9, borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, backgroundColor: '#FFFFFF' },
   roundHeader: { padding: 12, flexDirection: 'row', alignItems: 'center', gap: 8 },
   roundHeaderCopy: { flex: 1 },
@@ -868,11 +955,20 @@ const styles = StyleSheet.create({
   errorPanel: { marginTop: 13, borderWidth: 1, borderColor: '#FCA5A5', backgroundColor: '#FEF2F2', borderRadius: 8, padding: 12 },
   errorTitle: { color: '#B91C1C', fontWeight: '900', marginBottom: 6 },
   errorItem: { color: '#B91C1C', fontWeight: '800', lineHeight: 20 },
-  bottomBar: { borderTopWidth: 0.5, borderTopColor: '#E5E7EB', backgroundColor: '#FFFFFF', padding: 14 },
-  primaryButton: { backgroundColor: '#1A1A2E', borderRadius: 11, paddingVertical: 15, alignItems: 'center' },
+  bottomBar: { borderTopWidth: 1, borderTopColor: '#E5E7EB', backgroundColor: 'rgba(255,255,255,0.96)', paddingHorizontal: 16, paddingVertical: 12 },
+  primaryButton: { backgroundColor: '#534AB7', borderRadius: 17, paddingVertical: 16, alignItems: 'center', ...flowShadow },
   primaryButtonText: { color: '#FFFFFF', fontSize: 16, fontWeight: '900' },
   disabledButton: { opacity: 0.55 },
   previewOverlay: { flex: 1, backgroundColor: 'rgba(15, 23, 42, 0.92)', alignItems: 'center', justifyContent: 'center', padding: 20 },
   previewImage: { width: '88%', aspectRatio: 3 / 4, borderRadius: 8 },
   previewClose: { marginTop: 16, color: '#FFFFFF', fontWeight: '900', fontSize: 15 },
+  statusOption: { padding: 13, borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 18, backgroundColor: '#FFFFFF', flexDirection: 'row', gap: 12, alignItems: 'center', marginBottom: 10 },
+  statusOptionActive: { borderWidth: 2, borderColor: '#534AB7', backgroundColor: '#FBFAFF' },
+  statusOptionDanger: { borderColor: '#FECDD3' },
+  statusOptionIcon: { width: 38, height: 38, borderRadius: 14, backgroundColor: '#EEEDFE', alignItems: 'center', justifyContent: 'center' },
+  statusOptionIconDanger: { backgroundColor: '#FEE2E2' },
+  statusOptionCopy: { flex: 1, minWidth: 0 },
+  statusOptionTitle: { color: '#0F172A', fontSize: 14, fontWeight: '900', marginBottom: 3 },
+  statusOptionTitleDanger: { color: '#DC2626' },
+  statusOptionSubtitle: { color: '#64748B', fontSize: 10, lineHeight: 14 },
 });

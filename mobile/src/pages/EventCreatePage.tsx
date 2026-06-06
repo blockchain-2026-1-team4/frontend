@@ -12,22 +12,12 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
+import { EventCategorySummary, EventFlowHero, EventFlowTopBar, EventFormGroup } from '../components/EventFlowKit';
+import { FlowBadge, flowShadow } from '../components/TicketFlowKit';
 import { TextInput } from '../components/TextInput';
 import { accountStatusMessage, errorMessage } from '../lib/account';
 import { backendApi } from '../lib/backend';
-
-const HeroGradient = LinearGradient as unknown as React.ComponentType<any>;
-
-function BackIcon() {
-  return (
-    <Svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.78)" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-      <Path d="M19 12H5m7 7-7-7 7-7" />
-    </Svg>
-  );
-}
 
 type FormIconName = 'tag' | 'align' | 'photo' | 'calendar' | 'upload';
 
@@ -195,7 +185,6 @@ function posterFile(asset: PosterAsset) {
 }
 
 export default function EventCreatePage({ navigation }: any) {
-  const insets = useSafeAreaInsets();
   const scrollRef = useRef<ScrollView | null>(null);
   const today = useMemo(() => localDate(new Date()), []);
   const defaultEventDate = useMemo(() => addDays(today, 14), [today]);
@@ -206,22 +195,16 @@ export default function EventCreatePage({ navigation }: any) {
   const [venue, setVenue] = useState('');
   const [venuePlaceId] = useState<string | null>(null);
   const [description, setDescription] = useState('');
-  const [descriptionHeight, setDescriptionHeight] = useState(76);
   const [poster, setPoster] = useState<PosterAsset | null>(null);
   const [posterPreviewOpen, setPosterPreviewOpen] = useState(false);
   const [rounds, setRounds] = useState<EventRoundDraft[]>([initialRound]);
-  const [expandedRoundIds, setExpandedRoundIds] = useState<string[]>([]);
+  const [expandedRoundIds, setExpandedRoundIds] = useState<string[]>([initialRound.id]);
   const [roundAcknowledgedIds, setRoundAcknowledgedIds] = useState<Record<string, boolean>>({});
   const [errors, setErrors] = useState<string[]>([]);
   const [invalidFields, setInvalidFields] = useState<Record<string, boolean>>({});
   const [roundMessages, setRoundMessages] = useState<Record<string, string[]>>({});
   const [submitting, setSubmitting] = useState(false);
-  const filledInputStyle = (_value: string, invalid?: boolean) => [
-    styles.input,
-    styles.filledInput,
-    invalid && styles.invalidInput,
-  ];
-
+  const [categoryOpen, setCategoryOpen] = useState(false);
   const updateRound = (id: string, patch: Partial<EventRoundDraft>) => {
     setRounds((current) => {
       const nextRounds = current.map((round) => (round.id === id ? { ...round, ...patch } : round));
@@ -455,98 +438,87 @@ export default function EventCreatePage({ navigation }: any) {
 
   return (
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.keyboard}>
-      <ScrollView ref={scrollRef} style={styles.container} contentContainerStyle={styles.content}>
-        <HeroGradient colors={['#1A1A2E', '#2D2B6B']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.hero, { paddingTop: Math.max(insets.top + 14, 36) }]}>
-          <View style={styles.heroTopBar}>
-            <TouchableOpacity accessibilityRole="button" accessibilityLabel="뒤로가기" style={styles.heroBackButton} onPress={() => navigation.goBack()}>
-              <BackIcon />
-            </TouchableOpacity>
-            <Text style={styles.heroEyebrow}>EVENT CREATE</Text>
-          </View>
-          <Text style={styles.heroTitle}>이벤트 등록</Text>
-          <Text style={styles.heroSub}>이벤트 등록 후 티켓과 좌석 정보를 설정합니다.</Text>
-        </HeroGradient>
+      <ScrollView ref={scrollRef} style={styles.container} contentContainerStyle={styles.content} stickyHeaderIndices={[0]}>
+        <EventFlowTopBar eyebrow="Event Create" title="이벤트 등록" badge="1/2" badgeTone="gray" onBack={() => navigation.goBack()} />
+        <EventFlowHero
+          badge="새 이벤트"
+          title={'이벤트 정보를 입력하고\n티켓 설정으로 이동하세요.'}
+          meta="기본 정보와 회차를 먼저 만들고 다음 단계에서 좌석/가격을 설정합니다."
+        />
 
-        <View style={styles.card}>
+        <View style={[styles.card, styles.fieldCard]}>
           <View style={styles.formSectionHead}>
             <View style={[styles.formSectionIcon, { backgroundColor: '#EEEDFE' }]}>
               <FormIcon name="tag" color="#534AB7" />
             </View>
-            <Text style={styles.formSectionTitle}>기본 정보</Text>
+            <View><Text style={styles.formSectionTitle}>이벤트 기본 정보</Text><Text style={styles.formSectionSub}>사용자가 가장 먼저 보는 이벤트 정보입니다.</Text></View>
           </View>
-          <Text style={styles.label}>카테고리</Text>
-          <View style={styles.categoryGrid}>
-            {EVENT_CATEGORIES.map((item) => (
-              <TouchableOpacity key={item.value} style={[styles.categoryChip, category === item.value && styles.activeCategoryChip]} onPress={() => setCategory(item.value)}>
-                <Text style={[styles.categoryChipText, category === item.value && styles.activeCategoryChipText]}>{item.label}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          <Text style={styles.label}>이름</Text>
-          <TextInput style={filledInputStyle(name, invalidFields.name)} value={name} onChangeText={setName} placeholder="예: TRUST LIVE 2026" />
-          <Text style={styles.helpText}>사용자에게 표시될 이벤트 이름을 입력해주세요.</Text>
-
-          <Text style={styles.label}>장소</Text>
-          <TextInput style={filledInputStyle(venue, invalidFields.venue)} value={venue} onChangeText={setVenue} placeholder="예: 올림픽공원 KSPO DOME" />
+          <EventFormGroup icon="category" label="카테고리" helper="이벤트 목록의 필터와 배지에 표시됩니다." invalid={invalidFields.category}>
+            <EventCategorySummary label={EVENT_CATEGORIES.find((item) => item.value === category)?.label || '공연'} onPress={() => setCategoryOpen((value) => !value)} />
+            {categoryOpen ? (
+              <View style={styles.categoryGrid}>
+                {EVENT_CATEGORIES.map((item) => (
+                  <TouchableOpacity key={item.value} style={[styles.categoryChip, category === item.value && styles.activeCategoryChip]} onPress={() => { setCategory(item.value); setCategoryOpen(false); }}>
+                    <Text style={[styles.categoryChipText, category === item.value && styles.activeCategoryChipText]}>{item.label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            ) : null}
+          </EventFormGroup>
+          <EventFormGroup icon="ticket" label="이벤트 이름" helper="사용자가 탐색 화면에서 가장 먼저 보는 제목입니다." value={name} onChangeText={setName} placeholder="예: TRUST LIVE 2026" invalid={invalidFields.name} />
+          <EventFormGroup icon="map" label="장소" helper="정확한 장소명을 입력하면 검색 결과에서 더 잘 구분됩니다." value={venue} onChangeText={setVenue} placeholder="예: 올림픽공원 KSPO DOME" invalid={invalidFields.venue} />
         </View>
 
-        <View style={styles.card}>
+        <View style={[styles.card, styles.fieldCard]}>
           <View style={styles.formSectionHead}>
             <View style={[styles.formSectionIcon, { backgroundColor: '#E6F1FB' }]}>
               <FormIcon name="align" color="#185FA5" />
             </View>
-            <Text style={[styles.formSectionTitle, { color: '#185FA5' }]}>소개</Text>
+            <View><Text style={styles.formSectionTitle}>소개 문구</Text><Text style={styles.formSectionSub}>출연진, 운영 시간, 입장 안내를 입력하세요.</Text></View>
           </View>
-          <TextInput
-            style={[styles.input, styles.filledInput, styles.textArea, { height: descriptionHeight }, invalidFields.description && styles.invalidInput]}
+          <EventFormGroup
+            icon="align"
+            label="소개 문구"
+            helper="상세 화면에 표시됩니다."
             value={description}
             onChangeText={setDescription}
-            onContentSizeChange={(event) => setDescriptionHeight(Math.max(76, Math.min(180, event.nativeEvent.contentSize.height + 12)))}
             placeholder="공연 소개, 출연진, 운영 시간, 입장 안내, 주의사항 등을 입력해주세요."
             multiline
+            count={`${description.length}/500`}
+            invalid={invalidFields.description}
           />
         </View>
 
-        <View style={styles.card}>
+        <View style={[styles.card, styles.fieldCard]}>
           <View style={styles.formSectionHead}>
             <View style={[styles.formSectionIcon, { backgroundColor: '#E1F5EE' }]}>
               <FormIcon name="photo" color="#0F6E56" />
             </View>
-            <Text style={[styles.formSectionTitle, { color: '#0F6E56' }]}>포스터 <Text style={styles.optionalText}>(선택)</Text></Text>
+            <View><Text style={styles.formSectionTitle}>포스터</Text><Text style={styles.formSectionSub}>목록에서 이벤트를 구분하는 대표 이미지입니다.</Text></View>
           </View>
-          {poster ? (
-            <TouchableOpacity onPress={() => setPosterPreviewOpen(true)} activeOpacity={0.88}>
-              <Image source={{ uri: poster.uri }} style={styles.posterPreview} />
-            </TouchableOpacity>
-          ) : (
-            <TouchableOpacity style={styles.posterPlaceholder} activeOpacity={0.86} onPress={pickPoster}>
-              <Text style={styles.posterPlaceholderText}>포스터를 등록하면 이벤트 목록과 상세에 표시됩니다.</Text>
-              <View style={styles.posterZoneButton}>
-                <FormIcon name="upload" color="#534AB7" size={12} />
-                <Text style={styles.posterZoneButtonText}>이미지 선택</Text>
-              </View>
-            </TouchableOpacity>
-          )}
-          <View style={styles.posterActionRow}>
-            <TouchableOpacity style={styles.posterButton} onPress={pickPoster}>
-              <Text style={styles.posterButtonText}>{poster ? '다른 포스터 등록' : '포스터 등록'}</Text>
-            </TouchableOpacity>
+          <View style={styles.posterUpload}>
             {poster ? (
-              <TouchableOpacity style={[styles.posterButton, styles.posterDeleteButton]} onPress={() => setPoster(null)}>
-                <Text style={styles.posterDeleteText}>포스터 제거</Text>
+              <TouchableOpacity onPress={() => setPosterPreviewOpen(true)} activeOpacity={0.88}>
+                <Image source={{ uri: poster.uri }} style={styles.posterPreview} />
               </TouchableOpacity>
-            ) : null}
+            ) : <View style={styles.posterFallback}><Text style={styles.posterFallbackText}>LIVE{'\n'}POSTER</Text></View>}
+            <View style={styles.uploadInfo}>
+              <Text style={styles.uploadTitle}>포스터 등록</Text>
+              <Text style={styles.uploadSubtitle}>3:4 비율 이미지를 권장합니다. 등록하지 않으면 기본 이미지가 표시됩니다.</Text>
+              <TouchableOpacity style={styles.uploadButton} onPress={pickPoster}>
+                <FormIcon name="upload" color="#534AB7" size={13} />
+                <Text style={styles.uploadButtonText}>이미지 선택</Text>
+              </TouchableOpacity>
+            </View>
           </View>
-          <Text style={styles.helpText}>사용자에게 보여질 포스터 이미지를 등록하세요.</Text>
         </View>
 
-        <View style={[styles.card, invalidFields.rounds && styles.invalidRound]}>
+        <View style={[styles.card, styles.fieldCard, invalidFields.rounds && styles.invalidRound]}>
           <View style={styles.formSectionHead}>
             <View style={[styles.formSectionIcon, { backgroundColor: '#FAEEDA' }]}>
               <FormIcon name="calendar" color="#854F0B" />
             </View>
-            <Text style={[styles.formSectionTitle, { color: '#854F0B' }]}>회차 일정</Text>
+            <View><Text style={styles.formSectionTitle}>회차 일정</Text><Text style={styles.formSectionSub}>일정은 티켓 설정 전까지 자유롭게 수정할 수 있습니다.</Text></View>
           </View>
           <View style={styles.roundDescBlock}>
             <Text style={styles.cardTitle}>일정</Text>
@@ -567,7 +539,7 @@ export default function EventCreatePage({ navigation }: any) {
                       <Text style={styles.roundTitle}>{round.title || `${index + 1}회차`} · {formatDotDate(round.eventDate)}</Text>
                       <Text style={styles.roundTime}>{round.startTime} ~ {round.endTime}</Text>
                     </View>
-                    <Text style={[styles.roundChev, expanded && styles.roundChevOpen]}>›</Text>
+                    <FlowBadge label="신규" tone="green" />
                   </TouchableOpacity>
 
                   {expanded ? (
@@ -634,10 +606,13 @@ export default function EventCreatePage({ navigation }: any) {
           </View>
         ) : null}
 
+      </ScrollView>
+
+      <View style={styles.bottomBar}>
         <TouchableOpacity style={[styles.primaryButton, submitting && styles.disabledButton]} disabled={submitting} onPress={createEvent}>
           <Text style={styles.primaryButtonText}>{submitting ? '등록 중...' : '다음: 티켓 설정'}</Text>
         </TouchableOpacity>
-      </ScrollView>
+      </View>
 
       <Modal visible={posterPreviewOpen} transparent animationType="fade" onRequestClose={() => setPosterPreviewOpen(false)}>
         <TouchableOpacity style={styles.previewOverlay} activeOpacity={1} onPress={() => setPosterPreviewOpen(false)}>
@@ -844,8 +819,8 @@ function TimeWheelPickerBase({
 
 const styles = StyleSheet.create({
   keyboard: { flex: 1 },
-  container: { flex: 1, backgroundColor: '#F5F5F5' },
-  content: { paddingBottom: 84 },
+  container: { flex: 1, backgroundColor: '#F6F7FB' },
+  content: { paddingBottom: 28 },
   hero: { paddingHorizontal: 20, paddingBottom: 24 },
   heroTopBar: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 },
   heroBackButton: { width: 28, height: 28, borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.1)', alignItems: 'center', justifyContent: 'center' },
@@ -853,32 +828,43 @@ const styles = StyleSheet.create({
   heroTitle: { color: '#FFFFFF', fontSize: 22, fontWeight: '800', marginTop: 4, marginBottom: 4 },
   heroSub: { color: 'rgba(255,255,255,0.58)', fontSize: 12, lineHeight: 18 },
   card: {
-    marginTop: 11,
-    marginHorizontal: 14,
+    marginHorizontal: 16,
+    marginBottom: 14,
     backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    padding: 12,
-    borderWidth: 0.5,
+    borderRadius: 24,
+    padding: 14,
+    borderWidth: 1,
     borderColor: '#E5E7EB',
+    ...flowShadow,
   },
+  fieldCard: { padding: 0, borderWidth: 0, backgroundColor: 'transparent', shadowOpacity: 0, elevation: 0 },
   cardTitle: { color: '#1A1A2E', fontSize: 15, fontWeight: '800' },
-  formSectionHead: { flexDirection: 'row', alignItems: 'center', gap: 7, marginHorizontal: -12, marginTop: -12, marginBottom: 11, padding: 11, borderBottomWidth: 0.5, borderBottomColor: '#F5F5F5', backgroundColor: '#FAFAFA' },
+  formSectionHead: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10, paddingHorizontal: 2 },
   inlineSectionHead: { flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 13, marginBottom: 7 },
-  formSectionIcon: { width: 26, height: 26, borderRadius: 7, alignItems: 'center', justifyContent: 'center' },
-  formSectionTitle: { fontSize: 11, fontWeight: '900', color: '#534AB7' },
+  formSectionIcon: { width: 36, height: 36, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
+  formSectionTitle: { fontSize: 14, fontWeight: '900', color: '#0F172A' },
+  formSectionSub: { fontSize: 10, color: '#64748B', lineHeight: 14, marginTop: 3 },
   optionalText: { fontSize: 10, fontWeight: '500', color: '#B4B2A9' },
-  label: { marginTop: 9, marginBottom: 5, color: '#1A1A2E', fontSize: 13, fontWeight: '700' },
-  helpText: { marginTop: 5, color: '#9CA3AF', fontSize: 12, lineHeight: 17 },
-  categoryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
+  label: { marginBottom: 8, color: '#26364F', fontSize: 12, fontWeight: '900' },
+  helpText: { marginTop: 7, color: '#94A3B8', fontSize: 10, lineHeight: 15 },
+  categoryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginTop: 9 },
   categoryChip: { borderWidth: 0.5, borderColor: '#E5E7EB', borderRadius: 999, paddingHorizontal: 11, paddingVertical: 7, backgroundColor: '#FFFFFF' },
   activeCategoryChip: { borderColor: '#534AB7', backgroundColor: '#EEEDFE' },
   categoryChipText: { color: '#6B7280', fontWeight: '700', fontSize: 13 },
   activeCategoryChipText: { color: '#534AB7' },
-  input: { borderWidth: 0.5, borderColor: '#E5E7EB', borderRadius: 10, padding: 10, backgroundColor: '#FFFFFF', color: '#1A1A2E' },
-  filledInput: { borderColor: '#CECBF6', backgroundColor: '#FAFAFE' },
+  input: { borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 22, paddingHorizontal: 15, paddingVertical: 14, backgroundColor: '#FFFFFF', color: '#0F172A', fontSize: 15, fontWeight: '800', marginBottom: 12, ...flowShadow },
+  filledInput: { borderColor: '#E5E7EB', backgroundColor: '#FFFFFF' },
   invalidInput: { borderColor: '#DC2626', backgroundColor: '#FEF2F2' },
-  textArea: { minHeight: 76, maxHeight: 180, textAlignVertical: 'top' },
-  posterPreview: { width: '100%', aspectRatio: 3 / 4, borderRadius: 10, backgroundColor: '#E5E7EB' },
+  textArea: { minHeight: 128, maxHeight: 180, textAlignVertical: 'top', fontWeight: '500' },
+  posterUpload: { flexDirection: 'row', gap: 14, alignItems: 'center', padding: 14, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 24, ...flowShadow },
+  posterPreview: { width: 92, height: 122, borderRadius: 20, backgroundColor: '#E5E7EB' },
+  posterFallback: { width: 92, height: 122, borderRadius: 20, justifyContent: 'flex-end', padding: 10, backgroundColor: '#534AB7' },
+  posterFallbackText: { color: '#FFFFFF', fontSize: 11, lineHeight: 14, fontWeight: '900' },
+  uploadInfo: { flex: 1, minWidth: 0 },
+  uploadTitle: { color: '#0F172A', fontSize: 15, fontWeight: '900', marginBottom: 5 },
+  uploadSubtitle: { color: '#64748B', fontSize: 11, lineHeight: 16, marginBottom: 12 },
+  uploadButton: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 13, paddingVertical: 11, borderRadius: 14, backgroundColor: '#EEEDFE' },
+  uploadButtonText: { color: '#534AB7', fontSize: 12, fontWeight: '900' },
   posterPlaceholder: { width: '100%', minHeight: 96, borderRadius: 10, borderWidth: 1.5, borderStyle: 'dashed', borderColor: '#CECBF6', backgroundColor: '#FAFAFE', alignItems: 'center', justifyContent: 'center', padding: 18 },
   posterPlaceholderText: { color: '#B4B2A9', fontSize: 11, fontWeight: '700', textAlign: 'center', lineHeight: 16, marginBottom: 8 },
   posterZoneButton: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: '#EEEDFE', borderRadius: 8, paddingHorizontal: 13, paddingVertical: 7 },
@@ -889,22 +875,22 @@ const styles = StyleSheet.create({
   posterDeleteButton: { borderColor: '#FECACA', backgroundColor: '#FEF2F2' },
   posterDeleteText: { color: '#B91C1C', fontWeight: '800' },
   roundList: { gap: 6 },
-  roundItem: { borderWidth: 0.5, borderColor: '#E5E7EB', borderRadius: 10, overflow: 'hidden' },
-  roundHead: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 11, paddingVertical: 9, backgroundColor: '#FFFFFF' },
-  roundNum: { width: 22, height: 22, borderRadius: 6, backgroundColor: '#EEEDFE', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
-  roundNumText: { fontSize: 10, fontWeight: '800', color: '#534AB7' },
-  roundTime: { fontSize: 10, color: '#9CA3AF', marginTop: 1 },
+  roundItem: { borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 24, overflow: 'hidden', backgroundColor: '#FFFFFF', ...flowShadow },
+  roundHead: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 15, backgroundColor: '#FBFAFF', borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
+  roundNum: { width: 34, height: 34, borderRadius: 13, backgroundColor: '#EEEDFE', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  roundNumText: { fontSize: 13, fontWeight: '900', color: '#534AB7' },
+  roundTime: { fontSize: 10, color: '#64748B', marginTop: 3 },
   roundChev: { fontSize: 13, color: '#B4B2A9' },
   roundChevOpen: { transform: [{ rotate: '180deg' }] },
   fieldRow: { flexDirection: 'row', gap: 8, marginBottom: 8 },
   fieldBox: { flex: 1 },
   fieldLbl: { fontSize: 9, fontWeight: '700', color: '#9CA3AF', textTransform: 'uppercase', marginBottom: 4 },
-  roundSaveBtn: { backgroundColor: '#1A1A2E', borderRadius: 8, paddingVertical: 9, alignItems: 'center' },
-  roundSaveBtnText: { color: '#FFFFFF', fontSize: 11, fontWeight: '700' },
+  roundSaveBtn: { backgroundColor: '#534AB7', borderRadius: 17, paddingVertical: 13, alignItems: 'center' },
+  roundSaveBtnText: { color: '#FFFFFF', fontSize: 13, fontWeight: '900' },
   roundDelBtn: { backgroundColor: '#FCEBEB', borderRadius: 8, paddingVertical: 9, alignItems: 'center', marginTop: 6 },
   roundDelBtnText: { color: '#A32D2D', fontSize: 11, fontWeight: '700' },
-  addRoundBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, borderWidth: 1.5, borderStyle: 'dashed', borderColor: '#CECBF6', borderRadius: 10, paddingVertical: 10, backgroundColor: '#FAFAFE', marginTop: 6 },
-  addRoundBtnText: { fontSize: 11, fontWeight: '700', color: '#534AB7' },
+  addRoundBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, borderWidth: 1.5, borderStyle: 'dashed', borderColor: '#C9C2FF', borderRadius: 18, paddingVertical: 14, backgroundColor: '#FBFAFF', marginTop: 10 },
+  addRoundBtnText: { fontSize: 13, fontWeight: '900', color: '#534AB7' },
   roundBox: { marginTop: 9, borderWidth: 0.5, borderColor: '#E5E7EB', borderRadius: 10, backgroundColor: '#FFFFFF' },
   invalidRound: { borderWidth: 0.5, borderColor: '#FECACA', backgroundColor: '#FEF2F2' },
   roundHeader: { padding: 12, flexDirection: 'row', alignItems: 'center', gap: 8 },
@@ -1012,8 +998,9 @@ const styles = StyleSheet.create({
   errorPanel: { marginTop: 13, marginHorizontal: 14, borderWidth: 0.5, borderColor: '#FECACA', backgroundColor: '#FEF2F2', borderRadius: 10, padding: 12 },
   errorTitle: { color: '#B91C1C', fontWeight: '800', marginBottom: 6 },
   errorItem: { color: '#B91C1C', fontWeight: '700', lineHeight: 20 },
-  primaryButton: { backgroundColor: '#1A1A2E', borderRadius: 12, paddingVertical: 15, alignItems: 'center', marginTop: 12, marginHorizontal: 14 },
-  primaryButtonText: { color: '#FFFFFF', fontSize: 15, fontWeight: '800' },
+  bottomBar: { borderTopWidth: 1, borderTopColor: '#E5E7EB', backgroundColor: 'rgba(255,255,255,0.96)', paddingHorizontal: 16, paddingVertical: 12 },
+  primaryButton: { backgroundColor: '#534AB7', borderRadius: 17, paddingVertical: 16, alignItems: 'center', ...flowShadow },
+  primaryButtonText: { color: '#FFFFFF', fontSize: 15, fontWeight: '900' },
   disabledButton: { opacity: 0.55 },
   previewOverlay: { flex: 1, backgroundColor: 'rgba(15, 23, 42, 0.92)', alignItems: 'center', justifyContent: 'center', padding: 20 },
   previewImage: { width: '88%', aspectRatio: 3 / 4, borderRadius: 10 },

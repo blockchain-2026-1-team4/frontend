@@ -26,9 +26,19 @@ export type TicketIconName =
   | 'user'
   | 'settings'
   | 'bell'
+  | 'edit'
+  | 'eye'
+  | 'eyeOff'
+  | 'calendarTime'
+  | 'chart'
+  | 'cart'
+  | 'x'
+  | 'broadcast'
   | 'plus'
   | 'adjustments'
-  | 'userCheck';
+  | 'userCheck'
+  | 'store'
+  | 'logout';
 
 export const flowShadow = {
   shadowColor: '#0F172A',
@@ -69,9 +79,19 @@ export function TicketIcon({ name, color = '#64748B', size = 20 }: { name: Ticke
   if (name === 'user') return <Svg width={size} height={size} viewBox="0 0 24 24"><Circle cx="12" cy="8" r="4" {...common} /><Path d="M4.5 21a7.5 7.5 0 0115 0" {...common} /></Svg>;
   if (name === 'settings') return <Svg width={size} height={size} viewBox="0 0 24 24"><Path d="M12 8.5a3.5 3.5 0 100 7 3.5 3.5 0 000-7zM19.4 15a1.7 1.7 0 00.3 1.9l.1.1-2 3.4-.2-.1a1.7 1.7 0 00-2.1.5l-.1.2h-4l-.1-.2a1.7 1.7 0 00-2.1-.5l-.2.1-2-3.4.1-.1a1.7 1.7 0 00.3-1.9l-.1-.2-2-1.2v-3.2l2-1.2.1-.2a1.7 1.7 0 00-.3-1.9L7 7l2-3.4.2.1a1.7 1.7 0 002.1-.5l.1-.2h4l.1.2a1.7 1.7 0 002.1.5l.2-.1 2 3.4-.1.1a1.7 1.7 0 00-.3 1.9l.1.2 2 1.2v3.2l-2 1.2-.1.2z" {...common} /></Svg>;
   if (name === 'bell') return <Svg width={size} height={size} viewBox="0 0 24 24"><Path d="M18 16v-5a6 6 0 00-12 0v5l-2 2h16l-2-2zM9.5 20a2.5 2.5 0 005 0" {...common} /></Svg>;
+  if (name === 'edit') return <Svg width={size} height={size} viewBox="0 0 24 24"><Path d="M12 20h9M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4L16.5 3.5z" {...common} /></Svg>;
+  if (name === 'eye') return <Svg width={size} height={size} viewBox="0 0 24 24"><Path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z" {...common} /><Circle cx="12" cy="12" r="3" {...common} /></Svg>;
+  if (name === 'eyeOff') return <Svg width={size} height={size} viewBox="0 0 24 24"><Path d="M3 3l18 18M10.6 10.6a2 2 0 002.8 2.8M9.4 5.4A9.5 9.5 0 0112 5c4 0 7.3 2.3 10 7a17.6 17.6 0 01-4.9 5.5M7 7C4.2 8.3 2.6 10.1 1 12c2.7 4.7 6 7 10 7a9.7 9.7 0 004.9-1.3" {...common} /></Svg>;
+  if (name === 'calendarTime') return <Svg width={size} height={size} viewBox="0 0 24 24"><Rect x="4" y="5" width="16" height="15" rx="2" {...common} /><Path d="M8 3v4M16 3v4M4 10h16M12 14v3l2 1" {...common} /></Svg>;
+  if (name === 'chart') return <Svg width={size} height={size} viewBox="0 0 24 24"><Path d="M4 19V5m4 14v-7m4 7V8m4 11v-4m4 4H3" {...common} /></Svg>;
+  if (name === 'cart') return <Svg width={size} height={size} viewBox="0 0 24 24"><Path d="M6 6h15l-2 8H8L6 3H3m6 17h.01M18 20h.01" {...common} /></Svg>;
+  if (name === 'x') return <Svg width={size} height={size} viewBox="0 0 24 24"><Path d="M6 6l12 12M6 18L18 6" {...common} /></Svg>;
+  if (name === 'broadcast') return <Svg width={size} height={size} viewBox="0 0 24 24"><Circle cx="12" cy="12" r="2" {...common} /><Path d="M16.24 7.76a6 6 0 010 8.48M7.76 16.24a6 6 0 010-8.48M19.07 4.93a10 10 0 010 14.14M4.93 19.07a10 10 0 010-14.14" {...common} /></Svg>;
   if (name === 'plus') return <Svg width={size} height={size} viewBox="0 0 24 24"><Path d="M12 5v14M5 12h14" {...common} /></Svg>;
   if (name === 'adjustments') return <Svg width={size} height={size} viewBox="0 0 24 24"><Path d="M4 7h10M18 7h2M4 17h3M11 17h9M14 5v4M7 15v4" {...common} /></Svg>;
   if (name === 'userCheck') return <Svg width={size} height={size} viewBox="0 0 24 24"><Circle cx="9" cy="8" r="4" {...common} /><Path d="M2.5 21a6.5 6.5 0 0113 0M16 11l2 2 4-5" {...common} /></Svg>;
+  if (name === 'store') return <Svg width={size} height={size} viewBox="0 0 24 24"><Path d="M3 9l1-5h16l1 5M3 9h18M3 9v11a1 1 0 001 1h4v-6h4v6h4a1 1 0 001-1V9" {...common} /></Svg>;
+  if (name === 'logout') return <Svg width={size} height={size} viewBox="0 0 24 24"><Path d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h2M15 7l5 5-5 5M20 12H9" {...common} /></Svg>;
   return <Svg width={size} height={size} viewBox="0 0 24 24"><Path d="M9 18l6-6-6-6" {...common} /></Svg>;
 }
 

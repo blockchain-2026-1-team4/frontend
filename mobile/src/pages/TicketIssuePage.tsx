@@ -426,7 +426,7 @@ export default function TicketIssuePage({ navigation, route }: any) {
 
   const goBackToEventFlow = () => {
     if (returnTo === 'create') {
-      navigation.replace('EventCreate');
+      navigation.replace('OrganizerEventDetail', { eventId });
       return;
     }
     if (eventId) {
