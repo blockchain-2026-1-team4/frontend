@@ -3,6 +3,11 @@ export const trustTicketAbi = [
   'function listTicket(uint256 tokenId, uint256 resalePrice)',
   'function cancelListing(uint256 tokenId)',
   'function purchaseResaleTicket(uint256 tokenId) payable',
+  'function refundTicket(uint256 tokenId)',
+  'function withdrawEventRevenue(uint256 eventId)',
+  'function withdrawResaleRevenue(uint256 tokenId)',
   'function ownerOf(uint256 tokenId) view returns (address)',
   'function getTicketInfo(uint256 tokenId) view returns ((uint256 tokenId,uint256 eventId,string seatInfo,uint256 originalPrice,bool used,bool listed))',
+  'function getEventEscrowBalance(uint256 eventId) view returns (uint256)',
+  'function getResaleEscrowBalance(address seller) view returns (uint256)',
 ] as const;
