@@ -31,6 +31,19 @@ function roundLabelOf(ticket?: TicketDetail | null, event?: EventDetail | null) 
   return ticketRoundId || '기본 회차';
 }
 
+function roundStartTimeOf(ticket?: TicketDetail | null, event?: EventDetail | null) {
+  const ticketRoundId = ticket?.eventRoundId ? String(ticket.eventRoundId) : '';
+  const matchedRound = event?.rounds?.find((round) => round.id && String(round.id) === ticketRoundId);
+  if (matchedRound) {
+    const startStr = matchedRound.eventDate && matchedRound.startTime
+      ? `${matchedRound.eventDate}T${matchedRound.startTime}`
+      : matchedRound.eventDate;
+    return formatCompactDateTime(startStr);
+  }
+  const eventStart = event?.eventStartAt || event?.startsAt || event?.eventAt || event?.eventDateTime;
+  return formatCompactDateTime(eventStart);
+}
+
 function priceLabel(value?: string) {
   if (!value) return '-';
   const eth = weiToEth(value);
@@ -239,8 +252,8 @@ export default function TicketPurchasePage({ route, navigation }: any) {
                 <Text style={styles.ticketMetaValue}>{priceLabel(price)}</Text>
               </View>
               <View style={styles.ticketMetaCell}>
-                <Text style={styles.ticketLabel}>판매 종료</Text>
-                <Text style={styles.ticketMetaValue}>{formatCompactDateTime(ticket.saleEndAt || event?.primarySaleEnd || event?.salesEndAt)}</Text>
+                <Text style={styles.ticketLabel}>공연 일시</Text>
+                <Text style={styles.ticketMetaValue}>{roundStartTimeOf(ticket, event)}</Text>
               </View>
             </View>
           </LinearGradient>
