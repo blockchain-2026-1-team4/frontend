@@ -35,12 +35,14 @@ export function EventFlowTopBar({
 
 export function EventFlowHero({
   size = 'md',
+  height,
   badge,
   title,
   meta,
   posters = false,
 }: {
   size?: 'md' | 'lg';
+  height?: number;
   badge: string;
   title: string;
   meta: string;
@@ -48,7 +50,7 @@ export function EventFlowHero({
 }) {
   return (
     <View style={styles.heroWrap}>
-      <FlowHero height={size === 'lg' ? 240 : 188} badge={badge} title={title} meta={meta} posters={posters} />
+      <FlowHero height={height ?? (size === 'lg' ? 240 : 188)} badge={badge} title={title} meta={meta} posters={posters} />
     </View>
   );
 }

@@ -11,23 +11,12 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 import { TextInput } from '../components/TextInput';
+import { EventFlowHero, EventFlowSectionHead, EventFlowTopBar, EventFormGroup } from '../components/EventFlowKit';
 import { accountStatusMessage, errorMessage } from '../lib/account';
 import { backendApi } from '../lib/backend';
 import type { EventDetail, EventRound, TicketDetail } from '../types/api';
-
-const HeroGradient = LinearGradient as unknown as React.ComponentType<any>;
-
-function BackIcon({ color = 'rgba(255,255,255,0.78)' }: { color?: string }) {
-  return (
-    <Svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-      <Path d="M19 12H5m7 7-7-7 7-7" />
-    </Svg>
-  );
-}
 
 type TicketIconName = 'settings' | 'list' | 'ticket' | 'calendar' | 'seat' | 'hash' | 'eth' | 'repeat' | 'adjust' | 'check' | 'plus' | 'rocket';
 
@@ -74,7 +63,7 @@ const SALE_END_HOURS_OPTIONS = [
 const HOUR_OPTIONS = Array.from({ length: 24 }, (_, index) => pad(index));
 const MINUTE_OPTIONS = Array.from({ length: 12 }, (_, index) => pad(index * 5));
 
-type FlowPage = 1 | 2 | 3;
+type FlowPage = 1 | 2 | 3 | 4;
 type PolicyMode = 'global' | 'round';
 
 type SectionPolicy = {
@@ -263,6 +252,22 @@ function effectiveSaleEndHours(value: string, customValue?: string) {
   return value === 'custom' ? customValue || '' : value;
 }
 
+function dateMonthDay(value?: string) {
+  if (!value) return { month: '---', day: '--', weekday: '' };
+  const date = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return { month: '---', day: '--', weekday: '' };
+  return {
+    month: date.toLocaleString('en-US', { month: 'short' }).toUpperCase(),
+    day: pad(date.getDate()),
+    weekday: date.toLocaleString('ko-KR', { weekday: 'long' }),
+  };
+}
+
+function saleEndLabel(value: string, customValue?: string) {
+  if (value === 'custom') return `공연 ${customValue || '-'}시간 전`;
+  return `공연 ${SALE_END_HOURS_OPTIONS.find((option) => option.value === value)?.label || value}`;
+}
+
 function ticketIdentifier(ticket: TicketDetail) {
   return ticket.id ? String(ticket.id) : ticket.ticketId != null ? String(ticket.ticketId) : '';
 }
@@ -286,7 +291,6 @@ function confirmAction(title: string, message: string) {
 }
 
 export default function TicketIssuePage({ navigation, route }: any) {
-  const insets = useSafeAreaInsets();
   const eventId = route?.params?.eventId as string;
   const returnTo = route?.params?.returnTo as 'create' | 'detail' | undefined;
   const [flowPage, setFlowPage] = useState<FlowPage>(1);
@@ -295,7 +299,9 @@ export default function TicketIssuePage({ navigation, route }: any) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [issuing, setIssuing] = useState(false);
-  const [policyMode, setPolicyMode] = useState<PolicyMode | null>(null);
+  const [policyMode, setPolicyMode] = useState<PolicyMode>('global');
+  const [defaultResaleEnabled, setDefaultResaleEnabled] = useState(true);
+  const [defaultResaleCapRate, setDefaultResaleCapRate] = useState('120');
   const [globalTotalTicketCount, setGlobalTotalTicketCount] = useState('');
   const [globalSaleStartDate, setGlobalSaleStartDate] = useState(localDate(new Date()));
   const [globalSaleStartTime, setGlobalSaleStartTime] = useState('10:00');
@@ -315,6 +321,7 @@ export default function TicketIssuePage({ navigation, route }: any) {
   const [prevFlowPage, setPrevFlowPage] = useState<FlowPage | null>(null);
   const [issueSeatModalVisible, setIssueSeatModalVisible] = useState(false);
   const [actionPolicy, setActionPolicy] = useState<SectionPolicy | null>(null);
+  const [addingPolicy, setAddingPolicy] = useState(false);
 
   const load = useCallback(async () => {
     if (!eventId) {
@@ -392,7 +399,11 @@ export default function TicketIssuePage({ navigation, route }: any) {
   const draftBaseRound = policyMode === 'global' ? earliestRoundInfo?.round || activeRound : activeRound;
   const activeKey = activeRound ? roundKey(activeRound, activeRoundIndex) : 'global';
   const draftKey = policyMode === 'global' ? 'global' : activeKey;
-  const currentDraft = drafts[draftKey] || makeSectionPolicy();
+  const currentDraft = drafts[draftKey] || {
+    ...makeSectionPolicy(),
+    resaleEnabled: defaultResaleEnabled,
+    resaleCapRate: defaultResaleCapRate,
+  };
   const currentSections = policyMode === 'global' ? globalSections : roundPolicies[activeKey]?.sections || [];
   const issuedCountForRound = (round: EventRound | undefined, index: number) => {
     if (!round) return 0;
@@ -469,6 +480,22 @@ export default function TicketIssuePage({ navigation, route }: any) {
     setIssueCompleted(false);
     setLastIssuedTicketIds([]);
     setLastIssuedSummary('');
+  };
+
+  const updateDefaultResale = (patch: { enabled?: boolean; capRate?: string }) => {
+    if (typeof patch.enabled === 'boolean') setDefaultResaleEnabled(patch.enabled);
+    if (patch.capRate) setDefaultResaleCapRate(patch.capRate);
+    setDrafts((current) => Object.fromEntries(Object.entries(current).map(([key, draft]) => [
+      key,
+      {
+        ...draft,
+        resaleEnabled: typeof patch.enabled === 'boolean' ? patch.enabled : draft.resaleEnabled,
+        resaleCapRate: patch.capRate || draft.resaleCapRate,
+        useCustomResaleRate: patch.capRate ? false : draft.useCustomResaleRate,
+      },
+    ])));
+    setTicketConfigConfirmed(false);
+    setIssueCompleted(false);
   };
 
   const updateGlobalTotalTicketCount = (value: string) => {
@@ -603,6 +630,7 @@ export default function TicketIssuePage({ navigation, route }: any) {
     setLastIssuedTicketIds([]);
     setLastIssuedSummary('');
     setFeedback({ type: 'success', message: `${sectionNameOf(saved)} 정책을 저장했습니다.` });
+    setAddingPolicy(false);
   };
 
   const removeSavedPolicy = (sectionId: string) => {
@@ -624,6 +652,7 @@ export default function TicketIssuePage({ navigation, route }: any) {
   };
 
   const editSavedPolicy = (policy: SectionPolicy) => {
+    setAddingPolicy(true);
     setDrafts((current) => ({
       ...current,
       [draftKey]: { ...policy, id: makeId('section'), expanded: false },
@@ -786,19 +815,12 @@ export default function TicketIssuePage({ navigation, route }: any) {
       return sections.map((section) => previewRange(section, index, sections));
     });
   })();
-  const finalRoundSummaries = rounds.map((round, index) => {
-    const key = roundKey(round, index);
-    const sections = policyMode === 'global' ? globalSections : roundPolicies[key]?.sections || [];
-    const total = policyMode === 'global' ? Number(globalTotalTicketCount || 0) : Number(roundPolicies[key]?.totalTicketCount || 0);
-    const alreadyIssued = issuedCountForRound(round, index);
-    const issueCount = sections.reduce((sum, section) => sum + Number(section.quantity || 0), 0);
-    const displayIssued = issueCompleted ? alreadyIssued + issueCount : alreadyIssued;
-    const remaining = total - displayIssued;
-    const summary = sections.map((section) => `${sectionNameOf(section)} ${section.quantity}장`).join(' · ');
-    return { key, label: roundLabel(round, index), total, alreadyIssued, displayIssued, issueCount, remaining, summary };
-  });
-  const finalDisplayIssuedCount = issueCompleted ? finalIssuedCount + finalIssueCount : finalIssuedCount;
-  const finalDisplayRemainingCount = finalTotalCount - finalDisplayIssuedCount;
+  const expectedMaxRevenueEth = policyMode === 'global'
+    ? globalSections.reduce((sum, section) => sum + Number(section.priceEth || 0) * Number(section.quantity || 0), 0) * rounds.length
+    : Object.values(roundPolicies).reduce(
+      (sum, policy) => sum + policy.sections.reduce((sectionSum, section) => sectionSum + Number(section.priceEth || 0) * Number(section.quantity || 0), 0),
+      0,
+    );
   const currentDraftStartNumber = issuedMaxSeatNumber(currentDraft, activeRoundIndex)
     + currentSections
       .filter((section) => sectionNameOf(section) === sectionNameOf(currentDraft))
@@ -838,6 +860,7 @@ export default function TicketIssuePage({ navigation, route }: any) {
     setPrevFlowPage(flowPage);
     setTicketConfigConfirmed(true);
     setIssueCompleted(false);
+    setFlowPage(4);
     setFeedback({ type: 'success', message: '티켓 설정을 완료했습니다. 최종 발행 내용을 확인해주세요.' });
   };
 
@@ -870,42 +893,52 @@ export default function TicketIssuePage({ navigation, route }: any) {
     }
     setTicketConfigConfirmed(false);
     setIssueCompleted(false);
-    setFlowPage(prevFlowPage ?? 2);
+    setFlowPage(prevFlowPage ?? 3);
     setPrevFlowPage(null);
   };
 
   const pageTitle = flowPage === 1
-    ? '적용 방식 선택'
+    ? '적용 대상 선택'
     : flowPage === 2
-      ? policyMode === 'round' ? '회차별 총 티켓 수량 설정' : '총 티켓 수량 설정'
-      : '좌석 판매 설정';
-  const pageDescription = flowPage === 1
-    ? '좌석 수, 가격, 리셀 정책을 모든 회차에 동일하게 적용할지 선택하세요.'
-    : flowPage === 2
-      ? policyMode === 'round'
-        ? '회차별로 총 티켓 수와 판매 기간을 설정하세요.'
-        : '전 회차에 공통으로 적용할 총 티켓 수와 판매 기간을 설정하세요.'
-      : '좌석 구역별로 가격과 수량을 설정하세요. 판매 기간은 2단계에서 설정한 값이 적용됩니다.';
-  const topSubtitle = '티켓 발행과 판매 정책을 단계별로 설정합니다.';
-  const finalConfirming = flowPage === 3 && ticketConfigConfirmed;
-  const savedOverviewMode = flowPage === 3 && !ticketConfigConfirmed && currentSections.length > 0 && !sectionNameOf(currentDraft);
+      ? '티켓 발행 설정'
+      : flowPage === 3
+        ? '좌석 정책'
+        : '최종 발행 확인';
+  const pageDescription = policyMode === 'global'
+    ? '기본은 모든 선택 회차에 동일 적용입니다. 특정 회차만 다르면 회차별로 따로 설정할 수 있습니다.'
+    : '각 회차마다 발행 수량과 좌석 정책을 따로 설정합니다.';
   const eventName = event?.name || event?.title || '이벤트';
-  const eventMeta = `${event?.venue || '장소 미정'} · ${event?.category || '이벤트'}`;
-  const heroTitle = finalConfirming ? '최종 발행 확인' : '티켓 발행';
-  const heroSubtitle = finalConfirming
-    ? '아래 내용을 확인하고 티켓을 발행하세요.'
-    : savedOverviewMode
-      ? '좌석 정책을 저장하고 추가하거나 발행을 완료하세요.'
-      : topSubtitle;
+  const eventVenue = event?.venue || '장소 미정';
+  const finalConfirming = flowPage === 4;
+  const savedOverviewMode = flowPage === 3 && !ticketConfigConfirmed && currentSections.length > 0 && !sectionNameOf(currentDraft) && !addingPolicy;
+  const heroTitle = flowPage === 1
+    ? '회차별로 반복 입력하지 않게\n먼저 적용 범위를 정하세요.'
+    : flowPage === 2
+      ? '선택한 회차에 적용할\n판매 수량과 기간을 정하세요.'
+      : flowPage === 3
+        ? '구역별 가격과 수량을\n한 번에 정리하세요.'
+        : '발행 전 내용을\n마지막으로 확인하세요.';
+  const heroSubtitle = flowPage === 1
+    ? '같은 티켓 정책이면 모든 회차에 공통 적용하고, 회차별 설정도 선택할 수 있습니다.'
+    : flowPage === 2
+      ? policyMode === 'global'
+        ? '아래 정책은 선택한 모든 회차에 공통 적용됩니다.'
+        : '상단에서 선택한 회차의 발행 정책을 설정합니다.'
+      : flowPage === 3
+        ? policyMode === 'global'
+          ? '좌석 구성, 가격, 리셀 정책이 모든 회차에 공통 적용됩니다.'
+          : '상단에서 선택한 회차의 좌석 정책을 편집합니다.'
+        : policyMode === 'global'
+          ? `선택한 ${rounds.length}개 회차에 동일한 티켓 정책이 적용됩니다.`
+          : '회차별로 설정한 티켓 정책을 마지막으로 확인합니다.';
   const headerIcon: TicketIconName = flowPage === 1 ? 'settings' : flowPage === 2 ? 'ticket' : 'seat';
-  const headerColor = flowPage === 1 ? '#534AB7' : flowPage === 2 ? '#534AB7' : '#534AB7';
+  const headerColor = '#534AB7';
   const canRevealQuantity = !!sectionNameOf(currentDraft);
   const canRevealPrice = canRevealQuantity && isPositiveInteger(currentDraft.quantity);
   const canRevealResale = canRevealPrice && isPositiveNumber(currentDraft.priceEth);
   const showPolicySaveBar = flowPage === 3 && !ticketConfigConfirmed && !savedOverviewMode && canRevealResale;
-  const showSavedBackBar = savedOverviewMode;
   const showPostIssueBar = finalConfirming && issueCompleted;
-  const showBottomBar = flowPage === 1 || flowPage === 2 || showPolicySaveBar || showSavedBackBar || showPostIssueBar;
+  const showBottomBar = true;
 
   if (loading) {
     return (
@@ -930,37 +963,43 @@ export default function TicketIssuePage({ navigation, route }: any) {
 
   return (
     <View style={styles.screen}>
+      <EventFlowTopBar
+        eyebrow={flowPage === 3 ? 'Seat Policy' : flowPage === 4 ? 'Final Review' : 'Ticket Issue'}
+        title={pageTitle}
+        badge={`${flowPage}/4`}
+        badgeTone="gray"
+        onBack={flowPage === 1 ? goBackToEventFlow : flowPage === 4 ? () => void reopenTicketConfig() : () => setFlowPage((flowPage - 1) as FlowPage)}
+      />
       <ScrollView
         style={styles.container}
         contentContainerStyle={styles.content}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} />}
       >
-        <HeroGradient colors={['#1A1A2E', '#2D2B6B']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.hero, { paddingTop: Math.max(insets.top + 14, 36) }]}>
-          <View style={styles.heroTopBar}>
-            <TouchableOpacity accessibilityRole="button" accessibilityLabel="뒤로가기" style={styles.heroBackButton} onPress={goBackToEventFlow}>
-              <BackIcon />
-            </TouchableOpacity>
-            <Text style={styles.heroEyebrow}>TICKET ISSUE</Text>
-          </View>
-          <Text style={styles.heroTitle}>{heroTitle}</Text>
-          <Text style={styles.heroSub}>{heroSubtitle}</Text>
-          {!finalConfirming ? <StepProgress page={flowPage} /> : null}
-          <View style={styles.eventContext}>
-            <View style={styles.eventContextIcon}>
-              <TicketIcon name={finalConfirming ? 'ticket' : flowPage === 1 ? 'calendar' : flowPage === 2 ? 'settings' : 'seat'} color="#A89CF7" size={13} />
-            </View>
-            <View style={styles.eventContextCopy}>
-              <Text style={styles.eventContextName} numberOfLines={1}>{finalConfirming ? eventName : flowPage === 1 ? eventName : flowPage === 2 ? (policyMode === 'round' ? '회차별 설정' : '전체 설정 적용') : `${sectionNameOf(currentDraft) || '좌석'} 구역 설정 중`}</Text>
-              <Text style={styles.eventContextMeta} numberOfLines={1}>{finalConfirming ? `이번에 발행할 좌석: ${issueSeatSummary || '-'}` : flowPage === 1 ? eventMeta : flowPage === 2 ? `${rounds.length}회차 ${policyMode === 'round' ? '개별 적용' : '공통 적용'}` : `${activeRoundIndex + 1}회차 기준 · 총 ${currentTotalTicketCount || 0}장 · 이미 발행 ${activeIssuedCount}장`}</Text>
-            </View>
-            {flowPage === 1 ? (
-              <View style={styles.eventContextRight}>
-                <Text style={styles.eventContextValue}>{rounds.length}</Text>
-                <Text style={styles.eventContextLabel}>회차</Text>
+        <EventFlowHero
+          height={196}
+          badge={flowPage === 1 ? '적용 대상' : flowPage === 2 ? '발행 설정' : flowPage === 3 ? '좌석 정책' : '최종 확인'}
+          title={heroTitle}
+          meta={heroSubtitle}
+          posters
+        />
+        <StepProgress page={flowPage} />
+        {policyMode === 'round' && (flowPage === 2 || flowPage === 3) ? (
+          <View style={styles.policyRoundSelectorCard}>
+            <View style={styles.policyRoundSelectorHead}>
+              <View style={styles.policyRoundSelectorIcon}>
+                <TicketIcon name="calendar" color="#534AB7" size={13} />
               </View>
-            ) : null}
+              <View style={styles.policyRoundSelectorCopy}>
+                <Text style={styles.policyRoundSelectorTitle}>회차 선택</Text>
+                <Text style={styles.policyRoundSelectorMeta}>현재 설정할 회차를 선택하세요.</Text>
+              </View>
+              <View style={styles.commonApplyPill}>
+                <Text style={styles.commonApplyPillText}>개별 설정</Text>
+              </View>
+            </View>
+            <RoundSelector rounds={rounds} activeRoundKey={activeKey} onSelect={setActiveRoundKey} disabled={false} />
           </View>
-        </HeroGradient>
+        ) : null}
 
         {feedback ? (
           <View style={[styles.messageBox, feedback.type === 'success' ? styles.successBox : styles.errorBox]}>
@@ -968,48 +1007,97 @@ export default function TicketIssuePage({ navigation, route }: any) {
           </View>
         ) : null}
 
-        <View style={flowPage === 1 ? styles.card : styles.flowStack}>
+        {flowPage === 1 ? (
+          <>
+            <View style={[styles.card, styles.targetEventCard]}>
+              <View style={styles.targetPoster}>
+                <Text style={styles.targetPosterText}>{eventName}{'\n'}LIVE</Text>
+              </View>
+              <View style={styles.targetEventCopy}>
+                <Text style={styles.targetBadge}>발행 대상 이벤트</Text>
+                <Text style={styles.targetEventTitle}>{eventName}</Text>
+                <Text style={styles.targetEventMeta}>{eventVenue}{'\n'}같은 장소 · {rounds.length}개 회차</Text>
+              </View>
+            </View>
+            <View style={styles.targetSection}>
+              <View style={styles.targetSectionHead}>
+                <View>
+                  <Text style={styles.targetSectionTitle}>적용할 회차</Text>
+                  <Text style={styles.targetSectionSub}>티켓 정책을 적용할 전체 회차입니다.</Text>
+                </View>
+                <View style={styles.selectedCountPill}>
+                  <Text style={styles.selectedCountText}>{rounds.length}개 선택</Text>
+                </View>
+              </View>
+              <View style={styles.targetRoundList}>
+                {rounds.map((round, index) => {
+                  const date = dateMonthDay(round.eventDate);
+                  return (
+                    <View key={roundKey(round, index)} style={styles.targetRoundCard}>
+                      <View style={styles.targetDateBox}>
+                        <Text style={styles.targetDateMonth}>{date.month}</Text>
+                        <Text style={styles.targetDateDay}>{date.day}</Text>
+                      </View>
+                      <View style={styles.targetRoundCopy}>
+                        <Text style={styles.targetRoundName}>{index + 1}회차 · {date.weekday}</Text>
+                        <Text style={styles.targetRoundMeta}>{round.startTime} ~ {round.endTime} · 같은 장소</Text>
+                      </View>
+                      <View style={styles.targetRoundCheck}>
+                        <TicketIcon name="check" color="#0F172A" size={15} />
+                      </View>
+                    </View>
+                  );
+                })}
+              </View>
+            </View>
+          </>
+        ) : null}
+
+        <View style={styles.flowStack}>
           {flowPage === 1 ? (
-            <>
+            <View style={styles.card}>
               <View style={styles.cardHead}>
                 <CardIcon name={headerIcon} bg="#EEEDFE" color={headerColor} />
-                <Text style={[styles.cardTitle, { color: headerColor }]}>{pageTitle}</Text>
+                <Text style={[styles.cardTitle, { color: headerColor }]}>정책 적용 방식</Text>
               </View>
               <Text style={styles.pageDescription}>{pageDescription}</Text>
-            </>
-          ) : null}
-
-          {flowPage === 1 ? (
-            <View style={styles.modeStack}>
-              <TouchableOpacity style={[styles.modeCard, policyMode === 'global' && styles.activeModeCard]} onPress={() => selectPolicyMode('global')}>
-                <View style={[styles.optionRadio, policyMode === 'global' && styles.optionRadioOn]}>
-                  {policyMode === 'global' ? <View style={styles.optionRadioDot} /> : null}
-                </View>
-                <View style={styles.optionCopy}>
-                  <Text style={[styles.modeTitle, policyMode === 'global' && styles.activeModeText]}>전체 설정 적용</Text>
-                  <Text style={styles.modeHint}>모든 회차에 같은 규칙을 일괄 적용합니다.</Text>
-                </View>
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.modeCard, policyMode === 'round' && styles.activeModeCard]} onPress={() => selectPolicyMode('round')}>
-                <View style={[styles.optionRadio, policyMode === 'round' && styles.optionRadioOn]}>
-                  {policyMode === 'round' ? <View style={styles.optionRadioDot} /> : null}
-                </View>
-                <View style={styles.optionCopy}>
-                  <Text style={[styles.modeTitle, policyMode === 'round' && styles.activeModeText]}>회차별 설정</Text>
-                  <Text style={styles.modeHint}>회차마다 다른 규칙을 적용합니다.</Text>
-                </View>
-              </TouchableOpacity>
+              <View style={styles.modeStack}>
+                <TouchableOpacity style={[styles.modeCard, policyMode === 'global' && styles.activeModeCard]} onPress={() => selectPolicyMode('global')}>
+                  <View style={[styles.optionRadio, policyMode === 'global' && styles.optionRadioOn]}>
+                    {policyMode === 'global' ? <View style={styles.optionRadioDot} /> : null}
+                  </View>
+                  <View style={styles.optionCopy}>
+                    <Text style={[styles.modeTitle, policyMode === 'global' && styles.activeModeText]}>선택 회차 공통 적용</Text>
+                    <Text style={styles.modeHint}>선택한 모든 회차에 같은 정책을 적용합니다.</Text>
+                  </View>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.modeCard, policyMode === 'round' && styles.activeModeCard]} onPress={() => selectPolicyMode('round')}>
+                  <View style={[styles.optionRadio, policyMode === 'round' && styles.optionRadioOn]}>
+                    {policyMode === 'round' ? <View style={styles.optionRadioDot} /> : null}
+                  </View>
+                  <View style={styles.optionCopy}>
+                    <Text style={[styles.modeTitle, policyMode === 'round' && styles.activeModeText]}>회차별로 따로 설정</Text>
+                    <Text style={styles.modeHint}>각 회차의 수량과 정책을 따로 설정합니다.</Text>
+                  </View>
+                </TouchableOpacity>
+              </View>
             </View>
           ) : null}
 
           {flowPage === 2 && policyMode === 'global' ? (
             <View style={styles.sectionBlock}>
-              <View style={styles.issueCard}>
-                <View style={styles.cardHead}>
-                  <CardIcon name="ticket" bg="#EEEDFE" color="#534AB7" />
-                  <Text style={[styles.cardTitle, { color: '#534AB7' }]}>총 티켓 수 (회차당)</Text>
+              <View style={styles.targetSummaryCard}>
+                <View style={styles.targetSummaryIcon}><TicketIcon name="check" color="#0F6E56" size={18} /></View>
+                <View style={styles.targetSummaryCopy}>
+                  <Text style={styles.targetSummaryTitle}>선택 회차 공통 적용</Text>
+                  <Text style={styles.targetSummarySub}>{rounds.map((round, index) => `${index + 1}회차 ${formatDateShort(round.eventDate)} ${round.startTime}`).join(' · ')}{'\n'}회차별로 같은 수량과 판매 정책을 적용합니다.</Text>
                 </View>
-                <View style={styles.cardBody}>
+              </View>
+              <View style={styles.sectionHeadingWrap}>
+                <EventFlowSectionHead title="발행 수량" subtitle="각 회차에서 판매 가능한 티켓 수" />
+              </View>
+              <View style={styles.formSectionBody}>
+                <EventFormGroup icon="ticket" label="회차별 발행 수량" helper="선택한 각 회차에 같은 수량이 적용됩니다.">
                   <View style={styles.unitInputWrap}>
                     <TextInput
                       style={styles.unitInput}
@@ -1021,35 +1109,19 @@ export default function TicketIssuePage({ navigation, route }: any) {
                     />
                     <Text style={styles.unitText}>장</Text>
                   </View>
-                  <View style={styles.roundSummaryListPlain}>
-                    {rounds.map((round, index) => (
-                      <View key={roundKey(round, index)} style={styles.roundItemCompact}>
-                        <View style={styles.roundNumberBox}>
-                          <Text style={styles.roundNumberText}>{index + 1}</Text>
-                        </View>
-                        <View style={styles.roundCompactCopy}>
-                          <Text style={styles.roundSummaryTitle}>{roundLabel(round, index)}</Text>
-                        </View>
-                        <Text style={[styles.roundSummaryMeta, globalTotalTicketCount && styles.roundSummaryStatusSet]}>
-                          {globalTotalTicketCount ? `${globalTotalTicketCount}장` : '미설정'}
-                        </Text>
-                      </View>
-                    ))}
-                  </View>
-                </View>
+                </EventFormGroup>
               </View>
-              <View style={styles.issueCard}>
-                <View style={styles.cardHead}>
-                  <CardIcon name="calendar" bg="#E6F1FB" color="#185FA5" />
-                  <Text style={[styles.cardTitle, { color: '#185FA5' }]}>판매 기간 (전 회차 공통)</Text>
-                </View>
-                <View style={styles.cardBody}>
-                  <Text style={styles.label}>판매 시작</Text>
+              <View style={styles.sectionHeadingWrap}>
+                <EventFlowSectionHead title="판매 기간" subtitle="사용자가 티켓을 구매할 수 있는 기간" />
+              </View>
+              <View style={styles.formSectionBody}>
+                <EventFormGroup icon="calendar" label="판매 시작" helper="공식 예매가 열리는 날짜와 시간입니다.">
                   <View style={styles.dateTimeGrid}>
                     <DatePickerField label="판매 시작 날짜" value={globalSaleStartDate} onChange={(v) => { setGlobalSaleStartDate(v); setTicketConfigConfirmed(false); }} />
                     <TimePickerField label="시작 시간" value={globalSaleStartTime} onChange={(v) => { setGlobalSaleStartTime(v); setTicketConfigConfirmed(false); }} />
                   </View>
-                  <Text style={styles.label}>판매 종료 (각 공연 시작 기준)</Text>
+                </EventFormGroup>
+                <EventFormGroup icon="clock" label="판매 종료" helper="각 회차 시작 시간을 기준으로 자동 종료됩니다.">
                   <View style={styles.chipGrid}>
                     {SALE_END_HOURS_OPTIONS.map((opt) => (
                       <TouchableOpacity
@@ -1074,21 +1146,25 @@ export default function TicketIssuePage({ navigation, route }: any) {
                       <Text style={styles.unitText}>시간 전</Text>
                     </View>
                   ) : null}
-                </View>
+                </EventFormGroup>
               </View>
             </View>
           ) : null}
 
           {flowPage === 2 && policyMode === 'round' ? (
             <View style={styles.sectionBlock}>
-              <View style={styles.issueCard}>
-                <View style={styles.cardHead}>
-                  <CardIcon name="list" bg="#E6F1FB" color="#185FA5" />
-                  <Text style={[styles.cardTitle, { color: '#185FA5' }]}>회차 선택</Text>
+              <View style={styles.targetSummaryCard}>
+                <View style={styles.targetSummaryIcon}><TicketIcon name="check" color="#0F6E56" size={18} /></View>
+                <View style={styles.targetSummaryCopy}>
+                  <Text style={styles.targetSummaryTitle}>선택 회차 개별 설정</Text>
+                  <Text style={styles.targetSummarySub}>{activeRoundIndex + 1}회차 {formatDateShort(activeRound?.eventDate)} {activeRound?.startTime}{'\n'}상단에서 선택한 회차의 수량과 판매 정책을 설정합니다.</Text>
                 </View>
-                <View style={styles.cardBody}>
-                  <RoundSelector rounds={rounds} activeRoundKey={activeKey} onSelect={setActiveRoundKey} disabled={false} />
-                  <Text style={styles.label}>총 티켓 수</Text>
+              </View>
+              <View style={styles.sectionHeadingWrap}>
+                <EventFlowSectionHead title="발행 수량" subtitle="선택한 회차에서 판매 가능한 티켓 수" />
+              </View>
+              <View style={styles.formSectionBody}>
+                <EventFormGroup icon="ticket" label="회차별 발행 수량" helper="상단에서 선택한 회차에만 적용됩니다.">
                   <View style={styles.unitInputWrap}>
                     <TextInput
                       style={styles.unitInput}
@@ -1100,20 +1176,19 @@ export default function TicketIssuePage({ navigation, route }: any) {
                     />
                     <Text style={styles.unitText}>장</Text>
                   </View>
-                </View>
+                </EventFormGroup>
               </View>
-              <View style={styles.issueCard}>
-                <View style={styles.cardHead}>
-                  <CardIcon name="calendar" bg="#E6F1FB" color="#185FA5" />
-                  <Text style={[styles.cardTitle, { color: '#185FA5' }]}>판매 기간 (선택 회차)</Text>
-                </View>
-                <View style={styles.cardBody}>
-                  <Text style={styles.label}>판매 시작</Text>
+              <View style={styles.sectionHeadingWrap}>
+                <EventFlowSectionHead title="판매 기간" subtitle="선택한 회차의 티켓 구매 가능 기간" />
+              </View>
+              <View style={styles.formSectionBody}>
+                <EventFormGroup icon="calendar" label="판매 시작" helper="선택한 회차의 공식 예매 시작 날짜와 시간입니다.">
                   <View style={styles.dateTimeGrid}>
                     <DatePickerField label="판매 시작 날짜" value={roundPolicies[activeKey]?.saleStartDate || ''} onChange={(v) => updateRoundPolicy(activeKey, { saleStartDate: v })} />
                     <TimePickerField label="시작 시간" value={roundPolicies[activeKey]?.saleStartTime || ''} onChange={(v) => updateRoundPolicy(activeKey, { saleStartTime: v })} />
                   </View>
-                  <Text style={styles.label}>판매 종료 (공연 시작 기준)</Text>
+                </EventFormGroup>
+                <EventFormGroup icon="clock" label="판매 종료" helper="선택한 회차 시작 시간을 기준으로 자동 종료됩니다.">
                   <View style={styles.chipGrid}>
                     {SALE_END_HOURS_OPTIONS.map((opt) => {
                       const active = (roundPolicies[activeKey]?.saleEndHoursBefore || '1') === opt.value;
@@ -1141,40 +1216,60 @@ export default function TicketIssuePage({ navigation, route }: any) {
                       <Text style={styles.unitText}>시간 전</Text>
                     </View>
                   ) : null}
-                </View>
-              </View>
-              <View style={styles.issueCard}>
-                <View style={styles.cardHead}>
-                  <CardIcon name="check" bg="#E1F5EE" color="#0F6E56" />
-                  <Text style={[styles.cardTitle, { color: '#0F6E56' }]}>회차 설정 상태</Text>
-                </View>
-                <View style={styles.cardBody}>
-                  {rounds.map((round, index) => {
-                    const key = roundKey(round, index);
-                    const rp = roundPolicies[key];
-                    const isActive = activeKey === key;
-                    const set = rp?.totalTicketCount && rp?.saleStartDate && rp?.saleEndHoursBefore;
-                    return (
-                      <TouchableOpacity key={key} style={[styles.roundItemCompact, isActive && styles.selectableRoundRowActive]} onPress={() => setActiveRoundKey(key)}>
-                        <View style={styles.roundNumberBox}>
-                          <Text style={styles.roundNumberText}>{index + 1}</Text>
-                        </View>
-                        <View style={styles.roundCompactCopy}>
-                          <Text style={styles.roundSummaryTitle}>{roundLabel(round, index)}</Text>
-                          <Text style={[styles.roundSummaryStatus, set && styles.roundSummaryStatusSet]}>
-                            {set ? `${rp.totalTicketCount}장 · 설정완료` : '미설정'}
-                          </Text>
-                        </View>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
+                </EventFormGroup>
               </View>
             </View>
           ) : null}
 
+          {flowPage === 2 ? (
+            <>
+              <View style={styles.sectionHeadingWrap}>
+                <EventFlowSectionHead title="공통 리셀 정책" subtitle="좌석별로 나중에 수정할 수 있습니다." />
+              </View>
+              <View style={styles.formSectionBody}>
+                <EventFormGroup icon="refresh" label="리셀 허용" helper="구매자가 공식 리셀 마켓에 티켓을 등록할 수 있습니다." required={false}>
+                  <TouchableOpacity style={styles.resaleToggleControl} onPress={() => updateDefaultResale({ enabled: !defaultResaleEnabled })}>
+                    <Text style={styles.resaleToggleText}>{defaultResaleEnabled ? '허용됨' : '허용 안 함'}</Text>
+                    <View style={[styles.switchTrack, !defaultResaleEnabled && styles.switchTrackOff]}>
+                      <View style={[styles.switchKnob, !defaultResaleEnabled && styles.switchKnobOff]} />
+                    </View>
+                  </TouchableOpacity>
+                  {defaultResaleEnabled ? (
+                    <>
+                      <Text style={styles.label}>최대 리셀가</Text>
+                      <View style={styles.resaleChipRow}>
+                        {RESALE_RATE_PRESETS.map((rate) => (
+                          <TouchableOpacity
+                            key={rate}
+                            style={[styles.resaleChip, defaultResaleCapRate === rate && styles.activeChip]}
+                            onPress={() => updateDefaultResale({ capRate: rate })}
+                          >
+                            <Text style={[styles.resaleChipText, defaultResaleCapRate === rate && styles.activeChipText]}>{rate}%</Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    </>
+                  ) : null}
+                </EventFormGroup>
+              </View>
+            </>
+          ) : null}
+
           {flowPage === 3 && policyMode && !ticketConfigConfirmed ? (
             <View style={styles.sectionBlock}>
+              <View style={styles.targetSummaryCard}>
+                <View style={styles.targetSummaryIcon}><TicketIcon name="check" color="#0F6E56" size={18} /></View>
+                <View style={styles.targetSummaryCopy}>
+                  <Text style={styles.targetSummaryTitle}>{policyMode === 'global' ? `${rounds.length}개 회차에 동일 적용` : `${activeRoundIndex + 1}회차 개별 좌석 정책`}</Text>
+                  <Text style={styles.targetSummarySub}>{policyMode === 'global' ? '회차마다 같은 좌석 구성, 가격, 리셀 정책을 사용합니다.' : '상단에서 선택한 회차에만 현재 좌석 구성과 가격을 적용합니다.'}</Text>
+                </View>
+              </View>
+              <View style={styles.sectionHeadingWrap}>
+                <EventFlowSectionHead
+                  title="좌석 정책"
+                  subtitle={policyMode === 'global' ? `회차별 ${globalTotalTicketCount || 0}장 배정` : `${activeRoundIndex + 1}회차 · 총 ${activeRoundTotalCount || 0}장`}
+                />
+              </View>
               {savedOverviewMode ? (
                 <>
                   <View style={styles.savedZone}>
@@ -1187,84 +1282,38 @@ export default function TicketIssuePage({ navigation, route }: any) {
                     </View>
                     {currentSections.map((policy) => (
                       <View key={policy.id} style={styles.savedSummaryCard}>
-                        <View style={styles.savedSummaryCopy}>
-                          <Text style={styles.savedBadge}>저장됨</Text>
-                          <Text style={styles.savedPolicyText}>{savedPolicyTitle(policy)}</Text>
-                          <Text style={styles.savedPolicyMeta}>{savedPolicySaleSummary(policy)} · {savedPolicyResaleSummary(policy)}</Text>
+                        <View style={styles.seatCardTop}>
+                          <Text style={styles.seatCardName}>{sectionNameOf(policy)}</Text>
+                          <TouchableOpacity style={styles.moreButton} onPress={() => openSavedPolicyActions(policy)}>
+                            <TicketIcon name="adjust" color="#64748B" size={14} />
+                          </TouchableOpacity>
                         </View>
-                        <TouchableOpacity style={styles.moreButton} onPress={() => openSavedPolicyActions(policy)}>
-                          <Text style={styles.kebabText}>⋮</Text>
-                        </TouchableOpacity>
+                        <View style={styles.seatKpiRow}>
+                          <View style={styles.seatKpi}>
+                            <Text style={styles.seatKpiLabel}>가격</Text>
+                            <Text style={styles.seatKpiValue}>{policy.priceEth} ETH</Text>
+                          </View>
+                          <View style={styles.seatKpi}>
+                            <Text style={styles.seatKpiLabel}>수량</Text>
+                            <Text style={styles.seatKpiValue}>{policy.quantity}장</Text>
+                          </View>
+                          <View style={styles.seatKpi}>
+                            <Text style={styles.seatKpiLabel}>리셀</Text>
+                            <Text style={styles.seatKpiValue}>{policy.resaleEnabled ? `${resaleRateOf(policy)}%` : '불가'}</Text>
+                          </View>
+                        </View>
                       </View>
                     ))}
                   </View>
 
-                  <View style={styles.dividerRow}>
-                    <View style={styles.dividerLine} />
-                    <Text style={styles.dividerText}>추가 구역 설정 (선택)</Text>
-                    <View style={styles.dividerLine} />
-                  </View>
+                  <TouchableOpacity style={styles.addSeatButton} onPress={() => setAddingPolicy(true)}>
+                    <TicketIcon name="plus" color="#534AB7" size={18} />
+                    <Text style={styles.addSeatButtonText}>새 좌석 정책 추가</Text>
+                  </TouchableOpacity>
 
-                  <View style={styles.addPolicyCard}>
-                    <View style={styles.addPolicyHead}>
-                      <View style={styles.addPolicyIcon}>
-                        <TicketIcon name="plus" color="#534AB7" size={13} />
-                      </View>
-                      <Text style={styles.addPolicyTitle}>새 좌석 구역 추가</Text>
-                    </View>
-                    <View style={styles.addPolicyBody}>
-                      <Text style={styles.addPolicyHint}>다른 구역을 추가로 설정할 수 있습니다. 구역을 선택하면 설정 화면으로 이동하고, 저장하면 이 화면으로 돌아옵니다.</Text>
-                      <View style={styles.addChipRow}>
-                        {SECTION_PRESETS.filter((section) => !currentSections.some((policy) => sectionNameOf(policy) === section)).map((section) => (
-                          <TouchableOpacity key={section} style={styles.addChip} onPress={() => updateDraft({ sectionName: section, useCustomSectionName: false })}>
-                            <Text style={styles.addChipText}>{section}</Text>
-                          </TouchableOpacity>
-                        ))}
-                        <TouchableOpacity style={styles.addChip} onPress={() => updateDraft({ useCustomSectionName: true })}>
-                          <Text style={styles.addChipText}>+ 직접 추가</Text>
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-                  </View>
-
-                  <View style={styles.completionZone}>
-                    <View style={styles.completionTop}>
-                      <View style={styles.completionEyebrowRow}>
-                        <View style={styles.completionDot} />
-                        <Text style={styles.completionEyebrow}>추가 구역이 없다면</Text>
-                      </View>
-                      <Text style={styles.completionTitle}>모든 좌석 정책을{'\n'}설정했나요?</Text>
-                      <Text style={styles.completionSub}>아래 버튼을 누르면 저장된 정책을 바탕으로 최종 발행 확인 페이지로 이동합니다.</Text>
-                    </View>
-                    <TouchableOpacity style={styles.completionButton} onPress={confirmTicketConfig}>
-                      <TicketIcon name="rocket" color="#534AB7" size={14} />
-                      <Text style={styles.completionButtonText}>티켓 설정 완료 · 최종 발행으로</Text>
-                      <Text style={styles.completionArrow}>→</Text>
-                    </TouchableOpacity>
-                  </View>
                 </>
               ) : (
                 <>
-                  <View style={styles.policyRoundSelectorCard}>
-                    <View style={styles.policyRoundSelectorHead}>
-                      <View style={styles.policyRoundSelectorIcon}>
-                        <TicketIcon name="calendar" color="#534AB7" size={13} />
-                      </View>
-                      <View style={styles.policyRoundSelectorCopy}>
-                        <Text style={styles.policyRoundSelectorTitle}>좌석 정책 적용 회차</Text>
-                        <Text style={styles.policyRoundSelectorMeta}>
-                          {policyMode === 'global' ? '전체 회차에 공통 적용됩니다.' : '설정할 회차를 선택하세요.'}
-                        </Text>
-                      </View>
-                    </View>
-                    <RoundSelector
-                      rounds={rounds}
-                      activeRoundKey={activeKey}
-                      onSelect={setActiveRoundKey}
-                      disabled={policyMode === 'global'}
-                    />
-                  </View>
-
                   {currentSections.length > 0 ? (
                     <View style={styles.savedPolicySection}>
                       <Text style={styles.sectionTitle}>저장된 좌석 정책</Text>
@@ -1448,95 +1497,90 @@ export default function TicketIssuePage({ navigation, route }: any) {
           ) : null}
         </View>
 
-        {flowPage === 1 ? (
-          <View style={styles.card}>
-            <View style={styles.cardHead}>
-              <CardIcon name="list" bg="#E6F1FB" color="#185FA5" />
-              <Text style={[styles.cardTitle, { color: '#185FA5' }]}>이 이벤트의 회차</Text>
-              <View style={styles.countPillBlue}>
-                <Text style={styles.countPillBlueText}>{rounds.length}회차</Text>
+        {flowPage === 4 && ticketConfigConfirmed ? (
+          <>
+            <View style={styles.reviewSection}>
+              <EventFlowSectionHead title="발행 회차" subtitle={policyMode === 'global' ? '공통 정책 적용 대상' : '회차별 정책 적용 대상'} />
+              <View style={styles.targetRoundList}>
+                {rounds.map((round, index) => {
+                  const date = dateMonthDay(round.eventDate);
+                  const quantity = policyMode === 'global' ? globalTotalTicketCount : roundPolicies[roundKey(round, index)]?.totalTicketCount;
+                  return (
+                    <View key={roundKey(round, index)} style={styles.targetRoundCard}>
+                      <View style={styles.targetDateBox}>
+                        <Text style={styles.targetDateMonth}>{date.month}</Text>
+                        <Text style={styles.targetDateDay}>{date.day}</Text>
+                      </View>
+                      <View style={styles.targetRoundCopy}>
+                        <Text style={styles.targetRoundName}>{index + 1}회차 · {date.weekday}</Text>
+                        <Text style={styles.targetRoundMeta}>{round.startTime} 시작 · {quantity || 0}장 발행</Text>
+                      </View>
+                      <View style={styles.targetRoundCheck}>
+                        <TicketIcon name="check" color="#0F172A" size={15} />
+                      </View>
+                    </View>
+                  );
+                })}
               </View>
             </View>
-            <Text style={styles.pageDescription}>선택한 방식은 아래 모든 회차에 적용됩니다.</Text>
-            <View style={styles.roundSummaryList}>
-              {rounds.map((round, index) => (
-                <View key={roundKey(round, index)} style={styles.roundItemCompact}>
-                  <View style={styles.roundNumberBox}>
-                    <Text style={styles.roundNumberText}>{index + 1}</Text>
-                  </View>
-                  <View style={styles.roundCompactCopy}>
-                    <Text style={styles.roundSummaryTitle}>{round.title || `${index + 1}회차`} · {formatDateDot(round.eventDate)}</Text>
-                    <Text style={styles.roundSummaryStatus}>{round.startTime} ~ {round.endTime}</Text>
-                  </View>
-                  <View style={styles.commonApplyPill}>
-                    <Text style={styles.commonApplyPillText}>{policyMode === 'round' ? '개별 설정' : '공통 적용'}</Text>
-                  </View>
-                </View>
-              ))}
-            </View>
-          </View>
-        ) : null}
-
-        {flowPage === 3 && ticketConfigConfirmed ? (
-          <View style={styles.statusBand}>
-            <Text style={styles.statusLabel}>최종 발행 확인</Text>
-            {policyMode === 'round' ? (
-              <View style={styles.finalRoundList}>
-                {finalRoundSummaries.map((summary) => (
-                  <View key={summary.key} style={styles.finalRoundCard}>
-                    <Text style={styles.finalRoundTitle}>{summary.label}</Text>
-                    <Text style={styles.finalCountText}>총 티켓 수: {summary.total}장</Text>
-                    <Text style={styles.finalCountText}>{issueCompleted ? '현재 발행됨' : '이미 발행됨'}: {summary.displayIssued}장</Text>
-                    <Text style={styles.finalCountText}>{issueCompleted ? '방금 발행됨' : '이번에 발행됨'}: {summary.issueCount}장</Text>
-                    <Text style={styles.finalCountText}>발행 후 남음: {Math.max(summary.remaining, 0)}장</Text>
-                    <Text style={styles.previewLabel}>이번 발행 좌석</Text>
-                    <Text style={styles.previewText}>{summary.summary || '저장된 좌석 정책이 없습니다.'}</Text>
-                  </View>
-                ))}
-              </View>
-            ) : (
-              <View style={styles.finalCountList}>
+            <View style={styles.reviewSection}>
+              <EventFlowSectionHead title="판매 정책" subtitle="발행 수량과 판매 기간" />
+              <View style={styles.statusBand}>
                 <View style={styles.confirmRow}>
-                  <Text style={styles.confirmLabel}>총 티켓 수</Text>
-                  <Text style={styles.confirmValue}>{finalTotalCount}장</Text>
+                  <Text style={styles.confirmLabel}>회차별 발행 수량</Text>
+                  <Text style={styles.confirmValue}>{policyMode === 'global' ? `${globalTotalTicketCount || 0}장` : '회차별 개별 설정'}</Text>
                 </View>
                 <View style={styles.confirmRow}>
-                  <Text style={styles.confirmLabel}>{issueCompleted ? '현재 발행됨' : '이미 발행됨'}</Text>
-                  <Text style={styles.confirmValue}>{finalDisplayIssuedCount}장</Text>
+                  <Text style={styles.confirmLabel}>총 발행 수량</Text>
+                  <Text style={styles.confirmValue}>{totalConfiguredCapacity}장</Text>
                 </View>
                 <View style={styles.confirmRow}>
-                  <Text style={styles.confirmLabel}>{issueCompleted ? '방금 발행됨' : '이번에 발행됨'}</Text>
-                  <Text style={styles.confirmValuePurple}>{finalIssueCount}장</Text>
+                  <Text style={styles.confirmLabel}>판매 시작</Text>
+                  <Text style={styles.confirmValue}>{policyMode === 'global' ? `${formatDateDot(globalSaleStartDate)} ${globalSaleStartTime}` : '회차별 개별 설정'}</Text>
                 </View>
                 <View style={styles.confirmRow}>
-                  <Text style={styles.confirmLabel}>발행 후 남음</Text>
-                  <Text style={styles.confirmValueGreen}>{Math.max(finalDisplayRemainingCount, 0)}장</Text>
+                  <Text style={styles.confirmLabel}>판매 종료</Text>
+                  <Text style={styles.confirmValue}>{policyMode === 'global' ? saleEndLabel(globalSaleEndHoursBefore, globalCustomSaleEndHoursBefore) : '각 회차별 설정'}</Text>
                 </View>
-              </View>
-            )}
-            {policyMode === 'global' ? (
-              <>
-                <Text style={styles.previewLabel}>이번 발행 좌석</Text>
-                <Text style={styles.previewText}>{issueSeatSummary || '저장된 좌석 정책이 없습니다.'}</Text>
-              </>
-            ) : null}
+                <View style={styles.confirmRow}>
+                  <Text style={styles.confirmLabel}>리셀 정책</Text>
+                  <Text style={styles.confirmValueGreen}>{defaultResaleEnabled ? `허용 · 최대 ${defaultResaleCapRate}%` : '허용 안 함'}</Text>
+                </View>
             {lastIssuedSummary ? (
               <>
                 <Text style={styles.previewLabel}>방금 발행됨</Text>
                 <Text style={styles.previewText}>{lastIssuedSummary}</Text>
               </>
             ) : null}
-            <TouchableOpacity
-              style={[styles.primaryButton, styles.finalActionButton, (issuing || issueCompleted) && styles.disabledButton]}
-              disabled={issuing || issueCompleted}
-              onPress={issueTickets}
-            >
-              <Text style={styles.primaryButtonText}>{issueCompleted ? '발행 완료' : issuing ? '발행 중...' : '티켓 발행'}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.secondaryButton, issuing && styles.disabledButton]} disabled={issuing} onPress={() => void reopenTicketConfig()}>
-              <Text style={styles.secondaryButtonText}>{issueCompleted ? '발행 취소 후 다시 설정' : '다시 티켓 설정하기'}</Text>
-            </TouchableOpacity>
-          </View>
+              </View>
+            </View>
+            <View style={styles.reviewSection}>
+              <EventFlowSectionHead title="좌석 정책" subtitle={policyMode === 'global' ? '회차별 동일 적용 구역' : '회차별 설정 구역'} />
+              <View style={styles.reviewSeatList}>
+                {(policyMode === 'global' ? globalSections : Object.values(roundPolicies).flatMap((policy) => policy.sections)).map((section) => (
+                  <View key={`${section.id}-${sectionNameOf(section)}`} style={styles.reviewSeatRow}>
+                    <View style={styles.reviewSeatCopy}>
+                      <Text style={styles.reviewSeatName}>{sectionNameOf(section)}</Text>
+                      <Text style={styles.reviewSeatMeta}>{section.quantity}장 · {section.resaleEnabled ? `리셀 ${resaleRateOf(section)}%` : '리셀 불가'}</Text>
+                    </View>
+                    <Text style={styles.reviewSeatPrice}>{section.priceEth} ETH</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+            <View style={styles.totalCard}>
+              <Text style={styles.totalCardTitle}>예상 최대 매출</Text>
+              <Text style={styles.totalCardValue}>{expectedMaxRevenueEth.toFixed(2)} ETH</Text>
+              <Text style={styles.totalCardSub}>저장된 좌석 정책의 가격과 발행 수량 기준</Text>
+            </View>
+            <View style={styles.finalNotice}>
+              <TicketIcon name="adjust" color="#A16207" size={16} />
+              <View style={styles.finalNoticeCopy}>
+                <Text style={styles.finalNoticeTitle}>발행 후에는 주요 정책 변경이 제한됩니다.</Text>
+                <Text style={styles.finalNoticeSub}>수량, 가격, 회차 시간이 사용자 티켓에 반영됩니다.</Text>
+              </View>
+            </View>
+          </>
         ) : null}
 
         <Modal visible={issueSeatModalVisible} transparent animationType="slide" onRequestClose={() => setIssueSeatModalVisible(false)}>
@@ -1591,9 +1635,14 @@ export default function TicketIssuePage({ navigation, route }: any) {
       {showBottomBar ? (
         <View style={styles.bottomBar}>
           {flowPage === 1 ? (
-            <TouchableOpacity style={[styles.primaryButton, !policyMode && styles.disabledButton]} disabled={!policyMode} onPress={() => setFlowPage(2)}>
-              <Text style={styles.primaryButtonText}>다음: 회차 설정</Text>
-            </TouchableOpacity>
+            <View style={styles.bottomRow}>
+              <TouchableOpacity style={styles.bottomSecondaryButton} onPress={goBackToEventFlow}>
+                <Text style={styles.bottomSecondaryText}>이전</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.bottomPrimaryButton} onPress={() => setFlowPage(2)}>
+                <Text style={styles.primaryButtonText}>다음 · 발행 설정</Text>
+              </TouchableOpacity>
+            </View>
           ) : null}
           {flowPage === 2 ? (
             <View style={styles.bottomRow}>
@@ -1601,7 +1650,17 @@ export default function TicketIssuePage({ navigation, route }: any) {
                 <Text style={styles.bottomSecondaryText}>이전</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.bottomPrimaryButton} onPress={() => validateCapacityPage() && setFlowPage(3)}>
-                <Text style={styles.primaryButtonText}>다음: 좌석 정책 설정</Text>
+                <Text style={styles.primaryButtonText}>다음 · 좌석 정책</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
+          {flowPage === 3 && !showPolicySaveBar ? (
+            <View style={styles.bottomRow}>
+              <TouchableOpacity style={styles.bottomSecondaryButton} onPress={() => setFlowPage(2)}>
+                <Text style={styles.bottomSecondaryText}>이전</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.bottomPrimaryButton, !hasSavedPolicies && styles.disabledButton]} disabled={!hasSavedPolicies} onPress={confirmTicketConfig}>
+                <Text style={styles.primaryButtonText}>다음 · 최종 확인</Text>
               </TouchableOpacity>
             </View>
           ) : null}
@@ -1615,14 +1674,19 @@ export default function TicketIssuePage({ navigation, route }: any) {
               </TouchableOpacity>
             </View>
           ) : null}
-          {showSavedBackBar ? (
-            <TouchableOpacity style={styles.bottomSecondaryFullButton} onPress={() => setFlowPage(2)}>
-              <Text style={styles.bottomSecondaryText}>이전</Text>
-            </TouchableOpacity>
+          {flowPage === 4 && !issueCompleted ? (
+            <View style={styles.bottomRow}>
+              <TouchableOpacity style={[styles.bottomSecondaryButton, issuing && styles.disabledButton]} disabled={issuing} onPress={() => void reopenTicketConfig()}>
+                <Text style={styles.bottomSecondaryText}>수정</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.bottomPrimaryButton, issuing && styles.disabledButton]} disabled={issuing} onPress={issueTickets}>
+                <Text style={styles.primaryButtonText}>{issuing ? '발행 중...' : '티켓 발행'}</Text>
+              </TouchableOpacity>
+            </View>
           ) : null}
           {showPostIssueBar ? (
             <View style={styles.bottomRow}>
-              <TouchableOpacity style={styles.bottomSecondaryButton} onPress={() => setFlowPage(2)}>
+              <TouchableOpacity style={styles.bottomSecondaryButton} onPress={() => setFlowPage(3)}>
                 <Text style={styles.bottomSecondaryText}>이전</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.bottomPrimaryButton} onPress={() => navigation.navigate('TicketExplore', { eventId })}>
@@ -1638,9 +1702,10 @@ export default function TicketIssuePage({ navigation, route }: any) {
 
 function StepProgress({ page }: { page: FlowPage }) {
   const steps: Array<{ step: FlowPage; label: string }> = [
-    { step: 1, label: '적용 방식' },
-    { step: 2, label: '수량·기간' },
-    { step: 3, label: '좌석 정책' },
+    { step: 1, label: '대상' },
+    { step: 2, label: '발행' },
+    { step: 3, label: '좌석' },
+    { step: 4, label: '확인' },
   ];
 
   return (
@@ -1680,17 +1745,22 @@ function RoundSelector({
   onSelect: (key: string) => void;
 }) {
   return (
-    <View style={styles.roundChipRow}>
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.roundChipRow}>
       {rounds.map((round, index) => {
         const key = roundKey(round, index);
         const active = disabled || activeRoundKey === key;
         return (
           <TouchableOpacity key={key} style={[styles.roundChip, active && styles.roundChipActive, disabled && !active && styles.disabledRoundChip]} disabled={disabled} onPress={() => onSelect(key)}>
-            <Text style={[styles.roundChipText, active && styles.roundChipTextActive]}>{index + 1}회차</Text>
+            <View style={styles.roundChipTop}>
+              <Text style={[styles.roundChipText, active && styles.roundChipTextActive]}>{index + 1}회차</Text>
+              <Text style={[styles.roundChipStatus, active && styles.roundChipStatusActive]}>{active ? '선택됨' : '선택'}</Text>
+            </View>
+            <Text style={styles.roundChipDate}>{formatDateDot(round.eventDate)}</Text>
+            <Text style={styles.roundChipDate}>{round.startTime} ~ {round.endTime}</Text>
           </TouchableOpacity>
         );
       })}
-    </View>
+    </ScrollView>
   );
 }
 
@@ -1833,9 +1903,9 @@ function TimePickerField({ label, value, onChange }: { label: string; value: str
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#F5F5F5' },
+  screen: { flex: 1, backgroundColor: '#F6F7FB' },
   container: { flex: 1 },
-  content: { paddingBottom: 118 },
+  content: { paddingBottom: 146 },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20, backgroundColor: '#F5F5F5' },
   loadingText: { marginTop: 12, color: '#9CA3AF' },
   emptyTitle: { color: '#1A1A2E', fontSize: 16, fontWeight: '800', textAlign: 'center' },
@@ -1845,24 +1915,24 @@ const styles = StyleSheet.create({
   heroEyebrow: { color: '#A89CF7', fontSize: 10, fontWeight: '700', letterSpacing: 1.2, textTransform: 'uppercase' },
   heroTitle: { color: '#FFFFFF', fontSize: 19, fontWeight: '800', marginTop: 0, marginBottom: 3, lineHeight: 24 },
   heroSub: { color: 'rgba(255,255,255,0.45)', fontSize: 11, lineHeight: 17 },
-  progressRow: { flexDirection: 'row', alignItems: 'center', marginTop: 14 },
+  progressRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingBottom: 14 },
   stepItem: { flexDirection: 'row', alignItems: 'center', flex: 1, minWidth: 0 },
-  stepCircle: { width: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.15)' },
-  stepCircleDone: { backgroundColor: '#6EE7B7' },
-  stepCircleActive: { backgroundColor: '#FFFFFF' },
-  stepCircleText: { color: 'rgba(255,255,255,0.45)', fontSize: 10, fontWeight: '900' },
-  stepCircleTextActive: { color: '#1A1A2E' },
-  stepLabel: { marginLeft: 4, color: 'rgba(255,255,255,0.35)', fontSize: 9, fontWeight: '800' },
-  stepLabelDone: { color: '#6EE7B7' },
-  stepLabelActive: { color: '#FFFFFF' },
+  stepCircle: { width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center', backgroundColor: '#E5E7EB' },
+  stepCircleDone: { backgroundColor: '#5EE3A1' },
+  stepCircleActive: { backgroundColor: '#1A1A2E' },
+  stepCircleText: { color: '#94A3B8', fontSize: 11, fontWeight: '900' },
+  stepCircleTextActive: { color: '#FFFFFF' },
+  stepLabel: { marginLeft: 7, color: '#94A3B8', fontSize: 10, fontWeight: '900' },
+  stepLabelDone: { color: '#0F6E56' },
+  stepLabelActive: { color: '#1A1A2E' },
   progressPill: { borderWidth: 0.5, borderColor: '#E5E7EB', borderRadius: 999, paddingHorizontal: 9, paddingVertical: 7, backgroundColor: '#FFFFFF' },
   progressPillDone: { borderColor: '#534AB7', backgroundColor: '#EEEDFE' },
   progressPillActive: { borderWidth: 1.5, borderColor: '#534AB7', backgroundColor: '#534AB7' },
   progressPillText: { color: '#9CA3AF', fontSize: 11, fontWeight: '700' },
   progressPillTextDone: { color: '#534AB7' },
   progressPillTextActive: { color: '#FFFFFF' },
-  progressLine: { flex: 1, height: 1, marginHorizontal: 4, backgroundColor: 'rgba(255,255,255,0.15)' },
-  progressLineDone: { backgroundColor: '#6EE7B7' },
+  progressLine: { flex: 1, height: 2, backgroundColor: '#DBE3EF' },
+  progressLineDone: { backgroundColor: '#5EE3A1' },
   eventContext: { marginTop: 12, backgroundColor: 'rgba(255,255,255,0.07)', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.12)', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9, flexDirection: 'row', alignItems: 'center', gap: 8 },
   eventContextIcon: { width: 26, height: 26, borderRadius: 7, backgroundColor: 'rgba(255,255,255,0.1)', alignItems: 'center', justifyContent: 'center' },
   eventContextCopy: { flex: 1, minWidth: 0 },
@@ -1877,33 +1947,62 @@ const styles = StyleSheet.create({
   messageText: { fontSize: 13, fontWeight: '700', lineHeight: 19 },
   errorText: { color: '#B91C1C' },
   successText: { color: '#047857' },
-  card: { marginTop: 10, marginHorizontal: 14, backgroundColor: '#FFFFFF', borderRadius: 12, padding: 0, borderWidth: 0.5, borderColor: '#E5E7EB', overflow: 'hidden' },
-  flowStack: { marginTop: 10 },
-  issueCard: { marginHorizontal: 14, marginBottom: 10, backgroundColor: '#FFFFFF', borderRadius: 12, borderWidth: 0.5, borderColor: '#E5E7EB', overflow: 'hidden' },
+  targetSection: { paddingHorizontal: 16, paddingBottom: 14 },
+  targetSectionHead: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12, marginBottom: 10 },
+  targetSectionTitle: { color: '#0F172A', fontSize: 17, fontWeight: '900', letterSpacing: -0.4 },
+  targetSectionSub: { color: '#64748B', fontSize: 11, marginTop: 3 },
+  selectedCountPill: { borderRadius: 999, paddingHorizontal: 9, paddingVertical: 6, backgroundColor: '#DCFCE7' },
+  selectedCountText: { color: '#0F6E56', fontSize: 10, fontWeight: '900' },
+  targetEventCard: { padding: 12, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  targetPoster: { width: 76, height: 96, borderRadius: 18, padding: 9, justifyContent: 'flex-end', overflow: 'hidden', backgroundColor: '#534AB7' },
+  targetPosterText: { color: '#FFFFFF', fontSize: 11, fontWeight: '900', lineHeight: 14 },
+  targetEventCopy: { flex: 1, minWidth: 0 },
+  targetBadge: { alignSelf: 'flex-start', overflow: 'hidden', borderRadius: 999, paddingHorizontal: 9, paddingVertical: 5, color: '#534AB7', backgroundColor: '#EEEDFE', fontSize: 10, fontWeight: '900' },
+  targetEventTitle: { color: '#0F172A', fontSize: 16, lineHeight: 21, fontWeight: '900', letterSpacing: -0.35, marginTop: 8, marginBottom: 7 },
+  targetEventMeta: { color: '#64748B', fontSize: 11, lineHeight: 17 },
+  targetRoundList: { gap: 10 },
+  targetRoundCard: { minHeight: 78, padding: 12, flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 24, borderWidth: 1.5, borderColor: '#D8D4FF', backgroundColor: '#FFFFFF', shadowColor: '#0F172A', shadowOpacity: 0.05, shadowRadius: 14, shadowOffset: { width: 0, height: 7 }, elevation: 1 },
+  targetDateBox: { width: 48, height: 54, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: '#EEEDFE' },
+  targetDateMonth: { color: '#534AB7', fontSize: 9, fontWeight: '900', letterSpacing: 0.5 },
+  targetDateDay: { color: '#0F172A', fontSize: 20, fontWeight: '900', lineHeight: 24 },
+  targetRoundCopy: { flex: 1, minWidth: 0 },
+  targetRoundName: { color: '#0F172A', fontSize: 14, fontWeight: '900', marginBottom: 4 },
+  targetRoundMeta: { color: '#64748B', fontSize: 11, lineHeight: 16 },
+  targetRoundCheck: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: '#5EE3A1' },
+  targetSummaryCard: { marginHorizontal: 16, marginBottom: 14, padding: 14, flexDirection: 'row', alignItems: 'flex-start', gap: 12, borderRadius: 24, borderWidth: 1, borderColor: '#E5E7EB', backgroundColor: '#FFFFFF' },
+  targetSummaryIcon: { width: 40, height: 40, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: '#DCFCE7' },
+  targetSummaryCopy: { flex: 1, minWidth: 0 },
+  targetSummaryTitle: { color: '#0F172A', fontSize: 13, fontWeight: '900', marginBottom: 4 },
+  targetSummarySub: { color: '#64748B', fontSize: 11, lineHeight: 17 },
+  sectionHeadingWrap: { paddingHorizontal: 16, paddingTop: 2 },
+  formSectionBody: { paddingHorizontal: 16 },
+  card: { marginHorizontal: 16, marginBottom: 14, backgroundColor: '#FFFFFF', borderRadius: 24, padding: 0, borderWidth: 1, borderColor: '#E5E7EB', overflow: 'hidden', shadowColor: '#0F172A', shadowOpacity: 0.055, shadowRadius: 15, shadowOffset: { width: 0, height: 8 }, elevation: 2 },
+  flowStack: {},
+  issueCard: { marginHorizontal: 16, marginBottom: 14, backgroundColor: '#FFFFFF', borderRadius: 24, borderWidth: 1, borderColor: '#E5E7EB', overflow: 'hidden', shadowColor: '#0F172A', shadowOpacity: 0.055, shadowRadius: 15, shadowOffset: { width: 0, height: 8 }, elevation: 2 },
   compactCard: { marginTop: 12, marginHorizontal: 16, backgroundColor: '#FFFFFF', borderRadius: 14, padding: 12, borderWidth: 0.5, borderColor: '#E5E7EB' },
   compactTitle: { color: '#1A1A2E', fontSize: 14, fontWeight: '800' },
-  cardHead: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 13, paddingVertical: 10, borderBottomWidth: 0.5, borderBottomColor: '#F3F4F6', backgroundColor: '#FAFAFA' },
-  cardHeadIcon: { width: 24, height: 24, borderRadius: 7, alignItems: 'center', justifyContent: 'center' },
-  cardTitle: { color: '#1A1A2E', fontSize: 11, fontWeight: '800', flex: 1 },
-  cardBody: { paddingHorizontal: 13, paddingVertical: 11 },
-  pageDescription: { marginTop: 0, paddingHorizontal: 13, paddingTop: 11, color: '#9CA3AF', fontSize: 10, lineHeight: 15, fontWeight: '700' },
-  modeStack: { gap: 7, paddingHorizontal: 13, paddingTop: 10, paddingBottom: 12 },
-  modeCard: { borderWidth: 0.5, borderColor: '#E5E7EB', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, backgroundColor: '#FFFFFF', flexDirection: 'row', alignItems: 'center', gap: 10 },
-  activeModeCard: { borderColor: '#534AB7', backgroundColor: '#FAFAFE' },
+  cardHead: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingVertical: 13, borderBottomWidth: 1, borderBottomColor: '#F1F5F9', backgroundColor: '#FFFFFF' },
+  cardHeadIcon: { width: 40, height: 40, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
+  cardTitle: { color: '#1A1A2E', fontSize: 15, fontWeight: '900', flex: 1 },
+  cardBody: { paddingHorizontal: 15, paddingVertical: 14 },
+  pageDescription: { marginTop: 0, paddingHorizontal: 15, paddingTop: 12, color: '#64748B', fontSize: 11, lineHeight: 16, fontWeight: '600' },
+  modeStack: { flexDirection: 'row', gap: 8, paddingHorizontal: 14, paddingTop: 12, paddingBottom: 14 },
+  modeCard: { flex: 1, minHeight: 74, borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 14, paddingHorizontal: 10, paddingVertical: 10, backgroundColor: '#FFFFFF', flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
+  activeModeCard: { borderColor: '#1A1A2E', backgroundColor: '#1A1A2E' },
   optionRadio: { width: 16, height: 16, borderRadius: 8, borderWidth: 1.5, borderColor: '#E5E7EB', alignItems: 'center', justifyContent: 'center' },
   optionRadioOn: { borderColor: '#534AB7', backgroundColor: '#534AB7' },
   optionRadioDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#FFFFFF' },
   optionCopy: { flex: 1, minWidth: 0 },
   modeTitle: { color: '#1A1A2E', fontSize: 12, fontWeight: '800' },
-  activeModeText: { color: '#534AB7' },
-  modeHint: { marginTop: 1, color: '#9CA3AF', fontSize: 10, lineHeight: 14 },
+  activeModeText: { color: '#FFFFFF' },
+  modeHint: { marginTop: 3, color: '#94A3B8', fontSize: 9, lineHeight: 13 },
   sectionBlock: { paddingTop: 0, paddingBottom: 0 },
   helpText: { marginTop: 8, color: '#9CA3AF', fontSize: 12, lineHeight: 18 },
   label: { marginTop: 12, marginBottom: 5, color: '#6B7280', fontSize: 10, fontWeight: '800' },
   smallLabel: { marginBottom: 6, color: '#9CA3AF', fontSize: 12, fontWeight: '700' },
   input: { borderWidth: 0.5, borderColor: '#E5E7EB', borderRadius: 10, padding: 11, backgroundColor: '#FFFFFF', color: '#1A1A2E' },
-  unitInputWrap: { borderWidth: 0.5, borderColor: '#E5E7EB', borderRadius: 10, backgroundColor: '#FFFFFF', flexDirection: 'row', alignItems: 'center', paddingRight: 12 },
-  unitInput: { flex: 1, padding: 11, color: '#1A1A2E' },
+  unitInputWrap: { borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 17, backgroundColor: '#FFFFFF', flexDirection: 'row', alignItems: 'center', paddingRight: 14 },
+  unitInput: { flex: 1, paddingHorizontal: 14, paddingVertical: 12, color: '#0F172A', fontSize: 17, fontWeight: '900' },
   unitText: { color: '#9CA3AF', fontWeight: '700' },
   directInputWrap: { marginTop: 8, borderWidth: 0.5, borderColor: '#E5E7EB', borderRadius: 8, backgroundColor: '#FFFFFF', flexDirection: 'row', alignItems: 'center', paddingRight: 11 },
   directInput: { flex: 1, paddingHorizontal: 11, paddingVertical: 9, color: '#1A1A2E', fontSize: 12, fontWeight: '800' },
@@ -1929,13 +2028,17 @@ const styles = StyleSheet.create({
   roundTitle: { color: '#1A1A2E', fontSize: 14, fontWeight: '800' },
   roundMeta: { marginTop: 5, color: '#9CA3AF', fontSize: 12, fontWeight: '700' },
   roundBody: { borderTopWidth: 0.5, borderTopColor: '#E5E7EB', padding: 12 },
-  roundChipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 },
-  roundChip: { borderWidth: 0.5, borderColor: '#E5E7EB', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: '#FFFFFF' },
-  roundChipActive: { borderColor: '#534AB7', backgroundColor: '#EEEDFE' },
+  roundChipRow: { flexDirection: 'row', gap: 10, paddingBottom: 12 },
+  roundChip: { minWidth: 158, borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 22, padding: 13, backgroundColor: '#FFFFFF', shadowColor: '#0F172A', shadowOpacity: 0.045, shadowRadius: 12, shadowOffset: { width: 0, height: 6 }, elevation: 1 },
+  roundChipActive: { borderWidth: 1.5, borderColor: '#534AB7', backgroundColor: '#FBFAFF' },
   disabledRoundChip: { opacity: 0.45 },
-  roundChipText: { color: '#6B7280', fontWeight: '700', fontSize: 13 },
+  roundChipTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 7 },
+  roundChipText: { color: '#0F172A', fontWeight: '900', fontSize: 14 },
   roundChipTextActive: { color: '#534AB7' },
-  policyRoundSelectorCard: { marginHorizontal: 14, marginBottom: 12, borderWidth: 0.5, borderColor: '#E5E7EB', borderRadius: 12, backgroundColor: '#FFFFFF', paddingHorizontal: 13, paddingTop: 12, paddingBottom: 2 },
+  roundChipStatus: { color: '#64748B', backgroundColor: '#F1F5F9', borderRadius: 999, overflow: 'hidden', paddingHorizontal: 7, paddingVertical: 4, fontSize: 9, fontWeight: '900' },
+  roundChipStatusActive: { color: '#534AB7', backgroundColor: '#EEEDFE' },
+  roundChipDate: { color: '#64748B', fontSize: 11, lineHeight: 16 },
+  policyRoundSelectorCard: { marginHorizontal: 16, marginBottom: 14, borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 24, backgroundColor: '#FFFFFF', paddingHorizontal: 14, paddingTop: 14, paddingBottom: 2 },
   policyRoundSelectorHead: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
   policyRoundSelectorIcon: { width: 28, height: 28, borderRadius: 8, backgroundColor: '#EEEDFE', alignItems: 'center', justifyContent: 'center' },
   policyRoundSelectorCopy: { flex: 1, minWidth: 0 },
@@ -1948,9 +2051,17 @@ const styles = StyleSheet.create({
   savedZoneTitle: { color: '#0F6E56', fontSize: 11, fontWeight: '800', flex: 1 },
   savedCountPill: { backgroundColor: '#E1F5EE', borderRadius: 20, paddingHorizontal: 8, paddingVertical: 2 },
   savedCountText: { color: '#0F6E56', fontSize: 10, fontWeight: '800' },
-  savedSummaryCard: { backgroundColor: '#FFFFFF', borderWidth: 0.5, borderColor: '#9FE1CB', borderRadius: 11, paddingHorizontal: 12, paddingVertical: 10, flexDirection: 'row', alignItems: 'center', gap: 9 },
+  savedSummaryCard: { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 22, padding: 14, marginBottom: 10, shadowColor: '#0F172A', shadowOpacity: 0.05, shadowRadius: 14, shadowOffset: { width: 0, height: 7 }, elevation: 1 },
   savedSummaryCopy: { flex: 1, minWidth: 0 },
   moreButton: { width: 26, height: 26, borderRadius: 7, backgroundColor: '#F3F4F6', alignItems: 'center', justifyContent: 'center' },
+  seatCardTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 10 },
+  seatCardName: { color: '#0F172A', fontSize: 18, fontWeight: '900' },
+  seatKpiRow: { flexDirection: 'row', gap: 8 },
+  seatKpi: { flex: 1, minWidth: 0, padding: 10, borderRadius: 15, borderWidth: 1, borderColor: '#EDF2F7', backgroundColor: '#F8FAFC' },
+  seatKpiLabel: { color: '#94A3B8', fontSize: 9, fontWeight: '900', marginBottom: 4 },
+  seatKpiValue: { color: '#0F172A', fontSize: 11, fontWeight: '900' },
+  addSeatButton: { height: 58, marginHorizontal: 14, marginTop: 8, borderRadius: 22, borderWidth: 1.5, borderStyle: 'dashed', borderColor: '#C9C2FF', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#FBFAFF' },
+  addSeatButtonText: { color: '#534AB7', fontSize: 14, fontWeight: '900' },
   dividerRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 14, marginTop: 14 },
   dividerLine: { flex: 1, height: 1, backgroundColor: '#E5E7EB' },
   dividerText: { color: '#9CA3AF', fontSize: 10, fontWeight: '800' },
@@ -1994,6 +2105,8 @@ const styles = StyleSheet.create({
   resaleChipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 5, marginTop: 8 },
   resaleChip: { borderWidth: 0.5, borderColor: '#E5E7EB', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 5, backgroundColor: '#FFFFFF' },
   resaleChipText: { color: '#6B7280', fontSize: 11, fontWeight: '800' },
+  resaleToggleControl: { minHeight: 34, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  resaleToggleText: { color: '#0F172A', fontSize: 14, fontWeight: '900' },
   quickRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
   quickButton: { borderWidth: 0.5, borderColor: '#C4C0F5', backgroundColor: '#EEEDFE', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7 },
   quickButtonText: { color: '#534AB7', fontWeight: '800', fontSize: 12 },
@@ -2033,12 +2146,12 @@ const styles = StyleSheet.create({
   previewLabel: { marginTop: 10, marginHorizontal: 12, color: '#9CA3AF', fontSize: 10, fontWeight: '800' },
   previewText: { marginTop: 5, marginHorizontal: 12, color: '#1A1A2E', fontWeight: '700', lineHeight: 18, fontSize: 11 },
   previewTextStrong: { marginTop: 5, color: '#1A1A2E', fontSize: 15, fontWeight: '800', lineHeight: 22 },
-  statusBand: { marginTop: 14, marginHorizontal: 14, backgroundColor: '#FFFFFF', borderRadius: 12, padding: 0, borderWidth: 0.5, borderColor: '#E5E7EB', overflow: 'hidden' },
+  statusBand: { backgroundColor: '#FFFFFF', borderRadius: 24, padding: 0, borderWidth: 1, borderColor: '#E5E7EB', overflow: 'hidden' },
   statusLabel: { color: '#534AB7', fontSize: 11, fontWeight: '800', paddingHorizontal: 13, paddingVertical: 10, borderBottomWidth: 0.5, borderBottomColor: '#F3F4F6', backgroundColor: '#FAFAFA' },
   statusLine: { marginTop: 6, color: '#1A1A2E', fontSize: 16, fontWeight: '800' },
   finalCountList: { marginTop: 10, marginHorizontal: 12, gap: 0, borderWidth: 0.5, borderColor: '#E5E7EB', borderRadius: 10, padding: 10, backgroundColor: '#F9F9F9' },
   finalCountText: { color: '#1A1A2E', fontSize: 11, fontWeight: '800', paddingVertical: 3 },
-  confirmRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 3, borderBottomWidth: 0.5, borderBottomColor: '#F3F4F6' },
+  confirmRow: { minHeight: 46, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, paddingHorizontal: 15, paddingVertical: 13, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
   confirmLabel: { color: '#9CA3AF', fontSize: 11, fontWeight: '700' },
   confirmValue: { color: '#1A1A2E', fontSize: 11, fontWeight: '800' },
   confirmValuePurple: { color: '#534AB7', fontSize: 11, fontWeight: '800' },
@@ -2047,6 +2160,21 @@ const styles = StyleSheet.create({
   finalRoundCard: { borderWidth: 0.5, borderColor: '#E5E7EB', borderRadius: 10, padding: 10, backgroundColor: '#F9F9F9' },
   finalRoundTitle: { color: '#1A1A2E', fontSize: 12, fontWeight: '800', marginBottom: 6 },
   finalActionButton: { marginTop: 12, marginHorizontal: 12 },
+  reviewSection: { paddingHorizontal: 16, paddingBottom: 14 },
+  reviewSeatList: { gap: 9, padding: 14, borderRadius: 24, borderWidth: 1, borderColor: '#E5E7EB', backgroundColor: '#FFFFFF' },
+  reviewSeatRow: { padding: 11, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, borderRadius: 16, borderWidth: 1, borderColor: '#EDF2F7', backgroundColor: '#F8FAFC' },
+  reviewSeatCopy: { flex: 1, minWidth: 0 },
+  reviewSeatName: { color: '#0F172A', fontSize: 13, fontWeight: '900' },
+  reviewSeatMeta: { color: '#64748B', fontSize: 10, marginTop: 3 },
+  reviewSeatPrice: { color: '#0F172A', fontSize: 13, fontWeight: '900' },
+  totalCard: { marginHorizontal: 16, marginBottom: 14, borderRadius: 24, padding: 16, backgroundColor: '#1A1A2E' },
+  totalCardTitle: { color: '#FFFFFF', fontSize: 13, fontWeight: '900', marginBottom: 8 },
+  totalCardValue: { color: '#FFFFFF', fontSize: 25, fontWeight: '900', letterSpacing: -0.8 },
+  totalCardSub: { color: 'rgba(255,255,255,0.6)', fontSize: 11, marginTop: 5 },
+  finalNotice: { marginHorizontal: 16, marginBottom: 14, borderRadius: 18, paddingHorizontal: 14, paddingVertical: 13, flexDirection: 'row', alignItems: 'flex-start', gap: 10, backgroundColor: '#FFF7ED', borderWidth: 1, borderColor: '#FED7AA' },
+  finalNoticeCopy: { flex: 1, minWidth: 0 },
+  finalNoticeTitle: { color: '#A16207', fontSize: 12, fontWeight: '900', marginBottom: 3 },
+  finalNoticeSub: { color: '#64748B', fontSize: 10, lineHeight: 15 },
   removeButton: { marginTop: 10, alignSelf: 'flex-start', borderWidth: 0.5, borderColor: '#FECACA', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6, backgroundColor: '#FEF2F2' },
   removeButtonText: { color: '#B91C1C', fontSize: 12, fontWeight: '800' },
   editButton: { marginTop: 10, alignSelf: 'flex-start', borderWidth: 0.5, borderColor: '#C4C0F5', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6, backgroundColor: '#EEEDFE' },
@@ -2054,14 +2182,14 @@ const styles = StyleSheet.create({
   secondaryButton: { borderWidth: 0.5, borderColor: '#E5E7EB', borderRadius: 10, paddingVertical: 12, alignItems: 'center', marginTop: 8, marginHorizontal: 12, marginBottom: 12, backgroundColor: '#FFFFFF' },
   secondaryButtonText: { color: '#1A1A2E', fontSize: 14, fontWeight: '700' },
   emptyText: { color: '#9CA3AF', paddingVertical: 14, textAlign: 'center' },
-  bottomBar: { position: 'absolute', left: 0, right: 0, bottom: 0, borderTopWidth: 0.5, borderTopColor: '#E5E7EB', backgroundColor: '#FFFFFF', padding: 14 },
+  bottomBar: { position: 'absolute', left: 0, right: 0, bottom: 0, borderTopWidth: 1, borderTopColor: '#E5E7EB', backgroundColor: 'rgba(255,255,255,0.97)', paddingHorizontal: 16, paddingVertical: 12 },
   bottomRow: { flexDirection: 'row', gap: 8 },
-  primaryButton: { backgroundColor: '#1A1A2E', borderRadius: 12, paddingVertical: 15, alignItems: 'center' },
-  bottomPrimaryButton: { flex: 1.4, backgroundColor: '#1A1A2E', borderRadius: 12, paddingVertical: 15, alignItems: 'center' },
-  primaryButtonText: { color: '#FFFFFF', fontSize: 14, fontWeight: '800' },
-  bottomSecondaryButton: { flex: 0.8, borderWidth: 0.5, borderColor: '#E5E7EB', borderRadius: 12, paddingVertical: 15, alignItems: 'center', backgroundColor: '#FFFFFF' },
+  primaryButton: { backgroundColor: '#534AB7', borderRadius: 17, paddingVertical: 17, alignItems: 'center' },
+  bottomPrimaryButton: { flex: 1.4, backgroundColor: '#534AB7', borderRadius: 17, paddingVertical: 17, alignItems: 'center', shadowColor: '#534AB7', shadowOpacity: 0.22, shadowRadius: 13, shadowOffset: { width: 0, height: 6 }, elevation: 3 },
+  primaryButtonText: { color: '#FFFFFF', fontSize: 15, fontWeight: '900' },
+  bottomSecondaryButton: { flex: 0.8, borderWidth: 1.5, borderColor: '#CECBF6', borderRadius: 17, paddingVertical: 17, alignItems: 'center', backgroundColor: '#FFFFFF' },
   bottomSecondaryFullButton: { borderWidth: 0.5, borderColor: '#E5E7EB', borderRadius: 12, paddingVertical: 15, alignItems: 'center', backgroundColor: '#FFFFFF' },
-  bottomSecondaryText: { color: '#1A1A2E', fontSize: 14, fontWeight: '700' },
+  bottomSecondaryText: { color: '#534AB7', fontSize: 15, fontWeight: '900' },
   disabledButton: { opacity: 0.45 },
   pickerButton: { borderWidth: 0.5, borderColor: '#E5E7EB', borderRadius: 10, padding: 11, backgroundColor: '#FFFFFF' },
   pickerButtonText: { color: '#1A1A2E', fontWeight: '800' },

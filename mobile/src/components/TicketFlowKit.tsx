@@ -38,7 +38,9 @@ export type TicketIconName =
   | 'adjustments'
   | 'userCheck'
   | 'store'
-  | 'logout';
+  | 'logout'
+  | 'category'
+  | 'align';
 
 export const flowShadow = {
   shadowColor: '#0F172A',
@@ -92,6 +94,8 @@ export function TicketIcon({ name, color = '#64748B', size = 20 }: { name: Ticke
   if (name === 'userCheck') return <Svg width={size} height={size} viewBox="0 0 24 24"><Circle cx="9" cy="8" r="4" {...common} /><Path d="M2.5 21a6.5 6.5 0 0113 0M16 11l2 2 4-5" {...common} /></Svg>;
   if (name === 'store') return <Svg width={size} height={size} viewBox="0 0 24 24"><Path d="M3 9l1-5h16l1 5M3 9h18M3 9v11a1 1 0 001 1h4v-6h4v6h4a1 1 0 001-1V9" {...common} /></Svg>;
   if (name === 'logout') return <Svg width={size} height={size} viewBox="0 0 24 24"><Path d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h2M15 7l5 5-5 5M20 12H9" {...common} /></Svg>;
+  if (name === 'category') return <Svg width={size} height={size} viewBox="0 0 24 24"><Rect x="4" y="4" width="6" height="6" rx="1.5" {...common} /><Rect x="14" y="4" width="6" height="6" rx="1.5" {...common} /><Rect x="4" y="14" width="6" height="6" rx="1.5" {...common} /><Rect x="14" y="14" width="6" height="6" rx="1.5" {...common} /></Svg>;
+  if (name === 'align') return <Svg width={size} height={size} viewBox="0 0 24 24"><Path d="M4 6h16M4 10h12M4 14h16M4 18h10" {...common} /></Svg>;
   return <Svg width={size} height={size} viewBox="0 0 24 24"><Path d="M9 18l6-6-6-6" {...common} /></Svg>;
 }
 
