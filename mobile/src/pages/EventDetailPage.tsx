@@ -1,10 +1,11 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
 import { TextInput } from '../components/TextInput';
 import { backendApi } from '../lib/backend';
 import { resolveImageUrl } from '../lib/config';
+import { showDialog } from '../lib/dialog';
 import { formatCompactDateTime, formatEventCategory, formatEventStatus, weiToEth } from '../lib/ticketDisplay';
 import type { EventDetail, EventRound, ResaleListing, TicketDetail } from '../types/api';
 
@@ -263,13 +264,17 @@ function Icon({ name, color = '#64748B', size = 20 }: { name: IconName; color?: 
   return <Svg width={size} height={size} viewBox="0 0 24 24"><Path d="M9 18l6-6-6-6" {...common} /></Svg>;
 }
 
-function InfoBox({ icon, label, value, link }: { icon: IconName; label: string; value?: string | number | null; link?: string }) {
+function InfoBox({ icon, label, value, link, onLinkPress }: { icon: IconName; label: string; value?: string | number | null; link?: string; onLinkPress?: () => void }) {
   return (
     <View style={styles.infoBox}>
       <View style={styles.infoIcon}><Icon name={icon} size={18} color="#534AB7" /></View>
       <Text style={styles.infoLabel}>{label}</Text>
       <Text style={styles.infoValue}>{value || '-'}</Text>
-      {link ? <Text style={styles.link}>{link}</Text> : null}
+      {link ? (
+        onLinkPress
+          ? <TouchableOpacity onPress={onLinkPress} activeOpacity={0.7}><Text style={styles.link}>{link}</Text></TouchableOpacity>
+          : <Text style={styles.link}>{link}</Text>
+      ) : null}
     </View>
   );
 }
@@ -315,7 +320,7 @@ export default function EventDetailPage({ route, navigation }: any) {
         setPrimaryTicketPage(1);
         setResales((resaleData.items ?? []).filter((listing) => String(listing.eventId) === String(eventId)));
       } catch (error: any) {
-        Alert.alert('오류', error.message || '이벤트 정보를 불러오지 못했습니다.');
+        showDialog('오류', error.message || '이벤트 정보를 불러오지 못했습니다.');
       } finally {
         setLoading(false);
       }
@@ -401,7 +406,7 @@ export default function EventDetailPage({ route, navigation }: any) {
 
   const goToCheckout = () => {
     if (!selectedTicket) {
-      Alert.alert('좌석 선택', '예매 가능한 좌석을 먼저 선택해주세요.');
+      showDialog('좌석 선택', '예매 가능한 좌석을 먼저 선택해주세요.');
       return;
     }
     navigation.navigate('TicketPurchase', { ticketId: selectedTicket.id ?? selectedTicket.ticketId, eventId });
@@ -423,8 +428,8 @@ export default function EventDetailPage({ route, navigation }: any) {
         </TouchableOpacity>
         <Text style={styles.topTitle}>이벤트 상세</Text>
         <View style={styles.topActions}>
-          <TouchableOpacity style={styles.iconButton} activeOpacity={0.84}><Icon name="heart" size={19} /></TouchableOpacity>
-          <TouchableOpacity style={styles.iconButton} activeOpacity={0.84}><Icon name="share" size={19} /></TouchableOpacity>
+          <TouchableOpacity style={styles.iconButton} activeOpacity={0.84} onPress={() => showDialog('준비 중', '좋아요 기능은 준비 중입니다.')}><Icon name="heart" size={19} /></TouchableOpacity>
+          <TouchableOpacity style={styles.iconButton} activeOpacity={0.84} onPress={() => showDialog('준비 중', '공유 기능은 준비 중입니다.')}><Icon name="share" size={19} /></TouchableOpacity>
         </View>
       </View>
 
@@ -452,10 +457,10 @@ export default function EventDetailPage({ route, navigation }: any) {
             <Text style={styles.eventTitle}>{eventTitle(event)}</Text>
             <Text style={styles.description}>{event.description || '상세 설명이 없습니다.'}</Text>
             <View style={styles.infoGrid}>
-              <InfoBox icon="map" label="장소" value={eventVenue(event)} link="지도 보기" />
+              <InfoBox icon="map" label="장소" value={eventVenue(event)} link="지도 보기" onLinkPress={() => showDialog('준비 중', '지도보기는 준비 중입니다.')} />
               <InfoBox icon="category" label="카테고리" value={formatEventCategory(event.category)} />
               <InfoBox icon="calendar" label="전체 기간" value={eventPeriod(event, rounds)} />
-              <InfoBox icon="shield" label="발행 주최자" value={event.organizerName || compactId(event.organizerId)} link="주최자 정보" />
+              <InfoBox icon="shield" label="발행 주최자" value={event.organizerName || compactId(event.organizerId)} link="주최자 정보" onLinkPress={() => showDialog('준비 중', '주최자 정보는 준비 중입니다.')} />
             </View>
           </View>
         </View>
