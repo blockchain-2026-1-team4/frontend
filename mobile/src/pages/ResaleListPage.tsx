@@ -14,7 +14,8 @@ import {
 } from '../lib/ticketFlowDisplay';
 import type { EventDetail, ResaleListing, UserProfile } from '../types/api';
 
-type EventFilter = 'all' | 'excludeMine' | 'priceAsc' | 'closingSoon';
+type EventFilter = 'all' | 'excludeMine';
+type EventSortMode = 'latest' | 'priceAsc' | 'closingSoon';
 type TicketSortMode = 'latest' | 'priceAsc' | 'closingSoon';
 
 type ResaleListingView = ResaleListing & {
@@ -32,8 +33,12 @@ type ResaleEventGroup = {
 const EVENT_FILTERS: { id: EventFilter; label: string }[] = [
   { id: 'all', label: '전체' },
   { id: 'excludeMine', label: '내 리셀 제외' },
-  { id: 'priceAsc', label: '낮은 가격' },
-  { id: 'closingSoon', label: '마감 임박' },
+];
+
+const EVENT_SORTS: { id: EventSortMode; label: string }[] = [
+  { id: 'latest', label: '최신 등록순' },
+  { id: 'priceAsc', label: '낮은 가격순' },
+  { id: 'closingSoon', label: '마감 임박순' },
 ];
 
 const TICKET_SORTS: { id: TicketSortMode; label: string }[] = [
@@ -162,6 +167,7 @@ export default function ResaleListPage({ navigation, route }: any) {
   const [eventQuery, setEventQuery] = useState('');
   const [seatQuery, setSeatQuery] = useState('');
   const [eventFilter, setEventFilter] = useState<EventFilter>('all');
+  const [eventSort, setEventSort] = useState<EventSortMode>('latest');
   const [ticketSort, setTicketSort] = useState<TicketSortMode>('latest');
   const [loading, setLoading] = useState(true);
 
@@ -236,11 +242,11 @@ export default function ResaleListPage({ navigation, route }: any) {
       .filter((group) => group.listings.length > 0)
       .filter((group) => eventMatchesQuery(group, eventQuery))
       .sort((a, b) => {
-        if (eventFilter === 'priceAsc') return priceValueOf(minListingOf(a.listings)) < priceValueOf(minListingOf(b.listings)) ? -1 : 1;
-        if (eventFilter === 'closingSoon') return new Date(groupDateOf(a) ?? 0).getTime() - new Date(groupDateOf(b) ?? 0).getTime();
-        return new Date(groupDateOf(a) ?? 0).getTime() - new Date(groupDateOf(b) ?? 0).getTime();
+        if (eventSort === 'priceAsc') return priceValueOf(minListingOf(a.listings)) < priceValueOf(minListingOf(b.listings)) ? -1 : 1;
+        if (eventSort === 'closingSoon') return new Date(groupDateOf(a) ?? 0).getTime() - new Date(groupDateOf(b) ?? 0).getTime();
+        return new Date(groupDateOf(b) ?? 0).getTime() - new Date(groupDateOf(a) ?? 0).getTime();
       });
-  }, [eventFilter, eventMap, eventQuery, listings, me]);
+  }, [eventFilter, eventSort, eventMap, eventQuery, listings, me]);
 
   const visibleListings = useMemo(() => {
     const sorted = listings
@@ -271,7 +277,9 @@ export default function ResaleListPage({ navigation, route }: any) {
             <Text style={styles.eyebrow}>Resale Market</Text>
             <Text style={styles.topTitle}>리셀 가능한 이벤트</Text>
           </View>
-          <IconButton><TicketIcon name="adjustments" size={20} /></IconButton>
+          <TouchableOpacity onPress={() => showDialog('준비 중', '리셀 필터는 준비 중입니다.')} activeOpacity={0.84}>
+            <IconButton><TicketIcon name="adjustments" size={20} /></IconButton>
+          </TouchableOpacity>
         </View>
 
         <ScrollView style={styles.screen} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
@@ -298,6 +306,7 @@ export default function ResaleListPage({ navigation, route }: any) {
           </View>
 
           <FilterRow items={EVENT_FILTERS} value={eventFilter} onChange={setEventFilter} />
+          <FilterRow items={EVENT_SORTS} value={eventSort} onChange={setEventSort} />
 
           <View style={[styles.section, styles.headSection]}>
             <View>
