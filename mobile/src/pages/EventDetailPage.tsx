@@ -34,7 +34,7 @@ type SectionGroup = {
   saleState: SaleState;
 };
 
-type IconName = 'arrowLeft' | 'heart' | 'share' | 'map' | 'category' | 'calendar' | 'shield' | 'chevron' | 'refresh' | 'seat' | 'sort' | 'ticket';
+type IconName = 'arrowLeft' | 'heart' | 'share' | 'map' | 'category' | 'calendar' | 'shield' | 'chevron' | 'refresh' | 'seat' | 'ticket';
 
 function isAvailable(ticket?: TicketDetail | null) {
   return String(ticket?.status ?? '').toUpperCase() === 'AVAILABLE';
@@ -259,7 +259,6 @@ function Icon({ name, color = '#64748B', size = 20 }: { name: IconName; color?: 
   if (name === 'shield') return <Svg width={size} height={size} viewBox="0 0 24 24"><Path d="M12 3l7 3v5c0 5-3 8-7 10-4-2-7-5-7-10V6l7-3zM9 12l2 2 4-5" {...common} /></Svg>;
   if (name === 'refresh') return <Svg width={size} height={size} viewBox="0 0 24 24"><Path d="M20 11a8 8 0 00-14.2-4.9L4 8M4 4v4h4M4 13a8 8 0 0014.2 4.9L20 16M16 16h4v4" {...common} /></Svg>;
   if (name === 'seat') return <Svg width={size} height={size} viewBox="0 0 24 24"><Path d="M7 11V6a3 3 0 016 0v5M6 11h10a3 3 0 013 3v5H5v-5a3 3 0 013-3zM8 19v2M16 19v2" {...common} /></Svg>;
-  if (name === 'sort') return <Svg width={size} height={size} viewBox="0 0 24 24"><Path d="M7 4v16M7 20l-3-3M7 20l3-3M17 20V4M17 4l-3 3M17 4l3 3" {...common} /></Svg>;
   if (name === 'ticket') return <Svg width={size} height={size} viewBox="0 0 24 24"><Path d="M5 6h14v4a2 2 0 000 4v4H5v-4a2 2 0 000-4V6zM9 8v8" {...common} /></Svg>;
   return <Svg width={size} height={size} viewBox="0 0 24 24"><Path d="M9 18l6-6-6-6" {...common} /></Svg>;
 }
@@ -506,10 +505,6 @@ export default function EventDetailPage({ route, navigation }: any) {
               <Text style={styles.headTitle}>구역/좌석 선택</Text>
               <Text style={styles.headSub}>원하는 구역을 선택하면 좌석 목록이 표시됩니다</Text>
             </View>
-            <View style={styles.miniAction}>
-              <Text style={styles.miniActionText}>가격 낮은 순</Text>
-              <Icon name="sort" size={14} color="#534AB7" />
-            </View>
           </View>
           <View style={styles.zoneList}>
             {sectionGroups.map((group, index) => {
@@ -719,8 +714,6 @@ const styles = StyleSheet.create({
   head: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', gap: 10, marginBottom: 10 },
   headTitle: { fontSize: 17, fontWeight: '900', color: '#0F172A', letterSpacing: 0 },
   headSub: { fontSize: 11, color: '#64748B', marginTop: 3, fontWeight: '700' },
-  miniAction: { minHeight: 34, borderRadius: 999, borderWidth: 1, borderColor: '#D8D4FF', backgroundColor: '#FFFFFF', paddingHorizontal: 11, flexDirection: 'row', alignItems: 'center', gap: 5 },
-  miniActionText: { color: '#534AB7', fontSize: 12, fontWeight: '900' },
   roundList: { gap: 10 },
   roundCard: { padding: 14, borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 22, backgroundColor: '#FFFFFF', ...shadow },
   roundCardActive: { borderWidth: 2, borderColor: '#534AB7', backgroundColor: '#FFFFFF' },
