@@ -1,12 +1,13 @@
 import { useProvider } from '@reown/appkit-react-native';
 import React, { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { TextInput } from '../components/TextInput';
 import { FlowBadge, FlowHero, IconButton, PosterArt, TicketIcon, flowShadow } from '../components/TicketFlowKit';
 import WalletRequiredView from '../components/WalletRequiredView';
 import { errorMessage } from '../lib/account';
 import { backendApi } from '../lib/backend';
 import { listTicketOnChain } from '../lib/blockchain/client';
+import { showDialog } from '../lib/dialog';
 import {
   canRegisterResale,
   ethToWeiValue,
@@ -52,16 +53,26 @@ function localBlockReason(ticket: TicketDetail | null, event: EventDetail | null
   const status = String(ticket?.status ?? '').toUpperCase();
   const now = Date.now();
 
-  if (status === 'LISTED') return '이미 리셀 등록된 티켓입니다.';
-  if (status === 'USED') return '사용 완료된 티켓은 리셀 등록할 수 없습니다.';
+  if (status === 'LISTED') return '이미 리셀 등록됨';
+  if (status === 'USED') return '이미 사용된 티켓';
   if (status === 'AVAILABLE') return '구매 완료된 본인 티켓만 리셀 등록할 수 있습니다.';
   if (status && status !== 'SOLD') return '현재 상태에서는 리셀 등록할 수 없습니다.';
+
+  const ticketRoundId = ticket?.eventRoundId ? String(ticket.eventRoundId) : null;
+  if (ticketRoundId && event?.rounds?.length) {
+    const round = event.rounds.find((r) => r.id && String(r.id) === ticketRoundId);
+    if (round) {
+      const endStr = round.eventDate && round.endTime ? `${round.eventDate}T${round.endTime}` : round.eventDate;
+      if (endStr && now > new Date(endStr).getTime()) return '종료된 회차';
+    }
+  }
+
   const eventStatus = String(event?.status ?? '').toUpperCase();
-  if (eventStatus && eventStatus !== 'ACTIVE') return '판매 가능한 이벤트의 티켓만 리셀 등록할 수 있습니다.';
+  if (eventStatus === 'CANCELED' || eventStatus === 'FLAGGED') return '리셀 금지 이벤트';
   if (!canRegisterResale(ticket, event)) {
-    if (ticket?.resaleEnabled === false || event?.resaleAllowed === false) return '리셀 정책상 판매가 제한된 티켓입니다.';
+    if (ticket?.resaleEnabled === false || event?.resaleAllowed === false) return '리셀 금지 이벤트';
     if (event?.resaleStart && now < new Date(event.resaleStart).getTime()) return '아직 리셀 가능 기간이 아닙니다.';
-    if (event?.resaleEnd && now > new Date(event.resaleEnd).getTime()) return '리셀 가능 기간이 종료되었습니다.';
+    if (event?.resaleEnd && now > new Date(event.resaleEnd).getTime()) return '종료된 회차';
     return '현재 이 티켓은 리셀 등록할 수 없습니다.';
   }
   return '';
@@ -104,7 +115,7 @@ export default function TicketResaleCreatePage({ route, navigation }: any) {
         setMe(meData);
         setPriceEth(weiToEthInputValue(ticketData.originalPriceWei ?? ticketData.priceWei));
       } catch (error: any) {
-        Alert.alert('오류', errorMessage(error, '티켓 정보를 불러오지 못했습니다.'));
+        showDialog('오류', errorMessage(error, '티켓 정보를 불러오지 못했습니다.'));
       } finally {
         setLoading(false);
       }
@@ -118,13 +129,13 @@ export default function TicketResaleCreatePage({ route, navigation }: any) {
   const handleCreateResale = async () => {
     if (blockReason) {
       setFeedback(blockReason);
-      Alert.alert('리셀 등록 불가', blockReason);
+      showDialog('리셀 등록 불가', blockReason);
       return;
     }
     if (!priceValid) {
       const message = '리셀 가격을 ETH 단위로 입력해주세요. 예: 0.05';
       setFeedback(message);
-      Alert.alert('입력 오류', message);
+      showDialog('입력 오류', message);
       return;
     }
 
@@ -140,7 +151,7 @@ export default function TicketResaleCreatePage({ route, navigation }: any) {
     } catch (error: any) {
       const message = normalizeResaleFailure(error);
       setFeedback(message);
-      Alert.alert('등록 실패', message);
+      showDialog('등록 실패', message);
     } finally {
       setSubmitting(false);
     }
@@ -225,10 +236,10 @@ export default function TicketResaleCreatePage({ route, navigation }: any) {
               <TicketIcon name={blockReason || feedback ? 'alert' : 'check'} size={19} color={blockReason || feedback ? '#DC2626' : '#0F6E56'} />
               <View style={styles.alertCopy}>
                 <Text style={[styles.alertTitle, blockReason || feedback ? styles.alertTitleRed : styles.alertTitleGreen]}>
-                  {blockReason ? '등록할 수 없는 티켓입니다.' : feedback || okMessage}
+                  {blockReason || feedback || okMessage}
                 </Text>
                 <Text style={styles.alertSub}>
-                  {blockReason || feedback || '주최자 정책의 원가와 최대 리셀가 범위 안에서 등록할 수 있습니다.'}
+                  {blockReason ? '리셀 등록이 불가한 상태입니다.' : feedback ? '' : '주최자 정책의 원가와 최대 리셀가 범위 안에서 등록할 수 있습니다.'}
                 </Text>
               </View>
             </View>
