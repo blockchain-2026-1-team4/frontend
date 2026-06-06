@@ -11,62 +11,77 @@ import {
   View,
 } from 'react-native';
 import { TextInput } from '../components/TextInput';
-import { IconButton, TicketIcon, flowShadow } from '../components/TicketFlowKit';
+import { TicketIcon, TicketIconName, flowShadow } from '../components/TicketFlowKit';
 import { errorMessage } from '../lib/account';
 import { clearAccessToken } from '../lib/auth';
 import { backendApi } from '../lib/backend';
+import { hasOrganizerAccess } from '../lib/roles';
 import type { UserProfile } from '../types/api';
 
 type ProfileStats = {
   tickets: number;
-  resellable: number;
+  reselling: number;
   disputes: number;
 };
 
 const ACTIVE_DISPUTE_STATUSES = new Set(['OPEN', 'RECEIVED', 'REVIEWING', 'PROCESSING']);
 
-function profileName(profile?: UserProfile | null) {
-  return profile?.displayName?.trim() || '블록체인 4트';
+function shortenAddress(addr?: string | null) {
+  if (!addr || addr.length < 12) return addr ?? '';
+  return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
 }
 
-function MenuButton({
-  title,
-  subtitle,
+function RolePill({ label }: { label: string }) {
+  return <View style={styles.rolePill}><Text style={styles.rolePillText}>{label}</Text></View>;
+}
+
+function StatCard({
   icon,
+  value,
+  label,
+  sub,
   onPress,
 }: {
-  title: string;
-  subtitle: string;
-  icon: 'refresh' | 'alert';
+  icon: TicketIconName;
+  value: number;
+  label: string;
+  sub: string;
   onPress: () => void;
 }) {
   return (
-    <TouchableOpacity style={styles.menu} onPress={onPress} activeOpacity={0.86}>
-      <View style={styles.menuIcon}>
-        <TicketIcon name={icon} size={21} color="#534AB7" />
-      </View>
-      <View style={styles.menuCopy}>
-        <Text style={styles.menuTitle}>{title}</Text>
-        <Text style={styles.menuSub}>{subtitle}</Text>
-      </View>
-      <TicketIcon name="chevron" size={17} color="#94A3B8" />
+    <TouchableOpacity style={styles.statCard} onPress={onPress} activeOpacity={0.82}>
+      <View style={styles.statOrb} />
+      <TicketIcon name={icon} size={20} color="#534AB7" />
+      <Text style={styles.statNum}>{value}</Text>
+      <Text style={styles.statLabel}>{label}</Text>
+      <Text style={styles.statSub}>{sub}</Text>
     </TouchableOpacity>
   );
 }
 
-function StatTile({
-  value,
-  label,
+function MenuItem({
+  icon,
+  title,
+  subtitle,
   onPress,
+  danger = false,
 }: {
-  value: number;
-  label: string;
+  icon: TicketIconName;
+  title: string;
+  subtitle: string;
   onPress: () => void;
+  danger?: boolean;
 }) {
   return (
-    <TouchableOpacity style={styles.stat} onPress={onPress} activeOpacity={0.86}>
-      <Text style={styles.statNum}>{value}</Text>
-      <Text style={styles.statLabel}>{label}</Text>
+    <TouchableOpacity style={styles.menu} onPress={onPress} activeOpacity={0.86}>
+      <View style={[styles.menuIcon, danger && styles.menuIconDanger]}>
+        <TicketIcon name={icon} size={21} color={danger ? '#DC2626' : '#534AB7'} />
+      </View>
+      <View style={styles.menuBody}>
+        <Text style={[styles.menuTitle, danger && styles.menuTitleDanger]}>{title}</Text>
+        <Text style={styles.menuSub}>{subtitle}</Text>
+      </View>
+      <TicketIcon name="chevron" size={17} color="#CBD5E1" />
     </TouchableOpacity>
   );
 }
@@ -74,7 +89,7 @@ function StatTile({
 export default function MyPage({ navigation }: any) {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [displayNameDraft, setDisplayNameDraft] = useState('');
-  const [stats, setStats] = useState<ProfileStats>({ tickets: 0, resellable: 0, disputes: 0 });
+  const [stats, setStats] = useState<ProfileStats>({ tickets: 0, reselling: 0, disputes: 0 });
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -93,8 +108,10 @@ export default function MyPage({ navigation }: any) {
 
       setStats({
         tickets: tickets.length,
-        resellable: tickets.filter((ticket) => String(ticket.status ?? '').toUpperCase() === 'SOLD' && ticket.resaleEnabled !== false).length,
-        disputes: (disputes.items ?? []).filter((item) => ACTIVE_DISPUTE_STATUSES.has(String(item.status ?? 'OPEN').toUpperCase())).length,
+        reselling: tickets.filter((t) => String(t.status ?? '').toUpperCase() === 'LISTED').length,
+        disputes: (disputes.items ?? []).filter((item) =>
+          ACTIVE_DISPUTE_STATUSES.has(String(item.status ?? 'OPEN').toUpperCase()),
+        ).length,
       });
     } catch (cause: any) {
       Alert.alert('내 정보 로드 실패', errorMessage(cause, '내 정보를 불러오지 못했습니다.'));
@@ -122,23 +139,30 @@ export default function MyPage({ navigation }: any) {
     }
   };
 
-  const handleLogout = async () => {
-    try {
-      await clearAccessToken();
-      navigation.reset({ index: 0, routes: [{ name: 'Main' }] });
-    } catch (cause: any) {
-      Alert.alert('로그아웃 실패', errorMessage(cause, '세션을 종료하지 못했습니다.'));
-    }
-  };
-
-  const openAccountActions = () => {
-    Alert.alert('계정 설정', '계정 작업을 선택하세요.', [
-      { text: '로그아웃', style: 'destructive', onPress: handleLogout },
+  const handleLogout = () => {
+    Alert.alert('로그아웃', '정말 로그아웃 하시겠습니까?', [
+      {
+        text: '로그아웃',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await clearAccessToken();
+            navigation.reset({ index: 0, routes: [{ name: 'Main' }] });
+          } catch (cause: any) {
+            Alert.alert('로그아웃 실패', errorMessage(cause, '세션을 종료하지 못했습니다.'));
+          }
+        },
+      },
       { text: '취소', style: 'cancel' },
     ]);
   };
 
-  if (loading) return <View style={styles.center}><ActivityIndicator size="large" color="#534AB7" /></View>;
+  if (loading) {
+    return <View style={styles.center}><ActivityIndicator size="large" color="#534AB7" /></View>;
+  }
+
+  const isOrganizer = hasOrganizerAccess(profile?.roles);
+  const displayName = profile?.displayName?.trim() || '블록체인 4호';
 
   return (
     <View style={styles.container}>
@@ -147,39 +171,62 @@ export default function MyPage({ navigation }: any) {
           <Text style={styles.eyebrow}>My Account</Text>
           <Text style={styles.title}>내 정보</Text>
         </View>
-        <TouchableOpacity onPress={openAccountActions} activeOpacity={0.84}>
-          <IconButton>
-            <TicketIcon name="settings" size={21} />
-          </IconButton>
-        </TouchableOpacity>
+        <View style={styles.topbarSpacer} />
       </View>
 
       <ScrollView
         style={styles.screen}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void loadProfile(); }} />}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => { setRefreshing(true); void loadProfile(); }}
+          />
+        }
       >
+        {/* 프로필 카드 */}
         <View style={styles.profileCard}>
           <View style={styles.profileOrb} />
-          <View style={styles.avatar}>
-            <TicketIcon name="user" size={29} color="#A89CF7" />
-          </View>
-          {editing ? (
-            <TextInput
-              style={styles.nameInput}
-              value={displayNameDraft}
-              onChangeText={setDisplayNameDraft}
-              placeholder="닉네임"
-              placeholderTextColor="#94A3B8"
-            />
-          ) : (
-            <Text style={styles.profileName} numberOfLines={1}>{profileName(profile)}</Text>
-          )}
-          <Text style={styles.profileSub}>
-            티켓, 리셀, 분쟁 신고를 한 곳에서 관리합니다.
-          </Text>
 
+          {/* 아바타 + 이름/역할 가로 배치 */}
+          <View style={styles.profileMain}>
+            <View style={styles.avatar}>
+              <TicketIcon name="user" size={30} color="#A89CF7" />
+            </View>
+            <View style={styles.profileId}>
+              {editing ? (
+                <TextInput
+                  style={styles.nameInput}
+                  value={displayNameDraft}
+                  onChangeText={setDisplayNameDraft}
+                  placeholder="닉네임"
+                  placeholderTextColor="rgba(255,255,255,0.4)"
+                />
+              ) : (
+                <Text style={styles.profileName} numberOfLines={1}>{displayName}</Text>
+              )}
+              <View style={styles.roleRow}>
+                <RolePill label="사용자" />
+                {isOrganizer && <RolePill label="주최자 권한 보유" />}
+              </View>
+            </View>
+          </View>
+
+          {/* 지갑 패널 */}
+          {profile?.walletAddress ? (
+            <View style={styles.walletPanel}>
+              <Text style={styles.walletLabel}>연결된 지갑</Text>
+              <Text style={styles.walletValue}>{profile.walletAddress}</Text>
+            </View>
+          ) : (
+            <View style={styles.walletPanel}>
+              <Text style={styles.walletLabel}>연결된 지갑</Text>
+              <Text style={[styles.walletValue, styles.walletEmpty]}>지갑이 연결되지 않았습니다</Text>
+            </View>
+          )}
+
+          {/* 액션 버튼 */}
           <View style={styles.profileActions}>
             {editing ? (
               <>
@@ -200,7 +247,11 @@ export default function MyPage({ navigation }: any) {
                 <TouchableOpacity style={styles.actionPrimary} onPress={() => setEditing(true)} activeOpacity={0.86}>
                   <Text style={styles.actionPrimaryText}>닉네임 수정</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.actionSecondary} onPress={() => navigation.navigate('Auth', { initialRole: 'USER' })} activeOpacity={0.86}>
+                <TouchableOpacity
+                  style={styles.actionSecondary}
+                  onPress={() => navigation.navigate('Auth', { initialRole: 'USER' })}
+                  activeOpacity={0.86}
+                >
                   <Text style={styles.actionSecondaryText}>지갑 관리</Text>
                 </TouchableOpacity>
               </>
@@ -208,31 +259,83 @@ export default function MyPage({ navigation }: any) {
           </View>
         </View>
 
-        <View style={styles.stats}>
-          <StatTile value={stats.tickets} label="보유 티켓" onPress={() => navigation.navigate('MyTicketFlow')} />
-          <StatTile value={stats.resellable} label="리셀 가능" onPress={() => navigation.navigate('MyTicketFlow')} />
-          <StatTile value={stats.disputes} label="분쟁 접수" onPress={() => navigation.navigate('MyDisputes')} />
+        {/* 빠른 통계 */}
+        <View style={styles.statsRow}>
+          <StatCard
+            icon="ticket"
+            value={stats.tickets}
+            label="보유 티켓"
+            sub="내 티켓으로 이동"
+            onPress={() => navigation.navigate('MyTicketFlow')}
+          />
+          <StatCard
+            icon="refresh"
+            value={stats.reselling}
+            label="판매 중 리셀"
+            sub="등록한 리셀 목록"
+            onPress={() => navigation.navigate('MyTicketFlow')}
+          />
+          <StatCard
+            icon="alert"
+            value={stats.disputes}
+            label="진행 중 분쟁"
+            sub="분쟁 내역 확인"
+            onPress={() => navigation.navigate('MyDisputes')}
+          />
         </View>
 
+        {/* 안내 노트 */}
         <View style={styles.section}>
-          <View style={styles.head}>
-            <View>
-              <Text style={styles.headTitle}>계정 메뉴</Text>
-              <Text style={styles.headSub}>필요한 작업을 바로 시작하세요.</Text>
+          <View style={styles.noteBox}>
+            <TicketIcon name="info" size={20} color="#534AB7" />
+            <View style={styles.noteBody}>
+              <Text style={styles.noteTitle}>개인 허브</Text>
+              <Text style={styles.noteSub}>
+                티켓, 리셀, 분쟁 기능으로 빠르게 이동합니다. 설정 기능은 구현 전까지 노출하지 않습니다.
+              </Text>
             </View>
           </View>
+        </View>
+
+        {/* 계정 메뉴 */}
+        <View style={styles.section}>
+          <View style={styles.sectionHead}>
+            <Text style={styles.sectionTitle}>계정 메뉴</Text>
+            <Text style={styles.sectionSub}>자주 쓰는 기능 순서로 정리하였습니다.</Text>
+          </View>
           <View style={styles.menuList}>
-            <MenuButton
-              title="리셀 티켓 보기"
-              subtitle="공식 리셀 마켓에서 티켓을 탐색합니다."
+            <MenuItem
+              icon="ticket"
+              title="내 티켓"
+              subtitle="보유 티켓, QR, 리셀 등록을 확인합니다."
+              onPress={() => navigation.navigate('MyTicketFlow')}
+            />
+            <MenuItem
               icon="refresh"
+              title="리셀 마켓"
+              subtitle="공식 리셀 티켓을 탐색하고 구매합니다."
               onPress={() => navigation.navigate('ResaleList')}
             />
-            <MenuButton
-              title="내 분쟁 신고"
-              subtitle="접수한 신고 상태를 확인합니다."
+            <MenuItem
               icon="alert"
+              title="내 분쟁 신고"
+              subtitle="접수한 신고 상태 및 수정 가능 여부를 확인합니다."
               onPress={() => navigation.navigate('MyDisputes')}
+            />
+            {isOrganizer && (
+              <MenuItem
+                icon="store"
+                title="주최자 센터"
+                subtitle="별도 로그인 없이 주최자 화면으로 이동합니다."
+                onPress={() => navigation.navigate('Organizer')}
+              />
+            )}
+            <MenuItem
+              icon="logout"
+              title="로그아웃"
+              subtitle="선택 시 확인 모달을 표시합니다."
+              onPress={handleLogout}
+              danger
             />
           </View>
         </View>
@@ -246,6 +349,7 @@ const styles = StyleSheet.create({
   screen: { flex: 1 },
   content: { paddingBottom: 112 },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F6F7FB' },
+
   topbar: {
     backgroundColor: 'rgba(246,247,251,0.96)',
     borderBottomWidth: 1,
@@ -257,51 +361,106 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  eyebrow: { fontSize: 10, fontWeight: '900', color: '#938CF0', letterSpacing: 0, textTransform: 'uppercase', marginBottom: 2 },
-  title: { fontSize: 18, fontWeight: '900', color: '#0F172A', letterSpacing: 0 },
+  eyebrow: { fontSize: 10, fontWeight: '900', color: '#938CF0', textTransform: 'uppercase', marginBottom: 2 },
+  title: { fontSize: 18, fontWeight: '900', color: '#0F172A' },
+  topbarSpacer: { width: 38 },
+
+  /* 프로필 카드 */
   profileCard: {
-    height: 210,
     margin: 16,
     borderRadius: 30,
     backgroundColor: '#1A1A2E',
     overflow: 'hidden',
     padding: 20,
-    position: 'relative',
   },
   profileOrb: {
     position: 'absolute',
-    width: 200,
-    height: 200,
-    borderRadius: 100,
+    width: 220,
+    height: 220,
+    borderRadius: 110,
     backgroundColor: 'rgba(83,74,183,0.58)',
-    right: -68,
-    top: -62,
+    right: -82,
+    top: -74,
+  },
+  profileMain: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    marginBottom: 16,
   },
   avatar: {
-    width: 58,
-    height: 58,
-    borderRadius: 21,
+    width: 62,
+    height: 62,
+    borderRadius: 22,
     backgroundColor: 'rgba(168,156,247,0.18)',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 14,
+    flexShrink: 0,
   },
-  profileName: { color: '#FFFFFF', fontSize: 26, fontWeight: '900', letterSpacing: 0, marginBottom: 6 },
-  profileSub: { color: 'rgba(255,255,255,0.62)', fontSize: 12, lineHeight: 19, fontWeight: '700' },
+  profileId: { flex: 1, minWidth: 0 },
+  profileName: {
+    color: '#FFFFFF',
+    fontSize: 24,
+    fontWeight: '900',
+    letterSpacing: -0.7,
+    lineHeight: 28,
+    marginBottom: 5,
+  },
+  roleRow: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
+  rolePill: {
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.14)',
+  },
+  rolePillText: { fontSize: 10, fontWeight: '900', color: 'rgba(255,255,255,0.78)' },
+
+  /* 닉네임 수정 input */
   nameInput: {
-    height: 38,
-    borderRadius: 14,
+    height: 36,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.22)',
     backgroundColor: 'rgba(255,255,255,0.12)',
     color: '#FFFFFF',
     paddingHorizontal: 12,
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '900',
-    marginBottom: 6,
+    marginBottom: 5,
   },
-  profileActions: { marginTop: 18, flexDirection: 'row', gap: 9 },
-  actionPrimary: { flex: 1, height: 40, borderRadius: 14, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' },
+
+  /* 지갑 패널 */
+  walletPanel: {
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.10)',
+    borderRadius: 18,
+    padding: 12,
+    marginBottom: 14,
+  },
+  walletLabel: {
+    fontSize: 9,
+    fontWeight: '900',
+    color: 'rgba(255,255,255,0.42)',
+    marginBottom: 5,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  walletValue: { fontSize: 12, fontWeight: '900', color: '#FFFFFF' },
+  walletEmpty: { color: 'rgba(255,255,255,0.38)', fontWeight: '700' },
+
+  /* 액션 버튼 */
+  profileActions: { flexDirection: 'row', gap: 9 },
+  actionPrimary: {
+    flex: 1,
+    height: 40,
+    borderRadius: 14,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   actionPrimaryText: { color: '#1A1A2E', fontSize: 12, fontWeight: '900' },
   actionSecondary: {
     flex: 1,
@@ -314,17 +473,61 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   actionSecondaryText: { color: '#FFFFFF', fontSize: 12, fontWeight: '900' },
-  stats: { flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingBottom: 14 },
-  stat: { flex: 1, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 20, padding: 13, alignItems: 'center' },
-  statNum: { fontSize: 18, fontWeight: '900', color: '#1A1A2E' },
-  statLabel: { fontSize: 10, color: '#64748B', fontWeight: '900', marginTop: 3 },
+
+  /* 빠른 통계 */
+  statsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingBottom: 14,
+  },
+  statCard: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 22,
+    padding: 13,
+    overflow: 'hidden',
+    ...flowShadow,
+  },
+  statOrb: {
+    position: 'absolute',
+    width: 54,
+    height: 54,
+    borderRadius: 27,
+    backgroundColor: '#EEEDFE',
+    right: -18,
+    top: -20,
+  },
+  statNum: { fontSize: 19, fontWeight: '900', color: '#1A1A2E', marginTop: 8, letterSpacing: -0.4 },
+  statLabel: { fontSize: 10, color: '#64748B', fontWeight: '900', marginTop: 3, lineHeight: 13 },
+  statSub: { fontSize: 9, color: '#94A3B8', fontWeight: '700', marginTop: 5, lineHeight: 12 },
+
+  /* 안내 노트 */
   section: { paddingHorizontal: 16, paddingBottom: 14 },
-  head: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 10 },
-  headTitle: { fontSize: 17, fontWeight: '900', color: '#0F172A', letterSpacing: 0 },
-  headSub: { fontSize: 11, color: '#64748B', marginTop: 3, fontWeight: '700' },
+  noteBox: {
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 20,
+    padding: 14,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+  },
+  noteBody: { flex: 1 },
+  noteTitle: { fontSize: 12, fontWeight: '900', color: '#0F172A', marginBottom: 3 },
+  noteSub: { fontSize: 10, color: '#64748B', lineHeight: 15, fontWeight: '700' },
+
+  /* 섹션 헤더 */
+  sectionHead: { marginBottom: 10 },
+  sectionTitle: { fontSize: 17, fontWeight: '900', color: '#0F172A' },
+  sectionSub: { fontSize: 11, color: '#64748B', marginTop: 3, fontWeight: '700' },
+
+  /* 메뉴 목록 */
   menuList: { gap: 10 },
   menu: {
-    minHeight: 72,
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
     borderColor: '#E5E7EB',
@@ -335,8 +538,18 @@ const styles = StyleSheet.create({
     gap: 12,
     ...flowShadow,
   },
-  menuIcon: { width: 42, height: 42, borderRadius: 16, backgroundColor: '#EEEDFE', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
-  menuCopy: { flex: 1, minWidth: 0 },
+  menuIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 16,
+    backgroundColor: '#EEEDFE',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  menuIconDanger: { backgroundColor: '#FFF1F2' },
+  menuBody: { flex: 1, minWidth: 0 },
   menuTitle: { fontSize: 14, fontWeight: '900', color: '#0F172A', marginBottom: 3 },
+  menuTitleDanger: { color: '#DC2626' },
   menuSub: { fontSize: 10, color: '#64748B', lineHeight: 15, fontWeight: '700' },
 });
