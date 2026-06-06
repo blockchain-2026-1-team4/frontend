@@ -328,14 +328,6 @@ export default function UserHomePage({ navigation }: any) {
           <Text style={styles.eyebrow}>Blockchain Ticketing</Text>
           <Text style={styles.heroTitle}>위변조 없는{'\n'}티켓의 시작</Text>
           <Text style={styles.heroSub}>지갑 하나로 예매하고, QR로 입장하고, 투명하게 리셀하세요.</Text>
-          <View style={styles.heroActions}>
-            <TouchableOpacity style={styles.heroPrimary} onPress={() => void startWithWallet('USER')} disabled={startingRole !== null}>
-              {startingRole === 'USER' ? <ActivityIndicator color="#1A1A2E" /> : <Text style={styles.heroPrimaryText}>{profile ? '이벤트 보러가기' : '지갑으로 시작'}</Text>}
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.heroSecondary} onPress={() => openExplore()}>
-              <Text style={styles.heroSecondaryText}>이벤트 둘러보기</Text>
-            </TouchableOpacity>
-          </View>
         </View>
       </View>
 
@@ -343,7 +335,7 @@ export default function UserHomePage({ navigation }: any) {
         <View style={styles.roleGrid}>
           <TouchableOpacity style={[styles.card, styles.roleCard]} onPress={() => void startWithWallet('USER')} disabled={startingRole !== null}>
             <View style={styles.roleIcon}>
-              <Icon name="ticket" color="#534AB7" />
+              <Icon name="ticket" color="#1e1e20" />
             </View>
             <Text style={styles.roleTitle}>티켓 예매</Text>
             <Text style={styles.roleSub}>공연과 스포츠 티켓을 지갑으로 예매합니다.</Text>
@@ -582,7 +574,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
     marginTop: 14,
     marginBottom: 14,
-    minHeight: 296,
+    minHeight: 210,
     borderRadius: 30,
     overflow: 'hidden',
     position: 'relative',
@@ -650,39 +642,6 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.68)',
     fontSize: 12,
     lineHeight: 19,
-    marginBottom: 16,
-  },
-  heroActions: {
-    flexDirection: 'row',
-    gap: 9,
-  },
-  heroPrimary: {
-    flex: 1,
-    height: 46,
-    borderRadius: 16,
-    backgroundColor: '#FFFFFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  heroPrimaryText: {
-    color: '#1A1A2E',
-    fontSize: 13,
-    fontWeight: '900',
-  },
-  heroSecondary: {
-    flex: 1,
-    height: 46,
-    borderRadius: 16,
-    backgroundColor: 'rgba(255,255,255,0.14)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  heroSecondaryText: {
-    color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: '900',
   },
   section: {
     paddingHorizontal: 16,
