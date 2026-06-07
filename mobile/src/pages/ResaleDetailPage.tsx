@@ -9,45 +9,66 @@ import { showDialog } from '../lib/dialog';
 import {
   compactId,
   eventTitle,
-  isEventEnded,
+  resolveRoundTimes,
   sectionNameOf,
   weiToEthLabel,
 } from '../lib/ticketFlowDisplay';
 import type { EventDetail, ResaleListing, TicketDetail, UserProfile } from '../types/api';
 
-const STATUS_LABEL: Record<string, string> = {
-  ACTIVE: '판매중',
-  LISTED: '판매중',
-  OPEN: '판매중',
-  ON_SALE: '판매중',
-  SOLD: '판매완료',
-  CLOSED: '판매종료',
-  CANCELED: '취소됨',
-};
+type RoundTimes = { startMs: number; endMs: number };
 
-function statusLabel(status?: string, event?: EventDetail | null) {
-  if (isEventEnded(event)) return '판매종료';
-  const key = status?.toUpperCase() ?? '';
-  return STATUS_LABEL[key] ?? status ?? '-';
+const ACTIVE_STATUSES = ['ACTIVE', 'LISTED', 'OPEN', 'ON_SALE'];
+
+function resaleStatusLabel(
+  listing: ResaleListing | null,
+  event: EventDetail | null,
+  roundTimes: RoundTimes | null,
+  isMyListing: boolean,
+): string {
+  if (!listing) return '구매 불가';
+  const eventStatus = String(event?.status ?? '').toUpperCase();
+  if (eventStatus === 'CANCELLED') return '이벤트 취소';
+  if (eventStatus === 'DRAFT' || eventStatus === 'INACTIVE') return '판매 불가';
+  const s = String(listing.status ?? '').toUpperCase();
+  if (s === 'CANCELED') return '취소됨';
+  if (['SOLD', 'COMPLETED', 'PURCHASED'].includes(s)) return '판매완료';
+  if (['CLOSED', 'EXPIRED'].includes(s)) return '판매종료';
+  if (roundTimes === null) return '상태 확인 필요';
+  const now = Date.now();
+  if (now >= roundTimes.endMs) return '판매종료';
+  if (!Number.isNaN(roundTimes.startMs) && now >= roundTimes.startMs) return '판매종료';
+  if (isMyListing) return '내가 등록한 티켓';
+  if (ACTIVE_STATUSES.includes(s)) return '판매중';
+  return '구매 불가';
 }
 
-function statusTone(status?: string, event?: EventDetail | null): 'green' | 'gray' | 'red' | 'purple' {
-  const label = statusLabel(status, event);
+function statusTone(label: string): 'green' | 'gray' | 'red' | 'purple' {
   if (label === '판매중') return 'green';
-  if (label === '취소됨') return 'red';
-  if (label === '판매완료' || label === '판매종료') return 'gray';
-  return 'purple';
+  if (label === '이벤트 취소' || label === '취소됨') return 'red';
+  if (label === '상태 확인 필요' || label === '내가 등록한 티켓') return 'purple';
+  return 'gray';
 }
 
-function blockedPurchaseMessage(listing: ResaleListing | null, isMyListing: boolean, event?: EventDetail | null) {
+function blockedPurchaseMessage(
+  listing: ResaleListing | null,
+  event: EventDetail | null,
+  roundTimes: RoundTimes | null,
+  isMyListing: boolean,
+): string {
   if (!listing) return '리셀 티켓 정보를 확인할 수 없습니다.';
-  const status = listing.status?.toUpperCase();
+  const eventStatus = String(event?.status ?? '').toUpperCase();
+  if (eventStatus === 'CANCELLED') return '취소된 이벤트의 리셀 티켓입니다.';
+  if (eventStatus === 'DRAFT' || eventStatus === 'INACTIVE') return '현재 판매가 허용되지 않는 이벤트입니다.';
+  const s = String(listing.status ?? '').toUpperCase();
+  if (s === 'CANCELED') return '취소된 리셀 티켓입니다.';
+  if (['SOLD', 'COMPLETED', 'PURCHASED'].includes(s)) return '이미 판매 완료된 리셀 티켓입니다.';
+  if (['CLOSED', 'EXPIRED'].includes(s)) return '판매가 종료된 리셀 티켓입니다.';
+  if (roundTimes === null) return '회차 정보를 확인할 수 없어 구매할 수 없습니다.';
+  const now = Date.now();
+  if (now >= roundTimes.endMs) return '공연이 종료되어 판매가 종료된 리셀 티켓입니다.';
+  if (!Number.isNaN(roundTimes.startMs) && now >= roundTimes.startMs) return '공연이 이미 시작되어 판매가 종료된 리셀 티켓입니다.';
   if (isMyListing) return '본인이 등록한 리셀 티켓은 구매할 수 없습니다.';
-  if (isEventEnded(event)) return '공연이 종료되어 판매가 종료된 리셀 티켓입니다.';
-  if (status === 'SOLD') return '이미 판매 완료된 리셀 티켓입니다.';
-  if (status === 'CLOSED') return '판매가 종료된 리셀 티켓입니다.';
-  if (status === 'CANCELED') return '취소된 리셀 티켓입니다.';
-  if (!['ACTIVE', 'LISTED', 'OPEN', 'ON_SALE'].includes(status ?? '')) return '현재 구매할 수 없는 리셀 티켓입니다.';
+  if (!ACTIVE_STATUSES.includes(s)) return '현재 구매할 수 없는 리셀 티켓입니다.';
   return '';
 }
 
@@ -116,21 +137,37 @@ export default function ResaleDetailPage({ route, navigation }: any) {
   }, [listingId]);
 
   const isMyListing = Boolean(listing?.sellerId && me?.id && listing.sellerId === me.id);
-  const eventEnded = isEventEnded(event);
-  const blockMessage = useMemo(() => blockedPurchaseMessage(listing, isMyListing, event), [event, listing, isMyListing]);
+  const roundTimes = useMemo(
+    () =>
+      ticket && event
+        ? resolveRoundTimes(ticket.eventRoundId ? String(ticket.eventRoundId) : null, ticket.eventDateTime, event)
+        : null,
+    [ticket, event],
+  );
+  const blockMessage = useMemo(
+    () => blockedPurchaseMessage(listing, event, roundTimes, isMyListing),
+    [listing, event, roundTimes, isMyListing],
+  );
   const isBlocked = Boolean(blockMessage);
 
   const buttonText = useMemo(() => {
     if (submitting) return '구매 처리 중...';
+    if (!listing) return '구매 불가';
+    const eventStatus = String(event?.status ?? '').toUpperCase();
+    if (eventStatus === 'CANCELLED') return '이벤트 취소';
+    if (eventStatus === 'DRAFT' || eventStatus === 'INACTIVE') return '판매 불가';
+    const s = String(listing.status ?? '').toUpperCase();
+    if (s === 'CANCELED') return '취소됨';
+    if (['SOLD', 'COMPLETED', 'PURCHASED'].includes(s)) return '판매완료';
+    if (['CLOSED', 'EXPIRED'].includes(s)) return '판매종료';
+    if (roundTimes === null) return '상태 확인 필요';
+    const now = Date.now();
+    if (now >= roundTimes.endMs) return '판매종료';
+    if (!Number.isNaN(roundTimes.startMs) && now >= roundTimes.startMs) return '판매종료';
     if (isMyListing) return '내가 등록한 티켓';
-    if (eventEnded) return '판매종료';
-    const status = listing?.status?.toUpperCase();
-    if (status === 'SOLD') return '판매완료';
-    if (status === 'CLOSED') return '판매종료';
-    if (status === 'CANCELED') return '취소됨';
-    if (!['ACTIVE', 'LISTED', 'OPEN', 'ON_SALE'].includes(status ?? '')) return '구매 불가';
+    if (!ACTIVE_STATUSES.includes(s)) return '구매 불가';
     return '리셀 티켓 구매하기';
-  }, [eventEnded, isMyListing, listing?.status, submitting]);
+  }, [event, isMyListing, listing, roundTimes, submitting]);
 
   const purchase = async () => {
     if (blockMessage) {
@@ -183,7 +220,7 @@ export default function ResaleDetailPage({ route, navigation }: any) {
 
   const title = eventTitle(event, ticket);
   const seat = seatLabel(ticket, listing);
-  const status = statusLabel(listing.status, event);
+  const status = resaleStatusLabel(listing, event, roundTimes, isMyListing);
 
   return (
     <View style={styles.container}>
@@ -195,7 +232,7 @@ export default function ResaleDetailPage({ route, navigation }: any) {
           <Text style={styles.eyebrow}>Resale Detail</Text>
           <Text style={styles.topTitle}>리셀 거래 상세</Text>
         </View>
-        <FlowBadge label={status} tone={statusTone(listing.status, event)} />
+        <FlowBadge label={status} tone={statusTone(status)} />
       </View>
 
       <ScrollView style={styles.screen} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
@@ -210,7 +247,7 @@ export default function ResaleDetailPage({ route, navigation }: any) {
 
         <View style={styles.section}>
           <View style={styles.detailCard}>
-            <FlowBadge label={status} tone={statusTone(listing.status, event)} />
+            <FlowBadge label={status} tone={statusTone(status)} />
             <Text style={styles.detailTitle}>좌석 {seat}</Text>
             <Text style={styles.meta}>블록체인 기록으로 소유권이 확인된 리셀 티켓입니다.</Text>
             <View style={styles.grid2}>
