@@ -167,15 +167,44 @@ function shortDateTime(value?: string) {
   return formatted === '-' ? '-' : formatted;
 }
 
-function saleStateOf(args: { saleStartAt?: string; saleEndAt?: string; soldOut: boolean }): SaleState {
+function saleStateOf(args: {
+  roundStartAt?: string;
+  roundEndAt?: string;
+  saleStartAt?: string;
+  saleEndAt?: string;
+  available: number;
+  issued: number;
+}): SaleState {
   const now = Date.now();
-  const saleStart = args.saleStartAt ? new Date(args.saleStartAt).getTime() : NaN;
-  const saleEnd = args.saleEndAt ? new Date(args.saleEndAt).getTime() : NaN;
+  const rStart = args.roundStartAt ? new Date(args.roundStartAt).getTime() : NaN;
+  const rEnd   = args.roundEndAt   ? new Date(args.roundEndAt).getTime()   : NaN;
+  const sStart = args.saleStartAt  ? new Date(args.saleStartAt).getTime()  : NaN;
+  const sEnd   = args.saleEndAt    ? new Date(args.saleEndAt).getTime()    : NaN;
 
-  if (args.soldOut) return { label: '매진', tone: 'red' };
-  if (!Number.isNaN(saleStart) && now < saleStart) return { label: '예매 예정', tone: 'yellow' };
-  if (!Number.isNaN(saleEnd) && now > saleEnd) return { label: '판매 종료', tone: 'gray' };
-  return { label: '예매 가능', tone: 'green' };
+  // 3. 회차 종료
+  if (!Number.isNaN(rEnd) && now > rEnd) return { label: '종료', tone: 'gray' };
+
+  // 4. 회차 시작 후(진행 중) → 구매 불가
+  if (!Number.isNaN(rStart) && now >= rStart) return { label: '판매 종료', tone: 'gray' };
+
+  // 5. 티켓 미발행
+  if (args.issued <= 0) return { label: '티켓 미발행', tone: 'gray' };
+
+  // 6. 매진
+  if (args.available === 0) return { label: '매진', tone: 'red' };
+
+  // 7. 판매 시작 전
+  if (!Number.isNaN(sStart) && now < sStart) return { label: '예매 예정', tone: 'yellow' };
+
+  // 8. 판매 종료 후 + 회차 시작 전
+  if (!Number.isNaN(sEnd) && now > sEnd) return { label: '판매 종료', tone: 'gray' };
+
+  // 9. 판매기간 내 + 잔여 있음 + 회차 시작 전
+  const inSale = (Number.isNaN(sStart) || now >= sStart) && (Number.isNaN(sEnd) || now <= sEnd);
+  if (inSale && args.available > 0) return { label: '예매 가능', tone: 'green' };
+
+  // 10. 그 외
+  return { label: '판매 불가', tone: 'gray' };
 }
 
 function groupTicketsBySection(tickets: TicketDetail[], round: DisplayRound): SectionGroup[] {
@@ -188,6 +217,7 @@ function groupTicketsBySection(tickets: TicketDetail[], round: DisplayRound): Se
   return [...grouped.entries()]
     .map(([sectionName, sectionTickets]) => {
       const availableCount = sectionTickets.filter(isAvailable).length;
+      const issuedCount = sectionTickets.filter((t) => String(t.status ?? '').toUpperCase() !== 'CANCELLED').length;
       const first = sectionTickets[0];
       const saleStartAt = first?.saleStartAt || round.saleStartAt;
       const saleEndAt = first?.saleEndAt || round.saleEndAt;
@@ -200,7 +230,14 @@ function groupTicketsBySection(tickets: TicketDetail[], round: DisplayRound): Se
         resaleEnabled: first?.resaleEnabled ?? false,
         resaleCapRate: first?.resaleCapRate,
         saleEndAt,
-        saleState: saleStateOf({ saleStartAt, saleEndAt, soldOut: availableCount === 0 }),
+        saleState: saleStateOf({
+          roundStartAt: roundStartAt(round),
+          roundEndAt: roundEndAt(round),
+          saleStartAt,
+          saleEndAt,
+          available: availableCount,
+          issued: issuedCount,
+        }),
       };
     })
     .sort((a, b) => b.availableCount - a.availableCount || a.sectionName.localeCompare(b.sectionName, 'ko-KR', { numeric: true }));
@@ -369,9 +406,12 @@ export default function EventDetailPage({ route, navigation }: any) {
   });
   const purchasableTickets = !isEventSalable ? [] : filteredTickets.filter((ticket) => {
     const ticketState = saleStateOf({
+      roundStartAt: roundStartAt(selectedRound),
+      roundEndAt: roundEndAt(selectedRound),
       saleStartAt: ticket.saleStartAt || selectedRound?.saleStartAt,
       saleEndAt: ticket.saleEndAt || selectedSection?.saleEndAt,
-      soldOut: !isAvailable(ticket),
+      available: isAvailable(ticket) ? 1 : 0,
+      issued: String(ticket.status ?? '').toUpperCase() !== 'CANCELLED' ? 1 : 0,
     });
     return isAvailable(ticket) && ticketState.tone === 'green';
   });
@@ -395,6 +435,7 @@ export default function EventDetailPage({ route, navigation }: any) {
     const key = roundKey(round, index);
     const targetTickets = tickets.filter((ticket) => roundKeyOfTicket(ticket, rounds) === key);
     const availableCount = isEventSalable ? targetTickets.filter(isAvailable).length : 0;
+    const issuedCount = targetTickets.filter((t) => String(t.status ?? '').toUpperCase() !== 'CANCELLED').length;
     return {
       key,
       round,
@@ -402,7 +443,14 @@ export default function EventDetailPage({ route, navigation }: any) {
       availableCount,
       minPriceWei: minWei(targetTickets.map((ticket) => ticket.originalPriceWei || ticket.priceWei)) || event?.ticketPriceWei,
       saleState: isEventSalable
-        ? saleStateOf({ saleStartAt: round.saleStartAt, saleEndAt: round.saleEndAt, soldOut: availableCount === 0 })
+        ? saleStateOf({
+            roundStartAt: roundStartAt(round),
+            roundEndAt: roundEndAt(round),
+            saleStartAt: round.saleStartAt,
+            saleEndAt: round.saleEndAt,
+            available: availableCount,
+            issued: issuedCount,
+          })
         : unsalableState,
     };
   });
@@ -576,9 +624,12 @@ export default function EventDetailPage({ route, navigation }: any) {
               {pagedPrimaryTickets.length ? pagedPrimaryTickets.map((ticket) => {
                 const key = String(ticket.id ?? ticket.ticketId);
                 const ticketState = saleStateOf({
+                  roundStartAt: roundStartAt(selectedRound),
+                  roundEndAt: roundEndAt(selectedRound),
                   saleStartAt: ticket.saleStartAt || selectedRound?.saleStartAt,
                   saleEndAt: ticket.saleEndAt || selectedSection.saleEndAt,
-                  soldOut: !isAvailable(ticket),
+                  available: isAvailable(ticket) ? 1 : 0,
+                  issued: String(ticket.status ?? '').toUpperCase() !== 'CANCELLED' ? 1 : 0,
                 });
                 const purchasable = isAvailable(ticket) && ticketState.tone === 'green';
                 const selected = selectedTicketKey === key;
