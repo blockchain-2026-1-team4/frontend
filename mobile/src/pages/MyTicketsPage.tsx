@@ -3,9 +3,9 @@ import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View
 import { TextInput } from '../components/TextInput';
 import { FlowBadge, FlowHero, PosterArt, TicketIcon, flowShadow } from '../components/TicketFlowKit';
 import { backendApi } from '../lib/backend';
+import { formatTicketStatus } from '../lib/ticketDisplay';
 import {
   canRegisterResale,
-  entryStatusOf,
   eventDateLabel,
   eventTitle,
   eventVenue,
@@ -69,17 +69,72 @@ function isRoundEnded(ticket: TicketDetail, event?: EventDetail): boolean {
   return isEventEnded(event);
 }
 
+function isRoundStarted(ticket: TicketDetail, event?: EventDetail): boolean {
+  const now = Date.now();
+  const ticketRoundId = ticket.eventRoundId ? String(ticket.eventRoundId) : null;
+
+  if (event?.rounds?.length) {
+    let round = ticketRoundId
+      ? event.rounds.find((r) => r.id != null && String(r.id) === ticketRoundId)
+      : undefined;
+
+    if (!round && ticket.eventDateTime) {
+      const ticketDate = ticket.eventDateTime.slice(0, 10);
+      round = event.rounds.find((r) => r.eventDate?.slice(0, 10) === ticketDate);
+    }
+
+    if (round) {
+      const startStr = round.startTime
+        ? `${round.eventDate}T${round.startTime}`
+        : round.eventDate;
+      if (startStr) {
+        const startTime = new Date(startStr).getTime();
+        if (!Number.isNaN(startTime)) return now >= startTime;
+      }
+    }
+  }
+
+  const ticketDateStr = ticket.eventDateTime?.slice(0, 10);
+  if (ticketDateStr) {
+    const todayStr = new Date().toISOString().slice(0, 10);
+    return ticketDateStr <= todayStr;
+  }
+
+  return false;
+}
+
 function roundEntryStatus(ticket: TicketDetail, event?: EventDetail) {
   const status = String(ticket.status ?? '').toUpperCase();
+
+  // 1. 체크인 완료
   if (status === 'USED') return { label: '체크인 완료', tone: 'gray' as const };
+
+  // 2. 사용 불가
   if (status === 'CANCELLED') return { label: '사용 불가', tone: 'red' as const };
-  const eventStatus = String(event?.status ?? '').toUpperCase();
-  if (eventStatus === 'CANCELLED') return { label: '이벤트 취소', tone: 'red' as const };
-  if (status === 'SOLD' || status === 'LISTED') {
-    if (isRoundEnded(ticket, event)) return { label: '사용 기간 종료', tone: 'gray' as const };
-    return { label: '입장 가능', tone: 'green' as const };
-  }
-  return entryStatusOf(ticket, event);
+
+  // 3. 이벤트 취소
+  if (String(event?.status ?? '').toUpperCase() === 'CANCELLED') return { label: '이벤트 취소', tone: 'red' as const };
+
+  // 4. event 정보 확인 불가
+  if (!event) return { label: '상태 확인 필요', tone: 'gray' as const };
+
+  // 5. LISTED + 회차 종료
+  if (status === 'LISTED' && isRoundEnded(ticket, event)) return { label: '사용 기간 종료', tone: 'gray' as const };
+
+  // 6. LISTED + 회차 미종료 → 리셀 중
+  if (status === 'LISTED') return { label: '리셀 중', tone: 'yellow' as const };
+
+  // 7. SOLD + 회차 종료
+  if (status === 'SOLD' && isRoundEnded(ticket, event)) return { label: '사용 기간 종료', tone: 'gray' as const };
+
+  // 8. SOLD + 체크인 오픈 전
+  if (status === 'SOLD' && !isRoundStarted(ticket, event)) return { label: '보유 중', tone: 'gray' as const };
+
+  // 9. SOLD + 체크인 가능 시간
+  if (status === 'SOLD') return { label: '입장 가능', tone: 'green' as const };
+
+  // 10. 그 외
+  return { label: formatTicketStatus(status), tone: 'gray' as const };
 }
 
 function canResaleByRound(ticket: TicketDetail, event?: EventDetail): boolean {
@@ -99,13 +154,16 @@ function roundNameOf(ticket: TicketDetail, event?: EventDetail): string {
 function statusRank(ticket: TicketDetail, event?: EventDetail) {
   const entry = roundEntryStatus(ticket, event);
   const ranks: Record<string, number> = {
-    '입장 가능': 0,
-    '판매 가능': 1,
-    '사용 기간 종료': 2,
-    '사용 불가': 3,
-    '체크인 완료': 4,
+    '입장 가능':      0,
+    '보유 중':        1,
+    '리셀 중':        2,
+    '상태 확인 필요':  3,
+    '이벤트 취소':    4,
+    '사용 기간 종료':  5,
+    '사용 불가':      6,
+    '체크인 완료':    7,
   };
-  return ranks[entry.label] ?? 5;
+  return ranks[entry.label] ?? 8;
 }
 
 function emptyMessage(filter: FilterId, query: string): { title: string; sub: string } {
