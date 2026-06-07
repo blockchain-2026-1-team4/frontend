@@ -21,6 +21,7 @@ import {
   scheduleDateParts,
   scheduleKey,
   scheduleState,
+  scheduleStatusBadge,
 } from '../lib/entrySchedule';
 import type { TicketDetail } from '../types/api';
 
@@ -116,7 +117,7 @@ export default function CheckInHomePage({ navigation }: any) {
                 <EntryEventCard
                   key={scheduleKey(schedule)}
                   schedule={schedule}
-                  meta={`${schedule.event.venue || '장소 미정'} · ${date.time} · 입장 ${stats.entered}/${stats.total}`}
+                  meta={`${scheduleStatusBadge(schedule).label} · ${schedule.event.venue || '장소 미정'} · ${date.time} · 입장 ${stats.entered}/${stats.total}`}
                   actionLabel={active === 'ended' ? '현황' : '관리'}
                   onPress={() => active === 'ended'
                     ? navigation.navigate('CheckInStatus', { eventId: schedule.event.id, roundId: schedule.roundId })
@@ -134,7 +135,7 @@ export default function CheckInHomePage({ navigation }: any) {
           <View style={styles.list}>
             {grouped.upcoming.slice(0, 2).map((schedule) => {
               const date = scheduleDateParts(schedule);
-              return <EntryEventCard key={scheduleKey(schedule)} schedule={schedule} meta={`${schedule.event.venue || '장소 미정'} · ${date.time}`} onPress={() => goManage(schedule)} />;
+              return <EntryEventCard key={scheduleKey(schedule)} schedule={schedule} meta={`${scheduleStatusBadge(schedule).label} · ${schedule.event.venue || '장소 미정'} · ${date.time}`} onPress={() => goManage(schedule)} />;
             })}
           </View>
         </View>

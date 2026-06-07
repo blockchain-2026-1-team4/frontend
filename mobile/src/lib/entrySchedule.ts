@@ -75,9 +75,43 @@ export function scheduleState(schedule: EntrySchedule, now = new Date()): EntryS
   return 'upcoming';
 }
 
+export type ScheduleStatusBadge = {
+  label: string;
+  tone: 'green' | 'yellow' | 'gray' | 'red' | 'blue';
+};
+
+export function scheduleStatusBadge(schedule: EntrySchedule, now = new Date()): ScheduleStatusBadge {
+  const current = now.getTime();
+  const eventStatus = String(schedule.event.status ?? '').toUpperCase();
+
+  // 1. event.status = CANCELLED → 취소
+  if (eventStatus === 'CANCELLED') return { label: '취소', tone: 'red' };
+  // 2. event.status = DRAFT / INACTIVE → 운영 불가
+  if (eventStatus === 'DRAFT' || eventStatus === 'INACTIVE') return { label: '운영 불가', tone: 'gray' };
+  // 3. 해당 회차의 발행 티켓 수 = 0 → 티켓 미발행
+  if (schedule.tickets.length === 0) return { label: '티켓 미발행', tone: 'gray' };
+  // 4. 회차 종료 후 → 종료
+  if (!Number.isNaN(schedule.endTime) && current > schedule.endTime) return { label: '종료', tone: 'gray' };
+
+  // 5 & 6: 오늘 날짜 회차
+  const isToday = !Number.isNaN(schedule.startTime) && new Date(schedule.startTime).toDateString() === now.toDateString();
+  if (isToday) {
+    // 5. 오늘 날짜 + 시작 전 → 오늘 예정
+    if (current < schedule.startTime) return { label: '오늘 예정', tone: 'yellow' };
+    // 6. 오늘 날짜 + 시작 후 ~ 종료 전 → 입장 진행중  (step 4에서 종료 케이스 걸러짐)
+    return { label: '입장 진행중', tone: 'green' };
+  }
+
+  // 7. 미래 날짜 회차 → 예정
+  if (!Number.isNaN(schedule.startTime) && current < schedule.startTime) return { label: '예정', tone: 'blue' };
+  // 8. 회차 날짜/시간 확인 불가 → 일정 확인 필요
+  if (Number.isNaN(schedule.startTime) && Number.isNaN(schedule.endTime)) return { label: '일정 확인 필요', tone: 'gray' };
+  // 9. 그 외 → 예정
+  return { label: '예정', tone: 'blue' };
+}
+
 export function scheduleStateLabel(schedule: EntrySchedule) {
-  const state = scheduleState(schedule);
-  return state === 'today' ? '오늘' : state === 'ended' ? '종료' : '예정';
+  return scheduleStatusBadge(schedule).label;
 }
 
 export function scheduleDateParts(schedule: EntrySchedule) {
