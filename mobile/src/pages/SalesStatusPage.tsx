@@ -14,7 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { showDialog } from '../lib/dialog';
 import { errorMessage } from '../lib/account';
 import { backendApi } from '../lib/backend';
-import { formatCompactDateTime, getNextRoundTime, salesSortRank, weiToEth } from '../lib/ticketDisplay';
+import { formatCompactDateTime, getNextRoundTime, matchTicketsToRound, salesSortRank, weiToEth } from '../lib/ticketDisplay';
 import type { EventRound, EventSummary, TicketDetail } from '../types/api';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -118,18 +118,14 @@ function buildRoundCards(event: EventSummary, allTickets: TicketDetail[]): Round
     return [{ event, round: null, roundIndex: -1, roundLabel: evtTitle(event), tickets: allTickets, allTickets }];
   }
   return rounds.map((round, index) => {
-    const roundId = round.id ? String(round.id) : null;
-    const roundTickets = roundId
-      ? allTickets.filter((t) => t.eventRoundId != null && String(t.eventRoundId) === roundId)
-      : round.eventDate
-        ? allTickets.filter((t) => t.eventDateTime?.slice(0, 10) === round.eventDate.slice(0, 10))
-        : allTickets;
+    // matchTicketsToRound: ID→날짜 순 매칭, 매칭 불가 시 null (전체 티켓으로 fallback 없음)
+    const matched = matchTicketsToRound(round, allTickets);
     return {
       event,
       round,
       roundIndex: index,
       roundLabel: `${evtTitle(event)} · ${index + 1}회차`,
-      tickets: roundTickets,
+      tickets: matched ?? [],  // null = 회차 식별 불가 → 빈 배열 → roundBadge가 '미발행' 반환
       allTickets,
     };
   });

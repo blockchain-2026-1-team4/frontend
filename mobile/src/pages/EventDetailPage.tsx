@@ -6,7 +6,7 @@ import { TextInput } from '../components/TextInput';
 import { backendApi } from '../lib/backend';
 import { resolveImageUrl } from '../lib/config';
 import { showDialog } from '../lib/dialog';
-import { formatCompactDateTime, formatEventCategory, formatEventStatus, weiToEth } from '../lib/ticketDisplay';
+import { formatCompactDateTime, formatEventCategory, formatEventStatus, matchTicketsToRound, weiToEth } from '../lib/ticketDisplay';
 import type { EventDetail, EventRound, ResaleListing, TicketDetail } from '../types/api';
 
 const PRIMARY_TICKET_PAGE_SIZE = 12;
@@ -376,10 +376,16 @@ export default function EventDetailPage({ route, navigation }: any) {
     ? { label: '이벤트 취소', tone: 'red' }
     : { label: '판매 불가', tone: 'gray' };
 
-  const roundTickets = useMemo(
-    () => (activeRoundKey ? tickets.filter((ticket) => roundKeyOfTicket(ticket, rounds) === activeRoundKey) : []),
-    [activeRoundKey, rounds, tickets],
-  );
+  const roundTickets = useMemo(() => {
+    if (!selectedRound) return [];
+    // 회차 배열 없는 단일 회차 이벤트 → 전체 티켓
+    if (!event?.rounds?.length) return tickets;
+    // 정규 매칭: 회차 ID → eventDate 순
+    const matched = matchTicketsToRound(selectedRound, tickets);
+    if (matched !== null) return matched;
+    // 회차에 ID도 날짜도 없을 때: roundKeyOfTicket 표시 전용 폴백
+    return activeRoundKey ? tickets.filter((ticket) => roundKeyOfTicket(ticket, rounds) === activeRoundKey) : [];
+  }, [selectedRound, rounds, tickets, activeRoundKey, event?.rounds?.length]);
 
   const sectionGroups = useMemo(() => {
     if (!selectedRound) return [];

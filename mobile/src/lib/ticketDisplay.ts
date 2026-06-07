@@ -56,6 +56,24 @@ function roundEndAt(round?: EventRound) {
   return timeOf(`${round.eventDate}T${round.endTime}`);
 }
 
+// 회차에 속하는 티켓을 반환한다.
+// round.id → eventDate 순으로 매칭. 매칭 불가 시 null 반환 (allTickets fallback 없음).
+export function matchTicketsToRound(
+  round: { id?: string | number | null; eventDate?: string | null } | null | undefined,
+  allTickets: TicketDetail[],
+): TicketDetail[] | null {
+  if (!round) return allTickets;
+  const roundId = round.id != null ? String(round.id) : null;
+  if (roundId) {
+    return allTickets.filter((t) => t.eventRoundId != null && String(t.eventRoundId) === roundId);
+  }
+  if (round.eventDate) {
+    const prefix = round.eventDate.slice(0, 10);
+    return allTickets.filter((t) => t.eventDateTime?.slice(0, 10) === prefix);
+  }
+  return null;
+}
+
 export function getEventStartTime(event?: EventSummary | null) {
   if (!event) return NaN;
   const roundStarts = event.rounds?.map(roundStartAt).filter((value) => !Number.isNaN(value)) ?? [];
@@ -273,24 +291,22 @@ export function getSalesDisplayStatus(event?: EventSummary | null, now = new Dat
 }
 
 // 사용자 화면 전용 상태 해석: 숨김(null) 또는 사용자용 라벨/톤 반환
-export function getUserEventDisplayStatus(event?: EventSummary | null, now = new Date()): DisplayStatus | null {
+// tickets를 제공하면 회차별 실제 발행/잔여 수량으로 정확히 계산한다.
+// tickets가 없으면 event 집계값(이벤트 수준)으로 근사 계산한다.
+export function getUserEventDisplayStatus(
+  event?: EventSummary | null,
+  tickets?: TicketDetail[] | null,
+  now = new Date(),
+): DisplayStatus | null {
   if (!event) return null;
-
-  // 1. PUBLISHED 상태만 노출
   if (normalized(event.status) !== 'PUBLISHED') return null;
 
   const current = now.getTime();
+  const rounds = event.rounds ?? [];
 
-  // 발행 수량 계산
-  const total = Number(event.totalTicketCount ?? 0);
-  const remaining = Number(event.remainingTicketCount ?? 0);
-  const sold = Number(event.soldTicketCount ?? 0);
-  const issued = total > 0 ? total - remaining : sold;
-
-  // 회차별 endTime / saleStart / saleEnd 추출 (rounds 없으면 이벤트 전체를 단일 회차로 처리)
   type RoundTimes = { endTime: number; saleStart: number; saleEnd: number };
-  const roundTimeList: RoundTimes[] = event.rounds?.length
-    ? event.rounds.map((r) => ({
+  const roundTimeList: RoundTimes[] = rounds.length
+    ? rounds.map((r) => ({
         endTime: r.eventDate && r.endTime ? timeOf(`${r.eventDate}T${r.endTime}`) : timeOf(r.eventDate),
         saleStart: timeOf(r.saleStartAt || event.primarySaleStart || event.salesStartAt),
         saleEnd: timeOf(r.saleEndAt || event.primarySaleEnd || event.salesEndAt),
@@ -301,7 +317,6 @@ export function getUserEventDisplayStatus(event?: EventSummary | null, now = new
         saleEnd: timeOf(event.primarySaleEnd || event.salesEndAt),
       }];
 
-  // 회차별 상태 분류
   type RoundPhase = 'ended' | 'pre_sale' | 'on_sale' | 'sale_ended' | 'no_date';
   const classify = ({ endTime, saleStart, saleEnd }: RoundTimes): RoundPhase => {
     if (!Number.isNaN(endTime) && current > endTime) return 'ended';
@@ -314,39 +329,71 @@ export function getUserEventDisplayStatus(event?: EventSummary | null, now = new
   const allPhases = roundTimeList.map(classify);
   const futurePhases = allPhases.filter((p) => p !== 'ended');
 
-  // 2. 모든 회차 종료 → 숨김
+  // 모든 회차 종료 → 숨김
   if (futurePhases.length === 0) return null;
 
-  // 3. 발행된 티켓 없음 → 판매 준비중
+  if (tickets != null) {
+    // ── 회차별 실제 티켓 매칭 경로 ──────────────────────────────────
+    // rounds가 없으면 이벤트 단일 회차로 처리 (null → matchTicketsToRound가 allTickets 반환)
+    const roundList: (typeof rounds[number] | null)[] = rounds.length ? rounds : [null];
+    const roundInfos = roundList.map((r, i) => {
+      const phase = allPhases[i] ?? 'no_date';
+      if (phase === 'ended') return { phase, issued: 0, available: 0 };
+      const matched = matchTicketsToRound(r, tickets);
+      // 매칭 실패(null) = 회차 ID·날짜 없음 → 티켓 미발행으로 간주
+      const issued = matched?.length ?? 0;
+      const available = matched?.filter((t) => normalized(t.status) === 'AVAILABLE').length ?? 0;
+      return { phase, issued, available };
+    });
+
+    const futureInfos = roundInfos.filter(({ phase }) => phase !== 'ended');
+
+    // 모든 미래 회차에 발행 티켓이 없음 → 판매 준비중
+    if (futureInfos.every(({ issued }) => issued === 0)) return { label: '판매 준비중', tone: 'gray' };
+
+    // 예매 가능: on_sale 회차 + 해당 회차 available > 0
+    if (futureInfos.some(({ phase, issued, available }) => phase === 'on_sale' && issued > 0 && available > 0)) {
+      return { label: '예매 가능', tone: 'blue' };
+    }
+    // 오픈 예정: pre_sale 회차 + 해당 회차 available > 0
+    if (futureInfos.some(({ phase, issued, available }) => phase === 'pre_sale' && issued > 0 && available > 0)) {
+      return { label: '오픈 예정', tone: 'yellow' };
+    }
+    // 매진: 판매 기간 회차는 있으나 available = 0 (티켓은 발행됐지만 소진)
+    if (futureInfos.some(({ phase, issued, available }) => (phase === 'on_sale' || phase === 'pre_sale') && issued > 0 && available === 0)) {
+      return { label: '매진', tone: 'red' };
+    }
+    // 예매 종료
+    if (futureInfos.every(({ phase }) => phase === 'sale_ended')) return { label: '예매 종료', tone: 'gray' };
+    // 그 외 (no_date 등)
+    return { label: '판매 준비중', tone: 'gray' };
+  }
+
+  // ── 이벤트 집계값 경로 (tickets 미제공 시) ──────────────────────────
+  // 티켓 API 없이 목록 페이지 등에서 호출될 때 사용. 회차별 세분화 불가로 근사 결과.
+  const total = Number(event.totalTicketCount ?? 0);
+  const remaining = Number(event.remainingTicketCount ?? 0);
+  const sold = Number(event.soldTicketCount ?? 0);
+  const issued = total > 0 ? total - remaining : sold;
+
   if (issued <= 0) return { label: '판매 준비중', tone: 'gray' };
 
   const isSoldOut = Boolean(event.soldOut) || (remaining === 0 && issued > 0);
   const hasOnSale  = futurePhases.some((p) => p === 'on_sale');
   const hasPreSale = futurePhases.some((p) => p === 'pre_sale');
 
-  // 4. 예매 가능: on_sale 회차 + 잔여 있음
   if (hasOnSale && !isSoldOut) return { label: '예매 가능', tone: 'blue' };
-
-  // 5. 오픈 예정: pre_sale 회차 + 잔여 있음
   if (hasPreSale && !isSoldOut) return { label: '오픈 예정', tone: 'yellow' };
-
-  // 6. 매진: on_sale/pre_sale 회차 있지만 잔여 없음
   if ((hasOnSale || hasPreSale) && isSoldOut) return { label: '매진', tone: 'red' };
-
-  // 7. 예매 종료: 미래 회차 있지만 모두 판매 종료
   if (futurePhases.every((p) => p === 'sale_ended')) return { label: '예매 종료', tone: 'gray' };
-
-  // 8. 판매 준비중: 미래 회차 있지만 판매 날짜 없음
   if (futurePhases.every((p) => p === 'no_date')) return { label: '판매 준비중', tone: 'gray' };
-
-  // 9. 그 외 → 숨김
   return null;
 }
 
 // 사용자 화면 정렬 우선순위: 낮을수록 앞에 노출
 export function userSortRank(event?: EventSummary | null, now = new Date()): number {
   if (!event) return 99;
-  const userStatus = getUserEventDisplayStatus(event, now);
+  const userStatus = getUserEventDisplayStatus(event, undefined, now);
   // null은 비공개/초안/취소 등 사용자에겐 보이지 않음 → 매우 뒤로
   if (userStatus === null) return 99;
   const label = userStatus.label;
