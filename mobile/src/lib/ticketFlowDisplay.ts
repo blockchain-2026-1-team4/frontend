@@ -130,26 +130,35 @@ const CHECK_IN_OPEN_BEFORE_MS = 30 * 60 * 1000;
 
 type RoundTimes = { startMs: number; endMs: number };
 
-function resolveRoundTimes(ticket: TicketDetail, event: EventSummary): RoundTimes | null {
-  const ticketRoundId = ticket.eventRoundId ? String(ticket.eventRoundId) : null;
-
+/**
+ * 리스팅/티켓이 속한 회차의 시작·종료 시간을 반환한다.
+ * 판단 불가 시 null 반환 (→ '상태 확인 필요' 또는 숨김 처리).
+ * 1차: roundId → event.rounds 매칭
+ * 2차: eventDateTime 날짜 → round.eventDate 매칭
+ * 3차: 이벤트 레벨 날짜 fallback
+ */
+export function resolveRoundTimes(
+  roundId: string | null | undefined,
+  eventDateTime: string | null | undefined,
+  event: EventSummary,
+): RoundTimes | null {
   if (event.rounds?.length) {
     // 1차: roundId 매칭
-    let round = ticketRoundId
-      ? event.rounds.find((r) => r.id != null && String(r.id) === ticketRoundId)
+    let round = roundId
+      ? event.rounds.find((r) => r.id != null && String(r.id) === roundId)
       : undefined;
 
     // 2차: eventDateTime 날짜로 매칭
-    if (!round && ticket.eventDateTime) {
-      const ticketDate = ticket.eventDateTime.slice(0, 10);
+    if (!round && eventDateTime) {
+      const ticketDate = eventDateTime.slice(0, 10);
       round = event.rounds.find((r) => r.eventDate?.slice(0, 10) === ticketDate);
     }
 
     if (round) {
       const startStr = round.startTime ? `${round.eventDate}T${round.startTime}` : round.eventDate;
       const endStr   = round.endTime   ? `${round.eventDate}T${round.endTime}`   : round.eventDate;
-      const startMs = startStr ? new Date(startStr).getTime() : NaN;
-      const endMs   = endStr   ? new Date(endStr).getTime()   : NaN;
+      const startMs  = startStr ? new Date(startStr).getTime() : NaN;
+      const endMs    = endStr   ? new Date(endStr).getTime()   : NaN;
       if (!Number.isNaN(endMs)) return { startMs, endMs };
     }
   }
@@ -157,13 +166,13 @@ function resolveRoundTimes(ticket: TicketDetail, event: EventSummary): RoundTime
   // 3차: 이벤트 레벨 fallback
   const endValue   = eventEndValue(event);
   const startValue = event.eventStartAt || event.startsAt || event.eventAt || event.eventDateTime;
-  const endMs   = endValue   ? new Date(endValue).getTime()   : NaN;
-  const startMs = startValue ? new Date(startValue).getTime() : NaN;
+  const endMs      = endValue   ? new Date(endValue).getTime()   : NaN;
+  const startMs    = startValue ? new Date(startValue).getTime() : NaN;
   if (!Number.isNaN(endMs)) return { startMs, endMs };
 
-  // ticket.eventDateTime fallback
-  if (ticket.eventDateTime) {
-    const ms = new Date(ticket.eventDateTime).getTime();
+  // eventDateTime param fallback
+  if (eventDateTime) {
+    const ms = new Date(eventDateTime).getTime();
     if (!Number.isNaN(ms)) return { startMs: ms, endMs: ms };
   }
 
@@ -188,7 +197,11 @@ export function ticketEntryStatus(ticket?: TicketDetail | null, event?: EventSum
 
   // 4. event 또는 회차 정보를 확인할 수 없음 → 상태 확인 필요
   if (!event) return { label: '상태 확인 필요', tone: 'gray' };
-  const times = resolveRoundTimes(ticket, event);
+  const times = resolveRoundTimes(
+    ticket.eventRoundId ? String(ticket.eventRoundId) : null,
+    ticket.eventDateTime,
+    event,
+  );
   if (!times) return { label: '상태 확인 필요', tone: 'gray' };
 
   const { startMs, endMs } = times;

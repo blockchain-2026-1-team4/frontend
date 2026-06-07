@@ -9,7 +9,7 @@ import {
   eventDateLabel,
   eventVenue,
   formatDateTime,
-  isEventEnded,
+  resolveRoundTimes,
   weiToEthLabel,
 } from '../lib/ticketFlowDisplay';
 import type { EventDetail, ResaleListing, UserProfile } from '../types/api';
@@ -22,6 +22,8 @@ type ResaleListingView = ResaleListing & {
   originalPriceWei?: string;
   sectionName?: string;
   saleEndAt?: string;
+  eventRoundId?: string;
+  eventDateTime?: string;
 };
 
 type ResaleEventGroup = {
@@ -91,7 +93,7 @@ function statusLabel(status?: string) {
   if (['SOLD', 'COMPLETED', 'PURCHASED'].includes(normalized)) return '판매완료';
   if (['CLOSED', 'EXPIRED'].includes(normalized)) return '판매종료';
   if (normalized === 'CANCELED') return '취소됨';
-  return status || '-';
+  return '판매불가';
 }
 
 function statusTone(status?: string): 'green' | 'gray' | 'red' | 'purple' {
@@ -205,20 +207,41 @@ export default function ResaleListPage({ navigation, route }: any) {
                 sectionName: ticket.sectionName,
                 originalPriceWei: ticket.originalPriceWei || ticket.priceWei,
                 saleEndAt: ticket.saleEndAt,
+                eventRoundId: ticket.eventRoundId,
+                eventDateTime: ticket.eventDateTime,
               };
             } catch {
-              return item;
+              return { ...item } as ResaleListingView;
             }
           }),
         );
 
-        const activeItems = enrichedItems.filter((item) => !isEventEnded(nextEventMap[String(item.eventId)]));
-        const endedCount = enrichedItems.length - activeItems.length;
+        const now = Date.now();
+        const activeItems = enrichedItems.filter((item) => {
+          const event = nextEventMap[String(item.eventId)];
+
+          // 1-2. 이벤트 비공개/취소
+          const eventStatus = String(event?.status ?? '').toUpperCase();
+          if (!event || eventStatus === 'CANCELLED' || eventStatus === 'DRAFT' || eventStatus === 'INACTIVE') return false;
+
+          // 3. 리스팅 취소
+          if (String(item.status ?? '').toUpperCase() === 'CANCELED') return false;
+
+          // 6-8. 회차 기준 판정
+          const times = resolveRoundTimes(item.eventRoundId ?? null, item.eventDateTime ?? null, event);
+          if (!times) return false; // 회차 정보 불명 → 숨김
+
+          // 종료된 회차 → 숨김
+          if (now >= times.endMs) return false;
+
+          // 이미 시작된 회차 → 숨김
+          if (!Number.isNaN(times.startMs) && now >= times.startMs) return false;
+
+          return true;
+        });
+
         setListings(activeItems);
         setEventMap(nextEventMap);
-        if (endedCount > 0) {
-          showDialog('판매 종료', `${endedCount}개의 리셀 티켓은 공연이 종료되어 리셀마켓에서 내려갔습니다.`);
-        }
       } finally {
         setLoading(false);
       }
