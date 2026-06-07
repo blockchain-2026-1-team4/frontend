@@ -38,7 +38,7 @@ function statusTone(tone: string): 'green' | 'purple' | 'gray' | 'red' | 'yellow
   if (tone === 'green') return 'green';
   if (tone === 'red') return 'red';
   if (tone === 'yellow') return 'yellow';
-  if (tone === 'blue') return 'purple';
+  if (tone === 'purple' || tone === 'blue') return 'purple';
   return 'gray';
 }
 

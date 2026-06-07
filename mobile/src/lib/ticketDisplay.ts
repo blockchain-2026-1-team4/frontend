@@ -33,7 +33,7 @@ const EVENT_STATUS_LABEL: Record<string, string> = {
 
 export type DisplayStatus = {
   label: string;
-  tone: 'neutral' | 'blue' | 'green' | 'yellow' | 'red' | 'gray';
+  tone: 'neutral' | 'blue' | 'green' | 'yellow' | 'red' | 'gray' | 'purple';
 };
 
 function normalized(value?: string | null) {
@@ -178,38 +178,78 @@ export function formatSalesStatus(start?: string | null, end?: string | null, no
 
 export function getEventDisplayStatus(event?: EventSummary | null, now = new Date()): DisplayStatus {
   if (!event) return { label: '-', tone: 'gray' };
+
   const status = normalized(event.status);
+  // 1. CANCELLED
   if (status === 'CANCELLED') return { label: '취소', tone: 'red' };
+  // 2. DRAFT
   if (status === 'DRAFT') return { label: '초안', tone: 'gray' };
-  if (status === 'INACTIVE') return { label: '비공개', tone: 'gray' };
+  // 3. INACTIVE
+  if (status === 'INACTIVE') return { label: '비공개', tone: 'purple' };
 
+  // PUBLISHED only from here
   const current = now.getTime();
-  const roundStarts = event.rounds?.map(roundStartAt).filter((value) => !Number.isNaN(value)) ?? [];
-  const roundEnds = event.rounds?.map(roundEndAt).filter((value) => !Number.isNaN(value)) ?? [];
-  const firstStart = roundStarts.length ? Math.min(...roundStarts) : timeOf(event.eventStartAt || event.startsAt || event.eventAt || event.eventDateTime);
-  const lastEnd = roundEnds.length ? Math.max(...roundEnds) : timeOf(event.eventEndAt || event.endsAt || event.eventAt || event.eventDateTime);
-
   const total = Number(event.totalTicketCount ?? 0);
   const remaining = Number(event.remainingTicketCount ?? 0);
-  const issued = total > 0 ? total - remaining : 0;
+  const sold = Number(event.soldTicketCount ?? 0);
+  const issued = total > 0 ? total - remaining : sold;
 
-  if (!Number.isNaN(lastEnd) && current > lastEnd) return { label: '종료', tone: 'gray' };
-  if (!Number.isNaN(firstStart) && !Number.isNaN(lastEnd) && current >= firstStart && current <= lastEnd) {
-    return { label: '개최중', tone: 'green' };
+  type RoundInfo = { startMs: number; endMs: number; saleStartMs: number; saleEndMs: number };
+  const rounds: RoundInfo[] = event.rounds?.length
+    ? event.rounds.map((r) => ({
+        startMs: roundStartAt(r),
+        endMs: roundEndAt(r),
+        saleStartMs: timeOf(r.saleStartAt || event.primarySaleStart || event.salesStartAt),
+        saleEndMs: timeOf(r.saleEndAt || event.primarySaleEnd || event.salesEndAt),
+      }))
+    : [{
+        startMs: timeOf(event.eventStartAt || event.startsAt || event.eventAt || event.eventDateTime),
+        endMs: timeOf(event.eventEndAt || event.endsAt || event.eventAt || event.eventDateTime),
+        saleStartMs: timeOf(event.primarySaleStart || event.salesStartAt),
+        saleEndMs: timeOf(event.primarySaleEnd || event.salesEndAt),
+      }];
+
+  // 4. 모든 회차 종료
+  const datedRounds = rounds.filter((r) => !Number.isNaN(r.endMs));
+  if (datedRounds.length > 0 && datedRounds.every((r) => current >= r.endMs)) {
+    return { label: '종료', tone: 'gray' };
   }
-  if ((event.soldOut || remaining === 0) && issued > 0) return { label: '매진', tone: 'red' };
 
-  const saleStart = event.salesStartAt || event.primarySaleStart;
-  const saleEnd = event.salesEndAt || event.primarySaleEnd;
-  const saleStartTime = timeOf(saleStart);
-  const saleEndTime = timeOf(saleEnd);
-  if (!Number.isNaN(saleStartTime) && current < saleStartTime) return { label: '판매 예정', tone: 'yellow' };
-  if (!Number.isNaN(saleEndTime) && current > saleEndTime) return { label: '판매 종료', tone: 'gray' };
-  if (!Number.isNaN(saleStartTime) || !Number.isNaN(saleEndTime)) return { label: '판매 중', tone: 'blue' };
-
+  // 5. 발행 티켓 없음
   if (issued <= 0) return { label: '티켓 미발행', tone: 'gray' };
 
-  return { label: '판매 예정', tone: 'yellow' };
+  // 6. 현재 진행 중인 회차 있음 (시작 후 + 미종료)
+  const hasOngoing = rounds.some(
+    (r) => !Number.isNaN(r.startMs) && current >= r.startMs && (Number.isNaN(r.endMs) || current < r.endMs),
+  );
+  if (hasOngoing) return { label: '개최중', tone: 'green' };
+
+  // 7. 판매기간 내 + 잔여 티켓 있음
+  const hasSaleActive = rounds.some((r) => {
+    const notEnded = Number.isNaN(r.endMs) || current < r.endMs;
+    const saleStarted = Number.isNaN(r.saleStartMs) || current >= r.saleStartMs;
+    const saleNotEnded = Number.isNaN(r.saleEndMs) || current <= r.saleEndMs;
+    return notEnded && saleStarted && saleNotEnded;
+  });
+  if (hasSaleActive && remaining > 0) return { label: '판매 중', tone: 'green' };
+
+  // 8. 판매 시작 전인 회차 있음
+  const hasPreSale = rounds.some(
+    (r) => (Number.isNaN(r.endMs) || current < r.endMs) && !Number.isNaN(r.saleStartMs) && current < r.saleStartMs,
+  );
+  if (hasPreSale) return { label: '판매 예정', tone: 'yellow' };
+
+  // 9. 발행 티켓 있음 + 잔여 티켓 없음
+  if (issued > 0 && remaining === 0) return { label: '매진', tone: 'red' };
+
+  // 10. 판매 종료 + 아직 시작 전인 회차 있음
+  const hasSaleEndedFutureRound = rounds.some(
+    (r) => (Number.isNaN(r.startMs) || current < r.startMs) && !Number.isNaN(r.saleEndMs) && current >= r.saleEndMs,
+  );
+  if (hasSaleEndedFutureRound) return { label: '판매 종료', tone: 'gray' };
+
+  // 11. 그 외
+  return { label: '운영 중', tone: 'green' };
 }
 
 export function getSalesDisplayStatus(event?: EventSummary | null, now = new Date()): DisplayStatus {
@@ -411,37 +451,37 @@ export function getTicketDisplayStatus(
 export function eventDisplaySortRank(event?: EventSummary | null, now = new Date()) {
   const status = getEventDisplayStatus(event, now).label;
   const ranks: Record<string, number> = {
-    취소: 0,
-    종료: 1,
-    개최중: 2,
-    '판매 중': 3,
-    '판매 예정': 4,
-    매진: 5,
-    '판매 종료': 6,
-    '티켓 미발행': 7,
+    '개최중':      0,
+    '판매 중':     1,
+    '판매 예정':   2,
+    '매진':        3,
+    '판매 종료':   4,
+    '운영 중':     5,
+    '티켓 미발행': 6,
+    '종료':        7,
+    '비공개':      8,
+    '초안':        9,
+    '취소':        10,
   };
-  if (status === '종료') {
-    const end = event?.eventEndAt || event?.endsAt || event?.eventAt || event?.eventDateTime;
-    const endTime = timeOf(end);
-    const soonThreshold = now.getTime() - 7 * 24 * 60 * 60 * 1000;
-    if (!Number.isNaN(endTime) && endTime >= soonThreshold) return 4;
-  }
-  return ranks[status] ?? 2;
+  return ranks[status] ?? 5;
 }
 
 export function operationSortRank(event?: EventSummary | null, now = new Date()) {
   const status = getEventDisplayStatus(event, now).label;
   const ranks: Record<string, number> = {
-    개최중:      0,
-    '판매 중':    1,
-    '판매 예정':  2,
-    '매진':       3,
-    '종료':       4,
-    '판매 종료':  5,
-    '취소':       6,
-    '티켓 미발행': 7,
+    '개최중':      0,
+    '판매 중':     1,
+    '판매 예정':   2,
+    '매진':        3,
+    '판매 종료':   4,
+    '운영 중':     5,
+    '티켓 미발행': 6,
+    '종료':        7,
+    '비공개':      8,
+    '초안':        9,
+    '취소':        10,
   };
-  return ranks[status] ?? 7;
+  return ranks[status] ?? 5;
 }
 
 export function salesSortRank(event?: EventSummary | null, now = new Date()) {

@@ -15,7 +15,7 @@ import { FlowBadge, PosterArt, TicketIcon, flowShadow } from '../components/Tick
 import { errorMessage } from '../lib/account';
 import { backendApi } from '../lib/backend';
 import { resolveImageUrl } from '../lib/config';
-import { formatEventCategory, getNextRoundTime, operationSortRank } from '../lib/ticketDisplay';
+import { formatEventCategory, getEventDisplayStatus, getNextRoundTime, operationSortRank } from '../lib/ticketDisplay';
 import type { EventSummary } from '../types/api';
 
 type StatusFilter = 'all' | 'operating' | 'inactive' | 'ended' | 'cancelled';
@@ -23,17 +23,13 @@ type StatusFilter = 'all' | 'operating' | 'inactive' | 'ended' | 'cancelled';
 const STATUS_FILTERS: { key: StatusFilter; label: string }[] = [
   { key: 'all', label: '전체' },
   { key: 'operating', label: '운영 중' },
-  { key: 'inactive', label: '준비 중' },
+  { key: 'inactive', label: '비공개' },
   { key: 'ended', label: '종료' },
   { key: 'cancelled', label: '취소' },
 ];
 
 function eventTitle(event: EventSummary) {
   return event.name || event.title || '제목 없는 이벤트';
-}
-
-function eventEnd(event: EventSummary) {
-  return event.eventEndAt || event.endsAt || event.eventAt || event.eventDateTime || '';
 }
 
 function eventStart(event: EventSummary) {
@@ -43,24 +39,14 @@ function eventStart(event: EventSummary) {
   return Number.isNaN(fallback.getTime()) ? null : fallback;
 }
 
-function isEnded(event: EventSummary) {
-  if (String(event.status ?? '').toUpperCase() === 'CANCELLED') return false;
-  const end = new Date(eventEnd(event)).getTime();
-  return !Number.isNaN(end) && end < Date.now();
-}
-
-function isCancelled(event: EventSummary) {
-  return String(event.status ?? '').toUpperCase() === 'CANCELLED';
-}
-
 function eventBadge(event: EventSummary): { label: string; tone: 'green' | 'purple' | 'gray' | 'red' | 'yellow' } {
-  const status = String(event.status ?? '').toUpperCase();
-  if (isCancelled(event)) return { label: '취소', tone: 'red' };
-  if (isEnded(event)) return { label: '종료', tone: 'gray' };
-  if (status === 'PUBLISHED') return { label: '운영 중', tone: 'green' };
-  if (status === 'INACTIVE') return { label: '준비 중', tone: 'purple' };
-  if (status === 'DRAFT') return { label: '초안', tone: 'gray' };
-  return { label: status || '상태 없음', tone: 'yellow' };
+  const { label, tone } = getEventDisplayStatus(event);
+  const badgeTone: 'green' | 'purple' | 'gray' | 'red' | 'yellow' =
+    tone === 'green' ? 'green' :
+    tone === 'purple' ? 'purple' :
+    tone === 'red' ? 'red' :
+    tone === 'yellow' ? 'yellow' : 'gray';
+  return { label, tone: badgeTone };
 }
 
 function eventPosterUrl(event: EventSummary) {
@@ -98,11 +84,12 @@ export default function MyEventsPage({ navigation }: any) {
     const normalized = query.trim().toLowerCase();
     return events
       .filter((event) => {
-        const status = String(event.status ?? '').toUpperCase();
-        if (statusFilter === 'operating') return status === 'PUBLISHED' && !isEnded(event) && !isCancelled(event);
-        if (statusFilter === 'inactive') return status === 'INACTIVE';
-        if (statusFilter === 'ended') return isEnded(event);
-        if (statusFilter === 'cancelled') return isCancelled(event);
+        if (statusFilter === 'all') return true;
+        const badge = eventBadge(event);
+        if (statusFilter === 'operating') return !['종료', '취소', '초안', '비공개'].includes(badge.label);
+        if (statusFilter === 'inactive') return badge.label === '비공개';
+        if (statusFilter === 'ended') return badge.label === '종료';
+        if (statusFilter === 'cancelled') return badge.label === '취소';
         return true;
       })
       .filter((event) => !normalized || `${eventTitle(event)} ${event.venue || ''} ${formatEventCategory(event.category)}`.toLowerCase().includes(normalized))
