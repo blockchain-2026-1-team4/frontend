@@ -544,6 +544,266 @@ export function salesSortRank(event?: EventSummary | null, now = new Date()) {
   return ranks[status] ?? 4;
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+//  행동 가능 여부 판정 (공통 시간 판정 → 구매 · 사용 · 리셀 가능 여부)
+// ═══════════════════════════════════════════════════════════════════════════
+
+export type RoundMs = {
+  saleStartMs:  number;
+  saleEndMs:    number;
+  roundStartMs: number;
+  roundEndMs:   number;
+};
+
+/** 회차(없으면 이벤트 전체) 기준 시간 정보를 ms 단위로 추출 */
+export function getRoundMs(
+  round: EventRound | null | undefined,
+  event: EventSummary,
+): RoundMs {
+  return {
+    saleStartMs:  timeOf(round?.saleStartAt  || event.primarySaleStart || event.salesStartAt),
+    saleEndMs:    timeOf(round?.saleEndAt    || event.primarySaleEnd   || event.salesEndAt),
+    roundStartMs: round
+      ? roundStartAt(round)
+      : timeOf(event.eventStartAt || event.startsAt || event.eventAt || event.eventDateTime),
+    roundEndMs: round
+      ? roundEndAt(round)
+      : timeOf(event.eventEndAt || event.endsAt || event.eventAt || event.eventDateTime),
+  };
+}
+
+/** ticket.eventRoundId 로 event.rounds 에서 해당 회차를 찾는다 */
+export function findTicketRound(
+  ticket: TicketDetail,
+  event: EventSummary,
+): EventRound | undefined {
+  if (ticket.eventRoundId == null || !event.rounds?.length) return undefined;
+  return event.rounds.find((r) => r.id != null && String(r.id) === String(ticket.eventRoundId));
+}
+
+// ── 원자 판정식 ────────────────────────────────────────────────────────────
+// NaN(미설정) 처리 원칙:
+//   saleStart  미설정 → isSaleStarted = false  (판매 미시작 가정)
+//   saleEnd    미설정 → isSaleEnded   = false  (판매 미종료 가정)
+//   roundStart 미설정 → isRoundStarted = false
+//   roundEnd   미설정 → isRoundEnded  = false
+
+export function isSaleStarted(rms: RoundMs, nowMs: number)  { return !Number.isNaN(rms.saleStartMs)  && rms.saleStartMs  <= nowMs; }
+export function isSaleEnded(rms: RoundMs, nowMs: number)    { return !Number.isNaN(rms.saleEndMs)    && rms.saleEndMs    <= nowMs; }
+export function isRoundStarted(rms: RoundMs, nowMs: number) { return !Number.isNaN(rms.roundStartMs) && rms.roundStartMs <= nowMs; }
+export function isRoundEnded(rms: RoundMs, nowMs: number)   { return !Number.isNaN(rms.roundEndMs)   && rms.roundEndMs   <= nowMs; }
+export function isCheckInOpen(rms: RoundMs, nowMs: number) {
+  if (Number.isNaN(rms.roundStartMs)) return false;
+  return rms.roundStartMs - CHECK_IN_OPEN_MINUTES * 60_000 <= nowMs;
+}
+
+// ── 1. 좌석/티켓 구매 가능 여부 ───────────────────────────────────────────
+
+export function ticketCanBuy(
+  ticket?: TicketDetail | null,
+  event?: EventSummary | null,
+  round?: EventRound | null,
+  nowMs = Date.now(),
+): boolean {
+  if (!ticket || !event) return false;
+  if (normalized(event.status) !== 'PUBLISHED') return false;
+  if (normalized(ticket.status) !== 'AVAILABLE') return false;
+  const rms = getRoundMs(round, event);
+  return (
+    isSaleStarted(rms, nowMs) &&
+    !isSaleEnded(rms, nowMs) &&
+    !isRoundStarted(rms, nowMs) &&
+    !isRoundEnded(rms, nowMs)
+  );
+}
+
+export type BuyBlockReason =
+  | 'event_cancelled' | 'event_not_published'
+  | 'ticket_unavailable' | 'round_ended'
+  | 'sale_ended' | 'pre_sale' | 'unknown';
+
+const BUY_BLOCK_LABEL: Record<BuyBlockReason, string> = {
+  event_cancelled:     '이벤트 취소',
+  event_not_published: '판매 불가',
+  ticket_unavailable:  '구매 불가',
+  round_ended:         '판매 종료',
+  sale_ended:          '판매 종료',
+  pre_sale:            '판매 예정',
+  unknown:             '상태 확인 필요',
+};
+
+/** ticketCanBuy === false 일 때 사유 반환. 구매 가능하면 null */
+export function ticketBuyBlockReason(
+  ticket?: TicketDetail | null,
+  event?: EventSummary | null,
+  round?: EventRound | null,
+  nowMs = Date.now(),
+): BuyBlockReason | null {
+  if (!ticket || !event) return 'unknown';
+  if (ticketCanBuy(ticket, event, round, nowMs)) return null;
+  const evtStatus = normalized(event.status);
+  if (evtStatus === 'CANCELLED') return 'event_cancelled';
+  if (evtStatus !== 'PUBLISHED') return 'event_not_published';
+  if (normalized(ticket.status) !== 'AVAILABLE') return 'ticket_unavailable';
+  const rms = getRoundMs(round, event);
+  if (isRoundEnded(rms, nowMs))   return 'round_ended';
+  if (isRoundStarted(rms, nowMs)) return 'round_ended';   // 공연 시작 후 = 판매 종료
+  if (isSaleEnded(rms, nowMs))    return 'sale_ended';
+  if (!isSaleStarted(rms, nowMs)) return 'pre_sale';
+  return 'unknown';
+}
+
+export function ticketBuyBlockLabel(reason?: BuyBlockReason | null): string | null {
+  if (!reason) return null;
+  return BUY_BLOCK_LABEL[reason] ?? '상태 확인 필요';
+}
+
+// ── 2. 구역 구매 가능 여부 ─────────────────────────────────────────────────
+
+/** 구역(같은 sectionName) 티켓 중 하나라도 구매 가능하면 true */
+export function sectionCanBuy(
+  sectionTickets: TicketDetail[],
+  event?: EventSummary | null,
+  round?: EventRound | null,
+  nowMs = Date.now(),
+): boolean {
+  return sectionTickets.some((t) => ticketCanBuy(t, event, round, nowMs));
+}
+
+// ── 3. 회차 활성 여부 ──────────────────────────────────────────────────────
+
+/**
+ * 회차가 "진행 중"인지 판단한다.
+ * tickets 를 넘기면 section 단위 구매 가능 여부로 정확히 계산하고,
+ * tickets 가 없으면 판매 기간·잔여 수량으로 근사 계산한다.
+ */
+export function isRoundActiveNow(
+  round: EventRound,
+  event: EventSummary,
+  tickets?: TicketDetail[] | null,
+  nowMs = Date.now(),
+): boolean {
+  if (normalized(event.status) !== 'PUBLISHED') return false;
+  const rms = getRoundMs(round, event);
+  if (isRoundEnded(rms, nowMs)) return false;
+
+  if (tickets != null) {
+    const roundTickets = tickets.filter(
+      (t) => t.eventRoundId != null && String(t.eventRoundId) === String(round.id),
+    );
+    const bySection = new Map<string, TicketDetail[]>();
+    roundTickets.forEach((t) => {
+      const key = t.sectionName ?? 'default';
+      bySection.set(key, [...(bySection.get(key) ?? []), t]);
+    });
+    if (bySection.size === 0) return false;
+    return [...bySection.values()].some((st) => sectionCanBuy(st, event, round, nowMs));
+  }
+
+  // tickets 없을 때 근사: 판매 기간 활성 + 이벤트 잔여 티켓 있음
+  return (
+    isSaleStarted(rms, nowMs) &&
+    !isSaleEnded(rms, nowMs) &&
+    Number(event.remainingTicketCount ?? 0) > 0
+  );
+}
+
+// ── 4. 이벤트 목록 노출 여부 ───────────────────────────────────────────────
+
+/** PUBLISHED + 진행 중 회차가 하나 이상 있으면 true */
+export function isEventListedNow(
+  event: EventSummary,
+  tickets?: TicketDetail[] | null,
+  nowMs = Date.now(),
+): boolean {
+  if (normalized(event.status) !== 'PUBLISHED') return false;
+  const rounds = event.rounds ?? [];
+  if (rounds.length === 0) return false;
+  return rounds.some((r) => isRoundActiveNow(r, event, tickets, nowMs));
+}
+
+// ── 5. 구매한 티켓 사용 가능 여부 ─────────────────────────────────────────
+
+export function myTicketUsable(
+  ticket?: TicketDetail | null,
+  event?: EventSummary | null,
+  round?: EventRound | null,
+  nowMs = Date.now(),
+): boolean {
+  if (!ticket || !event) return false;
+  if (normalized(ticket.status) !== 'SOLD') return false;
+  if (normalized(event.status) !== 'PUBLISHED') return false;
+  const rms = getRoundMs(round, event);
+  return isCheckInOpen(rms, nowMs) && !isRoundEnded(rms, nowMs);
+}
+
+export type UseBlockReason =
+  | 'used' | 'cancelled' | 'event_cancelled' | 'event_not_published'
+  | 'listed' | 'round_ended' | 'before_checkin' | 'ticket_not_sold' | 'unknown';
+
+const USE_BLOCK_LABEL: Record<UseBlockReason, string> = {
+  used:                '사용 완료',
+  cancelled:           '취소됨',
+  event_cancelled:     '이벤트 취소',
+  event_not_published: '사용 불가',
+  listed:              '리셀 중',
+  round_ended:         '사용 기간 종료',
+  before_checkin:      '사용 전',
+  ticket_not_sold:     '사용 불가',
+  unknown:             '상태 확인 필요',
+};
+
+/** myTicketUsable === false 일 때 사유 반환. 사용 가능하면 null */
+export function myTicketUseBlockReason(
+  ticket?: TicketDetail | null,
+  event?: EventSummary | null,
+  round?: EventRound | null,
+  nowMs = Date.now(),
+): UseBlockReason | null {
+  if (!ticket || !event) return 'unknown';
+  if (myTicketUsable(ticket, event, round, nowMs)) return null;
+  const ticketStatus = normalized(ticket.status);
+  if (ticketStatus === 'USED')      return 'used';
+  if (ticketStatus === 'CANCELLED') return 'cancelled';
+  const evtStatus = normalized(event.status);
+  if (evtStatus === 'CANCELLED') return 'event_cancelled';
+  if (evtStatus !== 'PUBLISHED') return 'event_not_published';
+  if (ticketStatus === 'LISTED')    return 'listed';
+  const rms = getRoundMs(round, event);
+  if (isRoundEnded(rms, nowMs))    return 'round_ended';
+  if (!isCheckInOpen(rms, nowMs))  return 'before_checkin';
+  if (ticketStatus !== 'SOLD')     return 'ticket_not_sold';
+  return 'unknown';
+}
+
+export function myTicketUseBlockLabel(reason?: UseBlockReason | null): string | null {
+  if (!reason) return null;
+  return USE_BLOCK_LABEL[reason] ?? '상태 확인 필요';
+}
+
+// ── 6. 리셀 상태 ──────────────────────────────────────────────────────────
+
+export type ResaleState = 'active' | 'completed' | 'hidden';
+
+export function resaleListingState(
+  listing: { status?: string | null },
+  ticket: TicketDetail,
+  event: EventSummary,
+  round?: EventRound | null,
+  nowMs = Date.now(),
+): ResaleState {
+  const listingStatus = normalized(listing.status);
+  if (listingStatus === 'SOLD') return 'completed';
+  if (normalized(event.status) !== 'PUBLISHED') return 'hidden';
+  if (listingStatus === 'CLOSED' || listingStatus === 'CANCELED') return 'hidden';
+  if (normalized(ticket.status) !== 'LISTED') return 'hidden';
+  const rms = getRoundMs(round, event);
+  if (isRoundStarted(rms, nowMs) || isRoundEnded(rms, nowMs)) return 'hidden';
+  if (Number.isNaN(rms.roundStartMs) && Number.isNaN(rms.roundEndMs)) return 'hidden';
+  if (listingStatus === 'ACTIVE') return 'active';
+  return 'hidden';
+}
+
 export function weiToEth(wei?: string | number | null) {
   if (wei === undefined || wei === null || wei === '') return '-';
   try {
