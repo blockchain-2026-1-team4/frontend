@@ -203,12 +203,17 @@ export default function OrganizerDashboardPage({ navigation }: any) {
         setTicketMetrics({ checkedInTickets: 0, totalTickets: 0, totalParticipants: 0 });
       }
     } catch (error: any) {
-      Alert.alert('주최자 정보 로드 실패', errorMessage(error, '로그인이 필요합니다.'));
+      const httpStatus = (error as any)?.response?.status ?? (error as any)?.status;
+      if (httpStatus === 401) {
+        navigation.reset({ index: 0, routes: [{ name: 'Auth', params: { initialRole: 'ORGANIZER' } }] });
+        return;
+      }
+      Alert.alert('주최자 정보 로드 실패', errorMessage(error, '정보를 불러오지 못했습니다.'));
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [navigation]);
 
   useFocusEffect(
     useCallback(() => {

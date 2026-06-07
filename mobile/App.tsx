@@ -118,7 +118,11 @@ export default function App() {
 
       if (organizerRoutes.has(routeName)) {
         const profile = await backendApi.getMe().catch(() => null);
-        if (!profile || !hasOrganizerAccess(profile.roles)) {
+        if (!profile) {
+          navigationRef.navigate('Auth', { initialRole: 'ORGANIZER' });
+          return;
+        }
+        if (!hasOrganizerAccess(profile.roles)) {
           showDialog('주최자 승인 대기 중입니다.', '관리자 승인 후 주최자 기능을 사용할 수 있습니다.');
           navigationRef.navigate('Organizer');
           return;
