@@ -87,21 +87,12 @@ function minListingOf(listings: ResaleListingView[]) {
   ))[0];
 }
 
-function statusLabel(status?: string) {
-  const normalized = String(status ?? '').toUpperCase();
-  if (['ACTIVE', 'LISTED', 'OPEN', 'ON_SALE'].includes(normalized)) return '판매중';
-  if (['SOLD', 'COMPLETED', 'PURCHASED'].includes(normalized)) return '판매완료';
-  if (['CLOSED', 'EXPIRED'].includes(normalized)) return '판매종료';
-  if (normalized === 'CANCELED') return '취소됨';
-  return '판매불가';
+function statusLabel(_status?: string) {
+  return '리셀 중';
 }
 
-function statusTone(status?: string): 'green' | 'gray' | 'red' | 'purple' {
-  const label = statusLabel(status);
-  if (label === '판매중') return 'green';
-  if (label === '취소됨') return 'red';
-  if (label === '판매완료' || label === '판매종료') return 'gray';
-  return 'purple';
+function statusTone(_status?: string): 'green' | 'gray' | 'red' | 'purple' {
+  return 'green';
 }
 
 function seatLabelOf(item: ResaleListingView) {

@@ -181,53 +181,58 @@ export function resolveRoundTimes(
 }
 
 export function ticketEntryStatus(ticket?: TicketDetail | null, event?: EventSummary | null): TicketFlowStatus {
-  if (!ticket) return { label: '-', tone: 'gray' };
+  if (!ticket) return { label: '사용 불가', tone: 'gray' };
 
   const status = String(ticket.status ?? '').toUpperCase();
   const now = Date.now();
 
-  // 1. USED → 체크인 완료
-  if (status === 'USED') return { label: '체크인 완료', tone: 'gray' };
-
-  // 2. CANCELLED (ticket) → 사용 불가
+  if (status === 'USED') return { label: '사용 불가', tone: 'gray' };
   if (status === 'CANCELLED') return { label: '사용 불가', tone: 'red' };
+  if (String(event?.status ?? '').toUpperCase() === 'CANCELLED') return { label: '사용 불가', tone: 'red' };
+  if (!event) return { label: '사용 불가', tone: 'gray' };
 
-  // 3. event.status = CANCELLED → 이벤트 취소
-  if (String(event?.status ?? '').toUpperCase() === 'CANCELLED') return { label: '이벤트 취소', tone: 'red' };
-
-  // 4. event 또는 회차 정보를 확인할 수 없음 → 상태 확인 필요
-  if (!event) return { label: '상태 확인 필요', tone: 'gray' };
   const times = resolveRoundTimes(
     ticket.eventRoundId ? String(ticket.eventRoundId) : null,
     ticket.eventDateTime,
     event,
   );
-  if (!times) return { label: '상태 확인 필요', tone: 'gray' };
+  if (!times) return { label: '사용 불가', tone: 'gray' };
 
   const { startMs, endMs } = times;
   const roundEnded  = now >= endMs;
   const checkInOpen = !Number.isNaN(startMs) && now >= startMs - CHECK_IN_OPEN_BEFORE_MS && !roundEnded;
 
-  // 5. LISTED + 회차 종료 → 사용 기간 종료
-  if (status === 'LISTED' && roundEnded) return { label: '사용 기간 종료', tone: 'gray' };
+  if (status === 'LISTED') return { label: '사용 불가', tone: 'gray' };
+  if (status === 'SOLD' && roundEnded) return { label: '사용 불가', tone: 'gray' };
+  if (status === 'SOLD' && checkInOpen) return { label: '사용 가능', tone: 'green' };
+  if (status === 'SOLD') return { label: '사용 불가', tone: 'gray' };
 
-  // 6. LISTED + 회차 미종료 → 리셀 중
-  if (status === 'LISTED') return { label: '리셀 중', tone: 'yellow' };
+  return { label: '사용 불가', tone: 'gray' };
+}
 
-  // 7. SOLD + 회차 종료 → 사용 기간 종료
-  if (status === 'SOLD' && roundEnded) return { label: '사용 기간 종료', tone: 'gray' };
-
-  // 8. SOLD + 체크인 오픈 전 → 보유 중
-  if (status === 'SOLD' && !checkInOpen) return { label: '보유 중', tone: 'gray' };
-
-  // 9. SOLD + 체크인 가능 시간 → 입장 가능
-  if (status === 'SOLD') return { label: '입장 가능', tone: 'green' };
-
-  // 10. AVAILABLE → 판매 가능
-  if (status === 'AVAILABLE') return { label: '판매 가능', tone: 'blue' };
-
-  // 11. 그 외
-  return { label: ticketStatusLabel(status), tone: 'gray' };
+/** 사용 불가 사유 문구 (보조 텍스트용). 사용 가능하면 null */
+export function ticketEntryReason(ticket?: TicketDetail | null, event?: EventSummary | null): string | null {
+  if (!ticket) return '상태 확인 필요';
+  const status = String(ticket.status ?? '').toUpperCase();
+  const now = Date.now();
+  if (status === 'USED') return '사용 완료';
+  if (status === 'CANCELLED') return '취소됨';
+  if (String(event?.status ?? '').toUpperCase() === 'CANCELLED') return '이벤트 취소';
+  if (!event) return '상태 확인 필요';
+  const times = resolveRoundTimes(
+    ticket.eventRoundId ? String(ticket.eventRoundId) : null,
+    ticket.eventDateTime,
+    event,
+  );
+  if (!times) return '상태 확인 필요';
+  const { startMs, endMs } = times;
+  const roundEnded  = now >= endMs;
+  if (roundEnded) return '사용 기간 종료';
+  if (status === 'LISTED') return '리셀 중';
+  const checkInOpen = !Number.isNaN(startMs) && now >= startMs - CHECK_IN_OPEN_BEFORE_MS;
+  if (status === 'SOLD' && checkInOpen) return null;
+  if (status === 'SOLD') return '사용 전';
+  return '상태 확인 필요';
 }
 
 export function entryStatusOf(ticket?: TicketDetail | null, event?: EventSummary | null): TicketFlowStatus {

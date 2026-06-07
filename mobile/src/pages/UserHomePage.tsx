@@ -23,7 +23,7 @@ import {
   formatEventCategory,
   formatNextRoundLabel,
   getNextRoundTime,
-  getUserEventDisplayStatus,
+  isEventListedNow,
   userSortRank,
   weiToEth,
 } from '../lib/ticketDisplay';
@@ -225,7 +225,7 @@ export default function UserHomePage({ navigation }: any) {
   const visibleEvents = useMemo(() => {
     const filtered = selectedCategory === 'ALL' ? events : events.filter((event) => event.category === selectedCategory);
     return filtered
-      .filter((event) => getUserEventDisplayStatus(event) !== null)
+      .filter((event) => isEventListedNow(event))
       .sort((left, right) => {
         const rankDiff = userSortRank(left) - userSortRank(right);
         if (rankDiff !== 0) return rankDiff;
@@ -450,7 +450,6 @@ export default function UserHomePage({ navigation }: any) {
           {(recommendedEvents.length ? recommendedEvents : MOCK_RECOMMENDED_EVENTS).map((item, index) => {
             const live = isLiveEvent(item) ? item : null;
             const mock = live ? null : item as MockRecommendedEvent;
-            const status = live ? getUserEventDisplayStatus(live) : null;
             const posterUrl = live ? eventPoster(live) : null;
             return (
               <TouchableOpacity key={live?.id ?? mock?.title} style={styles.eventCard} onPress={() => openEvent(live ?? undefined)}>
@@ -466,7 +465,7 @@ export default function UserHomePage({ navigation }: any) {
                 <View style={styles.eventInfo}>
                   <View style={styles.eventTop}>
                     <Text style={styles.badge}>{live ? formatEventCategory(live.category) : mock?.category}</Text>
-                    <Text style={styles.greenBadge}>{status?.label ?? mock?.status}</Text>
+                    <Text style={styles.greenBadge}>{live ? '예매 가능' : mock?.status}</Text>
                   </View>
                   <Text style={styles.eventName} numberOfLines={2}>{live ? eventName(live) : mock?.title}</Text>
                   <Text style={styles.eventMeta} numberOfLines={2}>{live ? `${live.venue || '-'}\n${formatNextRoundLabel(live)}` : mock?.meta}</Text>

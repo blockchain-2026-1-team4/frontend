@@ -9,6 +9,7 @@ import {
   eventTitle,
   eventVenue,
   sectionNameOf,
+  ticketEntryReason,
   ticketEntryStatus,
   ticketIdOf,
 } from '../lib/ticketFlowDisplay';
@@ -16,7 +17,7 @@ import type { EventDetail, TicketDetail } from '../types/api';
 
 const FILTERS = [
   { id: 'ALL', label: '전체' },
-  { id: 'ENTRY', label: '입장 가능' },
+  { id: 'ENTRY', label: '사용 가능' },
   { id: 'RESALE', label: '리셀 가능' },
   { id: 'USED', label: '사용 완료' },
   { id: 'EXPIRED', label: '기간 만료' },
@@ -25,7 +26,7 @@ const FILTERS = [
 type FilterId = (typeof FILTERS)[number]['id'];
 
 function canResaleByRound(ticket: TicketDetail, event?: EventDetail): boolean {
-  if (ticketEntryStatus(ticket, event).label === '사용 기간 종료') return false;
+  if (ticketEntryReason(ticket, event) === '사용 기간 종료') return false;
   return canRegisterResale(ticket, event);
 }
 
@@ -40,22 +41,12 @@ function roundNameOf(ticket: TicketDetail, event?: EventDetail): string {
 
 function statusRank(ticket: TicketDetail, event?: EventDetail) {
   const entry = ticketEntryStatus(ticket, event);
-  const ranks: Record<string, number> = {
-    '입장 가능':      0,
-    '보유 중':        1,
-    '리셀 중':        2,
-    '상태 확인 필요':  3,
-    '이벤트 취소':    4,
-    '사용 기간 종료':  5,
-    '사용 불가':      6,
-    '체크인 완료':    7,
-  };
-  return ranks[entry.label] ?? 8;
+  return entry.label === '사용 가능' ? 0 : 1;
 }
 
 function emptyMessage(filter: FilterId, query: string): { title: string; sub: string } {
   if (query.trim()) return { title: `'${query.trim()}'에 해당하는 티켓이 없습니다.`, sub: '다른 검색어로 다시 시도해보세요.' };
-  if (filter === 'ENTRY') return { title: '입장 가능한 티켓이 없습니다.', sub: '예매가 완료되고 아직 시작되지 않은 이벤트를 확인하세요.' };
+  if (filter === 'ENTRY') return { title: '사용 가능한 티켓이 없습니다.', sub: '체크인 시간(30분 전~공연 종료)에 사용 가능 상태로 전환됩니다.' };
   if (filter === 'RESALE') return { title: '리셀 등록 가능한 티켓이 없습니다.', sub: '리셀 허용 이벤트의 SOLD 상태 티켓만 등록할 수 있습니다.' };
   if (filter === 'USED') return { title: '사용 완료된 티켓이 없습니다.', sub: '체크인 후 사용 완료 처리된 티켓이 여기에 표시됩니다.' };
   if (filter === 'EXPIRED') return { title: '기간 만료된 티켓이 없습니다.', sub: '회차가 종료된 미사용 티켓이 여기에 표시됩니다.' };
@@ -93,10 +84,10 @@ export default function MyTicketsPage({ navigation }: any) {
     const q = searchQuery.trim().toLowerCase();
     const base = tickets.filter((ticket) => {
       const event = eventsById[ticket.eventId];
-      if (statusFilter === 'ENTRY') return ticketEntryStatus(ticket, event).label === '입장 가능';
+      if (statusFilter === 'ENTRY') return ticketEntryStatus(ticket, event).label === '사용 가능';
       if (statusFilter === 'RESALE') return canResaleByRound(ticket, event);
       if (statusFilter === 'USED') return ['USED', 'CANCELLED'].includes(String(ticket.status).toUpperCase());
-      if (statusFilter === 'EXPIRED') return ticketEntryStatus(ticket, event).label === '사용 기간 종료';
+      if (statusFilter === 'EXPIRED') return ticketEntryReason(ticket, event) === '사용 기간 종료';
       return true;
     }).filter((ticket) => {
       if (!q) return true;
@@ -172,7 +163,7 @@ export default function MyTicketsPage({ navigation }: any) {
               const event = eventsById[ticket.eventId];
               const entry = ticketEntryStatus(ticket, event);
               const id = ticketIdOf(ticket);
-              const quickIsQr = entry.label === '입장 가능';
+              const quickIsQr = entry.label === '사용 가능';
               return (
                 <TouchableOpacity
                   key={id || `${ticket.eventId}-${index}`}

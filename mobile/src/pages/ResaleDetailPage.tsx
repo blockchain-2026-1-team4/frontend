@@ -26,26 +26,23 @@ function resaleStatusLabel(
   isMyListing: boolean,
 ): string {
   if (!listing) return '구매 불가';
-  const eventStatus = String(event?.status ?? '').toUpperCase();
-  if (eventStatus === 'CANCELLED') return '이벤트 취소';
-  if (eventStatus === 'DRAFT' || eventStatus === 'INACTIVE') return '판매 불가';
   const s = String(listing.status ?? '').toUpperCase();
-  if (s === 'CANCELED') return '취소됨';
-  if (['SOLD', 'COMPLETED', 'PURCHASED'].includes(s)) return '판매완료';
-  if (['CLOSED', 'EXPIRED'].includes(s)) return '판매종료';
-  if (roundTimes === null) return '상태 확인 필요';
+  if (['SOLD', 'COMPLETED', 'PURCHASED'].includes(s)) return '리셀 완료';
+  const eventStatus = String(event?.status ?? '').toUpperCase();
+  if (eventStatus !== 'PUBLISHED') return '구매 불가';
+  if (s === 'CANCELED' || ['CLOSED', 'EXPIRED'].includes(s)) return '구매 불가';
+  if (roundTimes === null) return '구매 불가';
   const now = Date.now();
-  if (now >= roundTimes.endMs) return '판매종료';
-  if (!Number.isNaN(roundTimes.startMs) && now >= roundTimes.startMs) return '판매종료';
-  if (isMyListing) return '내가 등록한 티켓';
-  if (ACTIVE_STATUSES.includes(s)) return '판매중';
+  if (now >= roundTimes.endMs) return '구매 불가';
+  if (!Number.isNaN(roundTimes.startMs) && now >= roundTimes.startMs) return '구매 불가';
+  if (isMyListing) return '구매 불가';
+  if (ACTIVE_STATUSES.includes(s)) return '리셀 중';
   return '구매 불가';
 }
 
 function statusTone(label: string): 'green' | 'gray' | 'red' | 'purple' {
-  if (label === '판매중') return 'green';
-  if (label === '이벤트 취소' || label === '취소됨') return 'red';
-  if (label === '상태 확인 필요' || label === '내가 등록한 티켓') return 'purple';
+  if (label === '리셀 중') return 'green';
+  if (label === '리셀 완료') return 'gray';
   return 'gray';
 }
 
@@ -152,22 +149,9 @@ export default function ResaleDetailPage({ route, navigation }: any) {
 
   const buttonText = useMemo(() => {
     if (submitting) return '구매 처리 중...';
-    if (!listing) return '구매 불가';
-    const eventStatus = String(event?.status ?? '').toUpperCase();
-    if (eventStatus === 'CANCELLED') return '이벤트 취소';
-    if (eventStatus === 'DRAFT' || eventStatus === 'INACTIVE') return '판매 불가';
-    const s = String(listing.status ?? '').toUpperCase();
-    if (s === 'CANCELED') return '취소됨';
-    if (['SOLD', 'COMPLETED', 'PURCHASED'].includes(s)) return '판매완료';
-    if (['CLOSED', 'EXPIRED'].includes(s)) return '판매종료';
-    if (roundTimes === null) return '상태 확인 필요';
-    const now = Date.now();
-    if (now >= roundTimes.endMs) return '판매종료';
-    if (!Number.isNaN(roundTimes.startMs) && now >= roundTimes.startMs) return '판매종료';
-    if (isMyListing) return '내가 등록한 티켓';
-    if (!ACTIVE_STATUSES.includes(s)) return '구매 불가';
+    if (isBlocked) return '구매 불가';
     return '리셀 티켓 구매하기';
-  }, [event, isMyListing, listing, roundTimes, submitting]);
+  }, [isBlocked, submitting]);
 
   const purchase = async () => {
     if (blockMessage) {

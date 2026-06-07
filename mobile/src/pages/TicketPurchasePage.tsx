@@ -63,8 +63,8 @@ function getPurchaseState(ticket?: TicketDetail | null, event?: EventDetail | nu
   const saleStart = new Date(ticket?.saleStartAt || event?.primarySaleStart || event?.salesStartAt || '').getTime();
   const saleEnd = new Date(ticket?.saleEndAt || event?.primarySaleEnd || event?.salesEndAt || '').getTime();
 
-  if (!Number.isNaN(saleStart) && now < saleStart) return { label: '예매 예정', canPurchase: false };
-  if (!Number.isNaN(saleEnd) && now > saleEnd) return { label: '판매 종료', canPurchase: false };
+  if (!Number.isNaN(saleStart) && now < saleStart) return { label: '구매 불가', canPurchase: false };
+  if (!Number.isNaN(saleEnd) && now > saleEnd) return { label: '구매 불가', canPurchase: false };
   return { label: '티켓 예매하기', canPurchase: true };
 }
 

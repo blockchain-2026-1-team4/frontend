@@ -181,30 +181,15 @@ function saleStateOf(args: {
   const sStart = args.saleStartAt  ? new Date(args.saleStartAt).getTime()  : NaN;
   const sEnd   = args.saleEndAt    ? new Date(args.saleEndAt).getTime()    : NaN;
 
-  // 3. 회차 종료
-  if (!Number.isNaN(rEnd) && now > rEnd) return { label: '종료', tone: 'gray' };
-
-  // 4. 회차 시작 후(진행 중) → 구매 불가
-  if (!Number.isNaN(rStart) && now >= rStart) return { label: '판매 종료', tone: 'gray' };
-
-  // 5. 티켓 미발행
-  if (args.issued <= 0) return { label: '티켓 미발행', tone: 'gray' };
-
-  // 6. 매진
-  if (args.available === 0) return { label: '매진', tone: 'red' };
-
-  // 7. 판매 시작 전
-  if (!Number.isNaN(sStart) && now < sStart) return { label: '예매 예정', tone: 'yellow' };
-
-  // 8. 판매 종료 후 + 회차 시작 전
-  if (!Number.isNaN(sEnd) && now > sEnd) return { label: '판매 종료', tone: 'gray' };
-
-  // 9. 판매기간 내 + 잔여 있음 + 회차 시작 전
+  if (!Number.isNaN(rEnd) && now > rEnd) return { label: '구매 불가', tone: 'gray' };
+  if (!Number.isNaN(rStart) && now >= rStart) return { label: '구매 불가', tone: 'gray' };
+  if (args.issued <= 0) return { label: '구매 불가', tone: 'gray' };
+  if (args.available === 0) return { label: '구매 불가', tone: 'gray' };
+  if (!Number.isNaN(sStart) && now < sStart) return { label: '구매 불가', tone: 'gray' };
+  if (!Number.isNaN(sEnd) && now > sEnd) return { label: '구매 불가', tone: 'gray' };
   const inSale = (Number.isNaN(sStart) || now >= sStart) && (Number.isNaN(sEnd) || now <= sEnd);
-  if (inSale && args.available > 0) return { label: '예매 가능', tone: 'green' };
-
-  // 10. 그 외
-  return { label: '판매 불가', tone: 'gray' };
+  if (inSale && args.available > 0) return { label: '구매 가능', tone: 'green' };
+  return { label: '구매 불가', tone: 'gray' };
 }
 
 function groupTicketsBySection(tickets: TicketDetail[], round: DisplayRound): SectionGroup[] {
@@ -372,9 +357,7 @@ export default function EventDetailPage({ route, navigation }: any) {
   // 이벤트 상태가 PUBLISHED가 아니면 구매 불가 (CANCELLED, INACTIVE, DRAFT 등)
   const eventStatus = String(event?.status ?? '').toUpperCase();
   const isEventSalable = eventStatus === 'PUBLISHED';
-  const unsalableState: SaleState = eventStatus === 'CANCELLED'
-    ? { label: '이벤트 취소', tone: 'red' }
-    : { label: '판매 불가', tone: 'gray' };
+  const unsalableState: SaleState = { label: '구매 불가', tone: eventStatus === 'CANCELLED' ? 'red' : 'gray' };
 
   const roundTickets = useMemo(() => {
     if (!selectedRound) return [];
@@ -419,7 +402,7 @@ export default function EventDetailPage({ route, navigation }: any) {
       available: isAvailable(ticket) ? 1 : 0,
       issued: String(ticket.status ?? '').toUpperCase() !== 'CANCELLED' ? 1 : 0,
     });
-    return isAvailable(ticket) && ticketState.tone === 'green';
+    return ticketState.label === '구매 가능';
   });
   const totalPrimaryTicketPages = Math.max(1, Math.ceil(filteredTickets.length / PRIMARY_TICKET_PAGE_SIZE));
   const currentPrimaryTicketPage = Math.min(primaryTicketPage, totalPrimaryTicketPages);
@@ -554,7 +537,7 @@ export default function EventDetailPage({ route, navigation }: any) {
               >
                 <View style={styles.roundTop}>
                   <Text style={styles.roundName}>{roundLabel(round, index)}</Text>
-                  <Badge label={saleState.label} tone={saleState.tone} />
+                  <Badge label={saleState.tone === 'green' ? '진행 중' : '종료'} tone={saleState.tone} />
                 </View>
                 <Text style={styles.roundTime}>{roundTimeLabel(round)}</Text>
                 <View style={styles.roundMeta}>
@@ -637,7 +620,7 @@ export default function EventDetailPage({ route, navigation }: any) {
                   available: isAvailable(ticket) ? 1 : 0,
                   issued: String(ticket.status ?? '').toUpperCase() !== 'CANCELLED' ? 1 : 0,
                 });
-                const purchasable = isAvailable(ticket) && ticketState.tone === 'green';
+                const purchasable = ticketState.label === '구매 가능';
                 const selected = selectedTicketKey === key;
                 return (
                   <TouchableOpacity

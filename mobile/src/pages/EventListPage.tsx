@@ -9,7 +9,7 @@ import {
   formatEventCategory,
   formatNextRoundLabel,
   getNextRoundTime,
-  getUserEventDisplayStatus,
+  isEventListedNow,
   userSortRank,
   weiToEth,
 } from '../lib/ticketDisplay';
@@ -27,7 +27,6 @@ const CATEGORIES = [
 const STATUS_FILTERS = [
   { id: 'ALL', label: '전체' },
   { id: 'SALE', label: '예매 가능' },
-  { id: 'ONGOING', label: '개최중' },
   { id: 'DEADLINE', label: '마감 임박' },
   { id: 'RESALE', label: '리셀 가능' },
 ] as const;
@@ -221,9 +220,9 @@ function PosterArt({ event, index, compact = false }: { event: EventSummary; ind
   const imageUrl = resolveImageUrl((event as any).imageUrl);
   const colors = POSTER_GRADIENTS[index % POSTER_GRADIENTS.length];
   const title = eventName(event);
-  const status = getUserEventDisplayStatus(event);
+  const listed = isEventListedNow(event);
   const deadline = daysUntilEvent(event);
-  const badge = deadline !== null && deadline >= 0 && deadline <= 5 ? `D-${deadline}` : status?.label || '공식';
+  const badge = deadline !== null && deadline >= 0 && deadline <= 5 ? `D-${deadline}` : listed ? '예매 가능' : '공식';
 
   return (
     <View style={compact ? styles.hotImage : styles.poster}>
@@ -269,12 +268,10 @@ export default function EventListPage({ navigation, route }: any) {
   }, [selectedCategory]);
 
   const visibleEvents = useMemo(() => {
-    let visible = events.filter((event) => getUserEventDisplayStatus(event) !== null);
+    let visible = events.filter((event) => isEventListedNow(event));
 
     if (selectedSmart === 'SALE') {
-      visible = visible.filter((event) => getUserEventDisplayStatus(event)?.label === '예매 가능');
-    } else if (selectedSmart === 'ONGOING') {
-      visible = visible.filter((event) => getUserEventDisplayStatus(event)?.label === '개최중');
+      visible = visible.filter((event) => isEventListedNow(event));
     } else if (selectedSmart === 'DEADLINE') {
       visible = visible.filter(isDeadlineEvent);
     } else if (selectedSmart === 'RESALE') {
@@ -479,11 +476,10 @@ export default function EventListPage({ navigation, route }: any) {
 
             <View style={styles.eventList}>
               {visibleEvents.length ? visibleEvents.map((event, index) => {
-                const status = getUserEventDisplayStatus(event);
                 return (
                   <TouchableOpacity
                     key={event.id}
-                    style={[styles.eventCard, !status && styles.disabledEvent]}
+                    style={styles.eventCard}
                     onPress={() => navigation.navigate('EventDetail', { eventId: event.id })}
                     activeOpacity={0.86}
                   >
@@ -491,7 +487,7 @@ export default function EventListPage({ navigation, route }: any) {
                     <View style={styles.eventInfo}>
                       <View style={styles.infoTop}>
                         <Text style={styles.label}>{formatEventCategory(event.category)}</Text>
-                        {status ? <Text style={styles.state}>{status.label}</Text> : null}
+                        <Text style={styles.state}>예매 가능</Text>
                       </View>
                       <Text style={styles.eventName} numberOfLines={2}>{eventName(event)}</Text>
                       <View style={styles.meta}>
