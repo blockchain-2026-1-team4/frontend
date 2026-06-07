@@ -1,3 +1,4 @@
+import { LinearGradient } from 'expo-linear-gradient';
 import React, { useCallback, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import {
@@ -17,6 +18,12 @@ import { clearAccessToken } from '../lib/auth';
 import { backendApi } from '../lib/backend';
 import { hasOrganizerAccess } from '../lib/roles';
 import type { UserProfile } from '../types/api';
+
+const Gradient = LinearGradient as unknown as React.ComponentType<any>;
+
+function GradientPoster({ colors, style }: { colors: string[]; style?: any }) {
+  return <Gradient colors={colors} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={style} />;
+}
 
 type ProfileStats = {
   tickets: number;
@@ -187,8 +194,14 @@ export default function MyPage({ navigation }: any) {
       >
         {/* 프로필 카드 */}
         <View style={styles.profileCard}>
-          <View style={styles.profileOrb} />
-
+          <Gradient colors={['#1A1A2E', '#534AB7', '#1D9E75']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />
+          <View style={styles.profileGloss} />
+          <Gradient colors={['transparent', 'rgba(0,0,0,0.1)', 'rgba(0,0,0,0.62)']} style={StyleSheet.absoluteFill} />
+          <View style={styles.profilePosterRow} pointerEvents="none">
+            <GradientPoster colors={['#26215C', '#534AB7', '#1D9E75']} style={styles.profileMiniPoster} />
+            <GradientPoster colors={['#0C447C', '#185FA5', '#639922']} style={styles.profileMiniPoster} />
+          </View>
+          <View style={styles.profileContent}>
           {/* 아바타 + 이름/역할 가로 배치 */}
           <View style={styles.profileMain}>
             <View style={styles.avatar}>
@@ -237,6 +250,7 @@ export default function MyPage({ navigation }: any) {
             </Text>
           </View>
           <View style={styles.profileDivider} />
+          </View>
         </View>
 
         {/* 빠른 통계 */}
@@ -293,14 +307,14 @@ export default function MyPage({ navigation }: any) {
               <MenuItem
                 icon="store"
                 title="주최자 센터"
-                subtitle="별도 로그인 없이 주최자 화면으로 이동합니다."
+                subtitle="이벤트 운영 화면으로 이동합니다."
                 onPress={() => navigation.navigate('Organizer')}
               />
             )}
             <MenuItem
               icon="logout"
               title="로그아웃"
-              subtitle="선택 시 확인 모달을 표시합니다."
+              subtitle="현재 계정에서 로그아웃합니다."
               onPress={handleLogout}
               danger
             />
@@ -336,20 +350,45 @@ const styles = StyleSheet.create({
   profileCard: {
     margin: 16,
     borderRadius: 30,
-    backgroundColor: '#1A1A2E',
     overflow: 'hidden',
+    shadowColor: '#534AB7',
+    shadowOffset: { width: 0, height: 22 },
+    shadowOpacity: 0.3,
+    shadowRadius: 46,
+    elevation: 8,
+  },
+  profileGloss: {
+    position: 'absolute',
+    left: -50,
+    top: -20,
+    width: 200,
+    height: 130,
+    backgroundColor: 'rgba(255,255,255,0.11)',
+    transform: [{ rotate: '-22deg' }],
+  },
+  profilePosterRow: {
+    position: 'absolute',
+    right: -16,
+    top: 16,
+    flexDirection: 'row',
+    gap: 8,
+    opacity: 0.78,
+    transform: [{ rotate: '8deg' }],
+    zIndex: 1,
+  },
+  profileMiniPoster: {
+    width: 58,
+    height: 86,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+  },
+  profileContent: {
+    position: 'relative',
+    zIndex: 2,
     paddingHorizontal: 18,
     paddingTop: 18,
     paddingBottom: 14,
-  },
-  profileOrb: {
-    position: 'absolute',
-    width: 220,
-    height: 220,
-    borderRadius: 110,
-    backgroundColor: 'rgba(83,74,183,0.58)',
-    right: -82,
-    top: -74,
   },
   profileMain: {
     flexDirection: 'row',

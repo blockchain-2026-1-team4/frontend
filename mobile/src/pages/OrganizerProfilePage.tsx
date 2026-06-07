@@ -1,3 +1,4 @@
+import { LinearGradient } from 'expo-linear-gradient';
 import React, { useCallback, useMemo, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import { ActivityIndicator, Alert, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
@@ -15,6 +16,12 @@ import { backendApi } from '../lib/backend';
 import { showDialog } from '../lib/dialog';
 import { formatRoles } from '../lib/roles';
 import type { EventSummary, TicketDetail, UserProfile } from '../types/api';
+
+const Gradient = LinearGradient as unknown as React.ComponentType<any>;
+
+function GradientPoster({ colors, style }: { colors: string[]; style?: any }) {
+  return <Gradient colors={colors} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={style} />;
+}
 
 function compactWalletAddress(address?: string | null) {
   const value = address?.trim();
@@ -118,9 +125,16 @@ export default function OrganizerProfilePage({ navigation }: any) {
       />
 
       <View style={styles.profileCard}>
-        <View style={styles.profileGlow} />
+        <Gradient colors={['#1A1A2E', '#534AB7', '#1D9E75']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />
+        <View style={styles.profileGloss} />
+        <Gradient colors={['transparent', 'rgba(0,0,0,0.1)', 'rgba(0,0,0,0.62)']} style={StyleSheet.absoluteFill} />
+        <View style={styles.profilePosterRow} pointerEvents="none">
+          <GradientPoster colors={['#26215C', '#534AB7', '#1D9E75']} style={styles.profileMiniPoster} />
+          <GradientPoster colors={['#0C447C', '#185FA5', '#639922']} style={styles.profileMiniPoster} />
+        </View>
+        <View style={styles.profileContent}>
         <View style={styles.profileTop}>
-          <View style={styles.avatar}><Text style={styles.avatarText}>{profileInitial(name)}</Text></View>
+          <View style={styles.avatar}><TicketIcon name="user" size={28} color="#A89CF7" /></View>
           <View style={styles.profileCopy}>
             {editing ? (
               <TextInput
@@ -160,6 +174,7 @@ export default function OrganizerProfilePage({ navigation }: any) {
           </Text>
         </View>
         <View style={styles.profileDivider} />
+        </View>
       </View>
 
       <OrganizerSectionHead title="운영 현황" subtitle="내 계정 기준 요약" />
@@ -221,11 +236,13 @@ function MenuCard({
 const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: organizerColors.background },
   loadingText: { marginTop: 12, color: organizerColors.muted, fontSize: 14 },
-  profileCard: { marginHorizontal: 16, marginVertical: 14, paddingHorizontal: 18, paddingTop: 18, paddingBottom: 14, borderRadius: 30, overflow: 'hidden', backgroundColor: '#1A1A2E', ...flowShadow },
-  profileGlow: { position: 'absolute', width: 200, height: 200, borderRadius: 100, right: -68, top: -62, backgroundColor: 'rgba(83,74,183,0.58)' },
-  profileTop: { position: 'relative', flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 14 },
-  avatar: { width: 56, height: 56, borderRadius: 20, backgroundColor: 'rgba(168,156,247,0.18)', alignItems: 'center', justifyContent: 'center' },
-  avatarText: { color: '#A89CF7', fontSize: 22, fontWeight: '900' },
+  profileCard: { marginHorizontal: 16, marginVertical: 14, borderRadius: 30, overflow: 'hidden', shadowColor: '#534AB7', shadowOffset: { width: 0, height: 22 }, shadowOpacity: 0.3, shadowRadius: 46, elevation: 8 },
+  profileGloss: { position: 'absolute', left: -50, top: -20, width: 200, height: 130, backgroundColor: 'rgba(255,255,255,0.11)', transform: [{ rotate: '-22deg' }] },
+  profilePosterRow: { position: 'absolute', right: -16, top: 16, flexDirection: 'row', gap: 8, opacity: 0.78, transform: [{ rotate: '8deg' }], zIndex: 1 },
+  profileMiniPoster: { width: 58, height: 86, borderRadius: 14, borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)' },
+  profileContent: { position: 'relative', zIndex: 2, paddingHorizontal: 18, paddingTop: 18, paddingBottom: 14 },
+  profileTop: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 14 },
+  avatar: { width: 56, height: 56, borderRadius: 20, backgroundColor: 'rgba(168,156,247,0.18)', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   profileCopy: { flex: 1, minWidth: 0 },
   profileName: { color: '#FFFFFF', fontSize: 21, lineHeight: 25, fontWeight: '900', letterSpacing: -0.7, marginBottom: 5 },
   nameInput: { height: 36, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.22)', backgroundColor: 'rgba(255,255,255,0.12)', color: '#FFFFFF', paddingHorizontal: 12, fontSize: 16, fontWeight: '900', marginBottom: 5 },
