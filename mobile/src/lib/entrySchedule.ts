@@ -19,7 +19,7 @@ export function eventTitle(event?: EventSummary | EventDetail | null) {
 function dateTimeOf(date?: string, time?: string) {
   if (!date) return NaN;
   if (!time) return new Date(date).getTime();
-  return new Date(`${date}T${String(time).slice(0, 8)}`).getTime();
+  return new Date(`${date}T${String(time).slice(0, 8)}Z`).getTime();
 }
 
 function eventTime(event: EventSummary | EventDetail, kind: 'start' | 'end') {

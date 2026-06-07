@@ -48,12 +48,12 @@ function timeOf(value?: string | null) {
 
 function roundStartAt(round?: EventRound) {
   if (!round?.eventDate || !round?.startTime) return NaN;
-  return timeOf(`${round.eventDate}T${round.startTime}`);
+  return timeOf(`${round.eventDate}T${round.startTime}Z`);
 }
 
 function roundEndAt(round?: EventRound) {
   if (!round?.eventDate || !round?.endTime) return NaN;
-  return timeOf(`${round.eventDate}T${round.endTime}`);
+  return timeOf(`${round.eventDate}T${round.endTime}Z`);
 }
 
 // 회차에 속하는 티켓을 반환한다.
@@ -307,7 +307,7 @@ export function getUserEventDisplayStatus(
   type RoundTimes = { endTime: number; saleStart: number; saleEnd: number };
   const roundTimeList: RoundTimes[] = rounds.length
     ? rounds.map((r) => ({
-        endTime: r.eventDate && r.endTime ? timeOf(`${r.eventDate}T${r.endTime}`) : timeOf(r.eventDate),
+        endTime: r.eventDate && r.endTime ? timeOf(`${r.eventDate}T${r.endTime}Z`) : timeOf(r.eventDate),
         saleStart: timeOf(r.saleStartAt || event.primarySaleStart || event.salesStartAt),
         saleEnd: timeOf(r.saleEndAt || event.primarySaleEnd || event.salesEndAt),
       }))
