@@ -126,24 +126,103 @@ export function ticketStatusLabel(status?: string | null) {
   return labels[key] ?? status ?? '-';
 }
 
-export function entryStatusOf(ticket?: TicketDetail | null, event?: EventSummary | null): TicketFlowStatus {
-  const status = String(ticket?.status ?? '').toUpperCase();
-  if (status === 'USED') return { label: '체크인 완료', tone: 'gray' };
-  if (status === 'CANCELLED') return { label: '사용 불가', tone: 'red' };
-  if (status === 'SOLD' || status === 'LISTED') {
-    if (isEventEnded(event)) return { label: '사용 기간 종료', tone: 'gray' };
-    return { label: '입장 가능', tone: 'green' };
+const CHECK_IN_OPEN_BEFORE_MS = 30 * 60 * 1000;
+
+type RoundTimes = { startMs: number; endMs: number };
+
+function resolveRoundTimes(ticket: TicketDetail, event: EventSummary): RoundTimes | null {
+  const ticketRoundId = ticket.eventRoundId ? String(ticket.eventRoundId) : null;
+
+  if (event.rounds?.length) {
+    // 1차: roundId 매칭
+    let round = ticketRoundId
+      ? event.rounds.find((r) => r.id != null && String(r.id) === ticketRoundId)
+      : undefined;
+
+    // 2차: eventDateTime 날짜로 매칭
+    if (!round && ticket.eventDateTime) {
+      const ticketDate = ticket.eventDateTime.slice(0, 10);
+      round = event.rounds.find((r) => r.eventDate?.slice(0, 10) === ticketDate);
+    }
+
+    if (round) {
+      const startStr = round.startTime ? `${round.eventDate}T${round.startTime}` : round.eventDate;
+      const endStr   = round.endTime   ? `${round.eventDate}T${round.endTime}`   : round.eventDate;
+      const startMs = startStr ? new Date(startStr).getTime() : NaN;
+      const endMs   = endStr   ? new Date(endStr).getTime()   : NaN;
+      if (!Number.isNaN(endMs)) return { startMs, endMs };
+    }
   }
-  return { label: ticketStatusLabel(status), tone: status === 'AVAILABLE' ? 'blue' : 'gray' };
+
+  // 3차: 이벤트 레벨 fallback
+  const endValue   = eventEndValue(event);
+  const startValue = event.eventStartAt || event.startsAt || event.eventAt || event.eventDateTime;
+  const endMs   = endValue   ? new Date(endValue).getTime()   : NaN;
+  const startMs = startValue ? new Date(startValue).getTime() : NaN;
+  if (!Number.isNaN(endMs)) return { startMs, endMs };
+
+  // ticket.eventDateTime fallback
+  if (ticket.eventDateTime) {
+    const ms = new Date(ticket.eventDateTime).getTime();
+    if (!Number.isNaN(ms)) return { startMs: ms, endMs: ms };
+  }
+
+  // 4차: 판단 불가
+  return null;
+}
+
+export function ticketEntryStatus(ticket?: TicketDetail | null, event?: EventSummary | null): TicketFlowStatus {
+  if (!ticket) return { label: '-', tone: 'gray' };
+
+  const status = String(ticket.status ?? '').toUpperCase();
+  const now = Date.now();
+
+  // 1. USED → 체크인 완료
+  if (status === 'USED') return { label: '체크인 완료', tone: 'gray' };
+
+  // 2. CANCELLED (ticket) → 사용 불가
+  if (status === 'CANCELLED') return { label: '사용 불가', tone: 'red' };
+
+  // 3. event.status = CANCELLED → 이벤트 취소
+  if (String(event?.status ?? '').toUpperCase() === 'CANCELLED') return { label: '이벤트 취소', tone: 'red' };
+
+  // 4. event 또는 회차 정보를 확인할 수 없음 → 상태 확인 필요
+  if (!event) return { label: '상태 확인 필요', tone: 'gray' };
+  const times = resolveRoundTimes(ticket, event);
+  if (!times) return { label: '상태 확인 필요', tone: 'gray' };
+
+  const { startMs, endMs } = times;
+  const roundEnded  = now >= endMs;
+  const checkInOpen = !Number.isNaN(startMs) && now >= startMs - CHECK_IN_OPEN_BEFORE_MS && !roundEnded;
+
+  // 5. LISTED + 회차 종료 → 사용 기간 종료
+  if (status === 'LISTED' && roundEnded) return { label: '사용 기간 종료', tone: 'gray' };
+
+  // 6. LISTED + 회차 미종료 → 리셀 중
+  if (status === 'LISTED') return { label: '리셀 중', tone: 'yellow' };
+
+  // 7. SOLD + 회차 종료 → 사용 기간 종료
+  if (status === 'SOLD' && roundEnded) return { label: '사용 기간 종료', tone: 'gray' };
+
+  // 8. SOLD + 체크인 오픈 전 → 보유 중
+  if (status === 'SOLD' && !checkInOpen) return { label: '보유 중', tone: 'gray' };
+
+  // 9. SOLD + 체크인 가능 시간 → 입장 가능
+  if (status === 'SOLD') return { label: '입장 가능', tone: 'green' };
+
+  // 10. AVAILABLE → 판매 가능
+  if (status === 'AVAILABLE') return { label: '판매 가능', tone: 'blue' };
+
+  // 11. 그 외
+  return { label: ticketStatusLabel(status), tone: 'gray' };
+}
+
+export function entryStatusOf(ticket?: TicketDetail | null, event?: EventSummary | null): TicketFlowStatus {
+  return ticketEntryStatus(ticket, event);
 }
 
 export function displayStatusOf(ticket?: TicketDetail | null, event?: EventSummary | null): TicketFlowStatus {
-  const status = String(ticket?.status ?? '').toUpperCase();
-  if (status === 'SOLD' || status === 'LISTED') return entryStatusOf(ticket, event);
-  if (status === 'USED') return { label: '사용 완료', tone: 'gray' };
-  if (status === 'CANCELLED') return { label: '취소됨', tone: 'red' };
-  if (status === 'AVAILABLE') return { label: '판매 가능', tone: 'blue' };
-  return { label: ticketStatusLabel(status), tone: 'gray' };
+  return ticketEntryStatus(ticket, event);
 }
 
 export function validityLabel(validity?: Record<string, unknown> | null) {
