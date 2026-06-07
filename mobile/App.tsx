@@ -102,7 +102,9 @@ export default function App() {
       'TicketExplore',
       'TicketIssue',
       'CheckInHome',
+      'CheckInEventList',
       'CheckInManage',
+      'CheckInScan',
       'CheckInStatus',
       'OrganizerProfile',
     ]);
@@ -197,12 +199,12 @@ export default function App() {
           <Stack.Screen name="TicketExplore" component={TicketExplorePage} options={{ title: '전체 티켓 탐색' }} />
           <Stack.Screen name="OrganizerEventDetail" component={OrganizerEventDetailPage} options={{ title: '이벤트 상세' }} />
           <Stack.Screen name="SalesStatus" component={SalesStatusPage} options={{ title: '판매 현황' }} />
-          <Stack.Screen name="CheckInStatus" component={CheckInStatusPage} options={{ title: '체크인 현황' }} />
-          <Stack.Screen name="CheckInHome" component={CheckInHomePage} options={{ title: '체크인' }} />
-          <Stack.Screen name="CheckInEventList" component={CheckInEventListPage} options={{ title: '체크인 이벤트 목록' }} />
+          <Stack.Screen name="CheckInStatus" component={CheckInStatusPage} options={{ title: '입장 현황' }} />
+          <Stack.Screen name="CheckInHome" component={CheckInHomePage} options={{ title: '일정 관리' }} />
+          <Stack.Screen name="CheckInEventList" component={CheckInEventListPage} options={{ title: '전체 일정 관리' }} />
           <Stack.Screen name="EventSettings" component={EventSettingsPage} options={{ title: '이벤트 설정' }} />
-          <Stack.Screen name="CheckInManage" component={CheckInManagePage} options={{ title: '체크인 관리' }} />
-          <Stack.Screen name="CheckInScan" component={CheckInScanPage} options={{ title: 'QR 스캔' }} />
+          <Stack.Screen name="CheckInManage" component={CheckInManagePage} options={{ title: '이벤트 입장 관리' }} />
+          <Stack.Screen name="CheckInScan" component={CheckInScanPage} options={{ title: 'QR 입장 스캔' }} />
           <Stack.Screen name="OrganizerProfile" component={OrganizerProfilePage} options={{ title: '내 정보' }} />
                 </Stack.Navigator>
               </NavigationContainer>

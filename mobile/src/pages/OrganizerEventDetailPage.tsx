@@ -117,7 +117,7 @@ export default function OrganizerEventDetailPage({ navigation, route }: any) {
         <Stat icon="ticket" value={totalTickets} label="총 티켓" />
         <Stat icon="tag" value={issuedTickets} label="발행" />
         <Stat icon="cart" value={soldTickets} label="판매" />
-        <Stat icon="userCheck" value={usedTickets} label="체크인" />
+        <Stat icon="userCheck" value={usedTickets} label="입장" />
       </View>
 
       <View style={eventFlowStyles.section}>

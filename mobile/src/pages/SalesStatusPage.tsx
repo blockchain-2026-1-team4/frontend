@@ -161,7 +161,7 @@ function StatGrid4({ sold, available, listed, used }: { sold: number; available:
         { label: '판매', value: sold, color: organizerColors.purple },
         { label: '잔여', value: available, color: '#185FA5' },
         { label: '리셀', value: listed, color: '#854F0B' },
-        { label: '체크인', value: used, color: organizerColors.green },
+        { label: '입장', value: used, color: organizerColors.green },
       ].map((item) => (
         <View key={item.label} style={styles.stat4Cell}>
           <Text style={[styles.stat4Num, { color: item.color }]}>{item.value}</Text>

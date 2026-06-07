@@ -1,142 +1,189 @@
-import React, { useState } from 'react';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import { Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Svg, { Path } from 'react-native-svg';
+import React, { useState } from 'react';
+import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { EntryTopBar, entryColors, entryStyles } from '../components/EntryScheduleKit';
+import { TicketIcon } from '../components/TicketFlowKit';
+import { TextInput } from '../components/TextInput';
+import { errorMessage } from '../lib/account';
+import { backendApi } from '../lib/backend';
 
-const HeroGradient = LinearGradient as unknown as React.ComponentType<any>;
+type ScanMode = 'qr' | 'manual';
+type Result = { type: 'idle' | 'success' | 'error'; title: string; message: string };
+type QrPayload = { ticketId?: string; claimedOwner?: string; expiresAt?: string | number; signature?: string; memo?: string };
 
-function BackIcon() {
-  return (
-    <Svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.78)" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-      <Path d="M19 12H5m7 7-7-7 7-7" />
-    </Svg>
-  );
+function normalizedPayload(value: string): Record<string, unknown> {
+  try {
+    const parsed = JSON.parse(value.trim()) as QrPayload;
+    const expiresAt = typeof parsed.expiresAt === 'number' || /^\d+$/.test(String(parsed.expiresAt ?? ''))
+      ? new Date(Number(parsed.expiresAt) * 1000).toISOString()
+      : parsed.expiresAt;
+    return { ...parsed, expiresAt };
+  } catch {
+    return { ticketId: value.trim() };
+  }
 }
 
 export default function CheckInScanPage({ navigation, route }: any) {
-  const insets = useSafeAreaInsets();
-  const eventId = route?.params?.eventId as string;
+  const eventId = String(route?.params?.eventId ?? '');
+  const roundId = route?.params?.roundId != null ? String(route.params.roundId) : undefined;
   const [permission, requestPermission] = useCameraPermissions();
-  const [scanned, setScanned] = useState(false);
+  const [mode, setMode] = useState<ScanMode>('qr');
+  const [manualValue, setManualValue] = useState('');
+  const [processing, setProcessing] = useState(false);
+  const [scanEnabled, setScanEnabled] = useState(true);
+  const [result, setResult] = useState<Result>({ type: 'idle', title: '스캔 대기 중', message: 'QR을 인식하면 자동으로 티켓 유효성을 검증합니다.' });
 
-  const onBarcodeScanned = ({ data }: { data: string }) => {
-    if (scanned) return;
-    setScanned(true);
-    if (!data) {
-      Alert.alert('스캔 실패', 'QR 내용을 읽지 못했습니다.');
-      setScanned(false);
-      return;
+  const processValue = async (value: string) => {
+    if (!value.trim() || processing) return;
+    setProcessing(true);
+    setScanEnabled(false);
+    try {
+      const payload = normalizedPayload(value);
+      const id = String(payload.ticketId ?? '').trim();
+      if (!id) throw new Error('티켓 ID가 포함되어 있지 않습니다.');
+      const ticket = await backendApi.getTicket(id);
+      if (eventId && String(ticket.eventId) !== eventId) throw new Error('선택한 이벤트의 티켓이 아닙니다.');
+      if (roundId && String(ticket.eventRoundId ?? '') !== roundId) throw new Error('선택한 회차의 티켓이 아닙니다.');
+      await backendApi.checkIn(payload);
+      setResult({ type: 'success', title: '입장 처리 완료', message: `${ticket.seatInfo || `티켓 ${id}`}의 입장이 정상 처리되었습니다.` });
+    } catch (error: any) {
+      const message = errorMessage(error, '티켓 입장 처리에 실패했습니다.');
+      setResult({ type: 'error', title: '입장 처리 실패', message });
+      Alert.alert('입장 처리 실패', message);
+    } finally {
+      setProcessing(false);
     }
-    navigation.replace('CheckInManage', { eventId, scannedPayload: data });
   };
 
-  if (!permission) {
-    return (
-      <View style={styles.center}>
-        <Text style={styles.centerTitle}>카메라 권한을 확인하고 있습니다.</Text>
-      </View>
-    );
-  }
-
-  if (!permission.granted) {
-    return (
-      <View style={styles.container}>
-        <HeroGradient
-          colors={['#1A1A2E', '#2D2B6B']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={[styles.hero, { paddingTop: Math.max(insets.top + 20, 42) }]}
-        >
-          <View style={styles.heroTopBar}>
-            <TouchableOpacity accessibilityRole="button" accessibilityLabel="뒤로가기" style={styles.backButton} onPress={() => navigation.goBack()}>
-              <BackIcon />
-            </TouchableOpacity>
-          </View>
-          <Text style={styles.eyebrow}>QR SCAN</Text>
-          <Text style={styles.heroTitle}>QR 스캔</Text>
-          <Text style={styles.heroSub}>카메라 권한이 필요합니다.</Text>
-        </HeroGradient>
-        <View style={styles.permissionBody}>
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>카메라 권한 요청</Text>
-            <Text style={styles.cardText}>QR 코드 스캔을 위해 카메라 접근 권한을 허용해 주세요. 권한은 체크인 처리에만 사용됩니다.</Text>
-          </View>
-          <TouchableOpacity style={styles.primaryButton} onPress={requestPermission}>
-            <Text style={styles.primaryButtonText}>권한 허용</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.secondaryButton} onPress={() => navigation.goBack()}>
-            <Text style={styles.secondaryButtonText}>돌아가기</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    );
-  }
+  const restartScan = () => {
+    setResult({ type: 'idle', title: '스캔 대기 중', message: 'QR을 인식하면 자동으로 티켓 유효성을 검증합니다.' });
+    setScanEnabled(true);
+  };
 
   return (
-    <View style={styles.scanContainer}>
-      <CameraView
-        style={styles.camera}
-        facing="back"
-        barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
-        onBarcodeScanned={scanned ? undefined : onBarcodeScanned}
-      >
-        <View style={[styles.overlay, { paddingTop: insets.top + 16 }]}>
-          <TouchableOpacity style={styles.overlayBack} onPress={() => navigation.goBack()}>
-            <BackIcon />
+    <ScrollView style={entryStyles.screen} contentContainerStyle={entryStyles.content} stickyHeaderIndices={[0]}>
+      <EntryTopBar eyebrow="QR Scan" title="QR 입장 스캔" back onBack={() => navigation.goBack()} rightIcon="bolt" rightLabel="스캔 다시 시작" onRight={restartScan} />
+
+      <View style={[entryStyles.section, styles.toggleSection]}>
+        <View style={styles.toggle}>
+          <TouchableOpacity style={[styles.modeButton, mode === 'qr' && styles.modeButtonActive]} onPress={() => setMode('qr')}>
+            <Text style={[styles.modeText, mode === 'qr' && styles.modeTextActive]}>QR 스캔</Text>
           </TouchableOpacity>
-          <View style={styles.scanCenter}>
-            <Text style={styles.scanTitle}>QR 코드를 화면 안에 맞춰주세요.</Text>
-            <View style={styles.scanBox}>
-              <View style={[styles.scanCorner, styles.scanCornerTL]} />
-              <View style={[styles.scanCorner, styles.scanCornerTR]} />
-              <View style={[styles.scanCorner, styles.scanCornerBL]} />
-              <View style={[styles.scanCorner, styles.scanCornerBR]} />
-            </View>
-          </View>
-          <TouchableOpacity style={styles.cancelButton} onPress={() => navigation.goBack()}>
-            <Text style={styles.cancelButtonText}>취소</Text>
+          <TouchableOpacity style={[styles.modeButton, mode === 'manual' && styles.modeButtonActive]} onPress={() => setMode('manual')}>
+            <Text style={[styles.modeText, mode === 'manual' && styles.modeTextActive]}>수동 입력</Text>
           </TouchableOpacity>
         </View>
-      </CameraView>
+      </View>
+
+      {mode === 'qr' ? (
+        <>
+          <View style={styles.scanStage}>
+            {permission?.granted ? (
+              <CameraView
+                style={StyleSheet.absoluteFill}
+                facing="back"
+                barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
+                onBarcodeScanned={scanEnabled && !processing ? ({ data }) => void processValue(data) : undefined}
+              />
+            ) : (
+              <View style={styles.permission}>
+                <TicketIcon name="qr" color="#FFFFFF" size={42} />
+                <Text style={styles.permissionTitle}>카메라 권한이 필요합니다.</Text>
+                <TouchableOpacity style={styles.permissionButton} onPress={requestPermission}>
+                  <Text style={styles.permissionButtonText}>카메라 권한 허용</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+            <View style={styles.scanDim} pointerEvents="none" />
+            <View style={styles.scanFrame} pointerEvents="none">
+              <View style={[styles.corner, styles.cornerTopLeft]} />
+              <View style={[styles.corner, styles.cornerTopRight]} />
+              <View style={[styles.corner, styles.cornerBottomLeft]} />
+              <View style={[styles.corner, styles.cornerBottomRight]} />
+            </View>
+            <Text style={styles.scanGuide}>티켓 QR을 프레임 안에 맞춰주세요.</Text>
+          </View>
+
+          <View style={entryStyles.section}>
+            <ResultCard result={result} processing={processing} />
+          </View>
+          <View style={entryStyles.section}>
+            <TouchableOpacity style={entryStyles.outlineButton} onPress={() => setMode('manual')}>
+              <Text style={entryStyles.outlineText}>수동 입력으로 전환</Text>
+            </TouchableOpacity>
+          </View>
+        </>
+      ) : (
+        <>
+          <View style={entryStyles.section}>
+            <View style={[entryStyles.card, styles.manualCard]}>
+              <Text style={styles.manualTitle}>수동 입장 처리</Text>
+              <Text style={styles.manualSubtitle}>QR 인식이 어려운 경우 티켓 ID 또는 QR payload를 직접 입력합니다.</Text>
+              <TextInput style={styles.input} value={manualValue} onChangeText={setManualValue} placeholder="티켓 ID 또는 QR payload 입력" multiline />
+              <TouchableOpacity style={entryStyles.primaryButton} disabled={processing || !manualValue.trim()} onPress={() => void processValue(manualValue)}>
+                <View style={[styles.manualConfirm, (processing || !manualValue.trim()) && styles.disabled]}>
+                  {processing ? <ActivityIndicator color="#FFFFFF" /> : <Text style={entryStyles.primaryText}>수동 확인</Text>}
+                </View>
+              </TouchableOpacity>
+            </View>
+          </View>
+          {result.type !== 'idle' ? <View style={entryStyles.section}><ResultCard result={result} processing={processing} /></View> : null}
+          <View style={entryStyles.section}>
+            <View style={styles.notice}>
+              <TicketIcon name="alert" color="#534AB7" size={21} />
+              <View style={{ flex: 1 }}><Text style={styles.noticeTitle}>수동 처리는 보조 경로입니다.</Text><Text style={styles.noticeText}>가능하면 QR 스캔을 우선 사용하고, QR이 훼손되었거나 카메라 인식이 어려울 때만 사용하세요.</Text></View>
+            </View>
+          </View>
+        </>
+      )}
+    </ScrollView>
+  );
+}
+
+function ResultCard({ result, processing }: { result: Result; processing: boolean }) {
+  const color = result.type === 'error' ? '#B91C1C' : '#0F6E56';
+  const background = result.type === 'error' ? '#FEE2E2' : '#DCFCE7';
+  return (
+    <View style={[entryStyles.card, styles.result]}>
+      <View style={[styles.resultIcon, { backgroundColor: background }]}>
+        {processing ? <ActivityIndicator color={color} /> : <TicketIcon name={result.type === 'error' ? 'alert' : 'check'} color={color} size={25} />}
+      </View>
+      <View style={{ flex: 1 }}><Text style={styles.resultTitle}>{processing ? '입장 처리 중' : result.title}</Text><Text style={styles.resultMessage}>{processing ? '티켓 유효성을 확인하고 있습니다.' : result.message}</Text></View>
     </View>
   );
 }
 
-const CORNER_SIZE = 22;
-const CORNER_THICKNESS = 3;
-
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F5F5F5' },
-  scanContainer: { flex: 1, backgroundColor: '#000000' },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 22, backgroundColor: '#F5F5F5' },
-  centerTitle: { color: '#1A1A2E', fontSize: 16, fontWeight: '800', textAlign: 'center' },
-  hero: { paddingHorizontal: 20, paddingBottom: 28 },
-  heroTopBar: { flexDirection: 'row', alignItems: 'center', marginBottom: 18 },
-  backButton: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
-  eyebrow: { color: '#A89CF7', fontSize: 10, fontWeight: '700', letterSpacing: 1.2, textTransform: 'uppercase' },
-  heroTitle: { color: '#FFFFFF', fontSize: 22, fontWeight: '800', marginTop: 4, marginBottom: 4 },
-  heroSub: { color: 'rgba(255,255,255,0.58)', fontSize: 12, lineHeight: 18 },
-  permissionBody: { padding: 16, flex: 1 },
-  card: { backgroundColor: '#FFFFFF', borderRadius: 14, padding: 16, borderWidth: 0.5, borderColor: '#E5E7EB', marginBottom: 16 },
-  cardTitle: { color: '#1A1A2E', fontSize: 15, fontWeight: '800' },
-  cardText: { marginTop: 8, color: '#6B7280', lineHeight: 21, fontSize: 13 },
-  primaryButton: { backgroundColor: '#1A1A2E', borderRadius: 12, paddingVertical: 15, alignItems: 'center', marginBottom: 10 },
-  primaryButtonText: { color: '#FFFFFF', fontSize: 15, fontWeight: '800' },
-  secondaryButton: { borderWidth: 0.5, borderColor: '#CBD5E1', backgroundColor: '#FFFFFF', borderRadius: 12, paddingVertical: 15, alignItems: 'center' },
-  secondaryButtonText: { color: '#1A1A2E', fontSize: 15, fontWeight: '700' },
-  camera: { flex: 1 },
-  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', paddingHorizontal: 20, paddingBottom: 40 },
-  overlayBack: { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' },
-  scanCenter: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  scanTitle: { color: '#FFFFFF', fontSize: 16, fontWeight: '800', textAlign: 'center', marginBottom: 28, opacity: 0.9 },
-  scanBox: { width: 240, height: 240, position: 'relative' },
-  scanCorner: { position: 'absolute', width: CORNER_SIZE, height: CORNER_SIZE, borderColor: '#A89CF7' },
-  scanCornerTL: { top: 0, left: 0, borderTopWidth: CORNER_THICKNESS, borderLeftWidth: CORNER_THICKNESS, borderTopLeftRadius: 4 },
-  scanCornerTR: { top: 0, right: 0, borderTopWidth: CORNER_THICKNESS, borderRightWidth: CORNER_THICKNESS, borderTopRightRadius: 4 },
-  scanCornerBL: { bottom: 0, left: 0, borderBottomWidth: CORNER_THICKNESS, borderLeftWidth: CORNER_THICKNESS, borderBottomLeftRadius: 4 },
-  scanCornerBR: { bottom: 0, right: 0, borderBottomWidth: CORNER_THICKNESS, borderRightWidth: CORNER_THICKNESS, borderBottomRightRadius: 4 },
-  cancelButton: { alignSelf: 'center', backgroundColor: 'rgba(255,255,255,0.12)', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.3)', borderRadius: 20, paddingHorizontal: 28, paddingVertical: 12 },
-  cancelButtonText: { color: '#FFFFFF', fontWeight: '800', fontSize: 14 },
+  toggleSection: { paddingTop: 14 },
+  toggle: { flexDirection: 'row', gap: 8 },
+  modeButton: { flex: 1, height: 44, borderRadius: 16, borderWidth: 1, borderColor: '#E2E8F0', backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' },
+  modeButtonActive: { backgroundColor: '#1A1A2E', borderColor: '#1A1A2E' },
+  modeText: { color: '#64748B', fontSize: 12, fontWeight: '900' },
+  modeTextActive: { color: '#FFFFFF' },
+  scanStage: { height: 420, marginHorizontal: 12, marginBottom: 14, borderRadius: 30, backgroundColor: '#1A1A2E', overflow: 'hidden', alignItems: 'center', justifyContent: 'center', shadowColor: '#534AB7', shadowOpacity: 0.22, shadowRadius: 22, shadowOffset: { width: 0, height: 20 }, elevation: 5 },
+  scanDim: { ...StyleSheet.absoluteFillObject, margin: 12, borderRadius: 24, backgroundColor: 'rgba(8,13,28,0.58)' },
+  scanFrame: { width: 230, height: 230, borderWidth: 2, borderColor: 'rgba(255,255,255,0.82)', borderRadius: 28 },
+  corner: { position: 'absolute', width: 38, height: 38, borderColor: '#5EE3A1' },
+  cornerTopLeft: { left: -2, top: -2, borderLeftWidth: 5, borderTopWidth: 5, borderTopLeftRadius: 24 },
+  cornerTopRight: { right: -2, top: -2, borderRightWidth: 5, borderTopWidth: 5, borderTopRightRadius: 24 },
+  cornerBottomLeft: { left: -2, bottom: -2, borderLeftWidth: 5, borderBottomWidth: 5, borderBottomLeftRadius: 24 },
+  cornerBottomRight: { right: -2, bottom: -2, borderRightWidth: 5, borderBottomWidth: 5, borderBottomRightRadius: 24 },
+  scanGuide: { position: 'absolute', bottom: 40, color: 'rgba(255,255,255,0.74)', fontSize: 12 },
+  permission: { zIndex: 2, alignItems: 'center', gap: 12 },
+  permissionTitle: { color: '#FFFFFF', fontSize: 14, fontWeight: '900' },
+  permissionButton: { height: 42, borderRadius: 15, backgroundColor: '#FFFFFF', paddingHorizontal: 18, alignItems: 'center', justifyContent: 'center' },
+  permissionButtonText: { color: entryColors.purple, fontSize: 12, fontWeight: '900' },
+  result: { padding: 14, flexDirection: 'row', gap: 12, alignItems: 'center' },
+  resultIcon: { width: 48, height: 48, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+  resultTitle: { color: '#0F172A', fontSize: 15, fontWeight: '900' },
+  resultMessage: { color: '#64748B', fontSize: 11, lineHeight: 16, marginTop: 4 },
+  manualCard: { padding: 14 },
+  manualTitle: { color: '#0F172A', fontSize: 18, fontWeight: '900' },
+  manualSubtitle: { color: '#64748B', fontSize: 11, lineHeight: 16, marginTop: 3, marginBottom: 10 },
+  input: { minHeight: 48, maxHeight: 130, borderWidth: 1, borderColor: '#D9E1EE', borderRadius: 16, paddingHorizontal: 13, paddingVertical: 12, color: '#0F172A', fontWeight: '800', marginBottom: 10 },
+  manualConfirm: { flex: 1, borderRadius: 18, backgroundColor: '#534AB7', alignItems: 'center', justifyContent: 'center' },
+  disabled: { opacity: 0.45 },
+  notice: { paddingHorizontal: 14, paddingVertical: 13, backgroundColor: '#FBFAFF', borderWidth: 1, borderColor: '#D8D4FF', borderRadius: 20, flexDirection: 'row', gap: 10, alignItems: 'flex-start' },
+  noticeTitle: { color: '#0F172A', fontSize: 12, fontWeight: '900', marginBottom: 3 },
+  noticeText: { color: '#64748B', fontSize: 10, lineHeight: 15 },
 });

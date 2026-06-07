@@ -239,7 +239,7 @@ export default function OrganizerDashboardPage({ navigation }: any) {
       return;
     }
     const todayText = todayScheduledEvents === 0 ? '오늘 예정된 이벤트가 없습니다.' : `오늘 예정된 이벤트가 ${todayScheduledEvents}개 있습니다.`;
-    const checkInText = ticketMetrics.checkedInTickets === 0 ? '오늘 체크인된 티켓은 아직 없습니다.' : `오늘 체크인 ${ticketMetrics.checkedInTickets}건이 있습니다.`;
+    const checkInText = ticketMetrics.checkedInTickets === 0 ? '오늘 입장 처리된 티켓은 아직 없습니다.' : `오늘 입장 처리 ${ticketMetrics.checkedInTickets}건이 있습니다.`;
     showDialog('알림', `${todayText}\n${checkInText}`);
   };
 
@@ -342,7 +342,7 @@ export default function OrganizerDashboardPage({ navigation }: any) {
           <OrganizerSectionHead title="빠른 실행" subtitle="자주 쓰는 운영 작업" />
           <View style={styles.quickActions}>
             <QuickAction icon="plus" title="새 이벤트 등록" subtitle="회차/티켓 생성" tone="purple" onPress={() => navigation.navigate('EventCreate')} />
-            <QuickAction icon="qr" title="체크인 관리" subtitle="QR 스캔" tone="green" onPress={() => navigation.navigate('CheckInHome')} />
+            <QuickAction icon="qr" title="일정 관리" subtitle="입장 운영" tone="green" onPress={() => navigation.navigate('CheckInHome')} />
             <QuickAction icon="calendar" title="내 이벤트" subtitle="전체 목록" tone="blue" onPress={() => navigation.navigate('MyEvents')} />
             <QuickAction icon="ticket" title="티켓 판매" subtitle="판매 현황" tone="orange" onPress={() => navigation.navigate('SalesStatus')} />
           </View>

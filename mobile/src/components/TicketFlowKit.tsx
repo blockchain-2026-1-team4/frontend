@@ -34,6 +34,7 @@ export type TicketIconName =
   | 'cart'
   | 'x'
   | 'broadcast'
+  | 'bolt'
   | 'plus'
   | 'adjustments'
   | 'userCheck'
@@ -91,6 +92,7 @@ export function TicketIcon({ name, color = '#64748B', size = 20 }: { name: Ticke
   if (name === 'cart') return <Svg width={size} height={size} viewBox="0 0 24 24"><Path d="M6 6h15l-2 8H8L6 3H3m6 17h.01M18 20h.01" {...common} /></Svg>;
   if (name === 'x') return <Svg width={size} height={size} viewBox="0 0 24 24"><Path d="M6 6l12 12M6 18L18 6" {...common} /></Svg>;
   if (name === 'broadcast') return <Svg width={size} height={size} viewBox="0 0 24 24"><Circle cx="12" cy="12" r="2" {...common} /><Path d="M16.24 7.76a6 6 0 010 8.48M7.76 16.24a6 6 0 010-8.48M19.07 4.93a10 10 0 010 14.14M4.93 19.07a10 10 0 010-14.14" {...common} /></Svg>;
+  if (name === 'bolt') return <Svg width={size} height={size} viewBox="0 0 24 24"><Path d="M13 2 4 14h7l-1 8 9-12h-7l1-8z" {...common} /></Svg>;
   if (name === 'plus') return <Svg width={size} height={size} viewBox="0 0 24 24"><Path d="M12 5v14M5 12h14" {...common} /></Svg>;
   if (name === 'adjustments') return <Svg width={size} height={size} viewBox="0 0 24 24"><Path d="M4 7h10M18 7h2M4 17h3M11 17h9M14 5v4M7 15v4" {...common} /></Svg>;
   if (name === 'userCheck') return <Svg width={size} height={size} viewBox="0 0 24 24"><Circle cx="9" cy="8" r="4" {...common} /><Path d="M2.5 21a6.5 6.5 0 0113 0M16 11l2 2 4-5" {...common} /></Svg>;
