@@ -68,7 +68,7 @@ function localBlockReason(ticket: TicketDetail | null, event: EventDetail | null
   }
 
   const eventStatus = String(event?.status ?? '').toUpperCase();
-  if (eventStatus === 'CANCELED' || eventStatus === 'FLAGGED') return '리셀 금지 이벤트';
+  if (eventStatus === 'CANCELLED' || eventStatus === 'FLAGGED') return '리셀 금지 이벤트';
   if (!canRegisterResale(ticket, event)) {
     if (ticket?.resaleEnabled === false || event?.resaleAllowed === false) return '리셀 금지 이벤트';
     if (event?.resaleStart && now < new Date(event.resaleStart).getTime()) return '아직 리셀 가능 기간이 아닙니다.';

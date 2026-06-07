@@ -120,7 +120,7 @@ export function ticketStatusLabel(status?: string | null) {
     SOLD: '보유 중',
     LISTED: '리셀 판매중',
     USED: '사용 완료',
-    CANCELED: '취소됨',
+    CANCELLED: '취소됨',
   };
   const key = String(status ?? '').toUpperCase();
   return labels[key] ?? status ?? '-';
@@ -129,7 +129,7 @@ export function ticketStatusLabel(status?: string | null) {
 export function entryStatusOf(ticket?: TicketDetail | null, event?: EventSummary | null): TicketFlowStatus {
   const status = String(ticket?.status ?? '').toUpperCase();
   if (status === 'USED') return { label: '체크인 완료', tone: 'gray' };
-  if (status === 'CANCELED') return { label: '사용 불가', tone: 'red' };
+  if (status === 'CANCELLED') return { label: '사용 불가', tone: 'red' };
   if (status === 'SOLD' || status === 'LISTED') {
     if (isEventEnded(event)) return { label: '사용 기간 종료', tone: 'gray' };
     return { label: '입장 가능', tone: 'green' };
@@ -141,7 +141,7 @@ export function displayStatusOf(ticket?: TicketDetail | null, event?: EventSumma
   const status = String(ticket?.status ?? '').toUpperCase();
   if (status === 'SOLD' || status === 'LISTED') return entryStatusOf(ticket, event);
   if (status === 'USED') return { label: '사용 완료', tone: 'gray' };
-  if (status === 'CANCELED') return { label: '취소됨', tone: 'red' };
+  if (status === 'CANCELLED') return { label: '취소됨', tone: 'red' };
   if (status === 'AVAILABLE') return { label: '판매 가능', tone: 'blue' };
   return { label: ticketStatusLabel(status), tone: 'gray' };
 }

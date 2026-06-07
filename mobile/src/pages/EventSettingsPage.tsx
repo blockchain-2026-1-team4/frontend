@@ -189,7 +189,7 @@ export default function EventSettingsPage({ navigation, route }: any) {
   const [loadError, setLoadError] = useState('');
   const [issuedTicketCount, setIssuedTicketCount] = useState(0);
   const [errors, setErrors] = useState<string[]>([]);
-  const [statusDraft, setStatusDraft] = useState('ACTIVE');
+  const [statusDraft, setStatusDraft] = useState('PUBLISHED');
   const [statusSaving, setStatusSaving] = useState(false);
   const [categoryOpen, setCategoryOpen] = useState(false);
 
@@ -224,7 +224,7 @@ export default function EventSettingsPage({ navigation, route }: any) {
       setRounds(nextRounds);
       setExpandedRoundIds(nextRounds[0] ? [nextRounds[0].id] : []);
       setIssuedTicketCount(issuedTickets.length);
-      setStatusDraft(detail.status || 'ACTIVE');
+      setStatusDraft(detail.status || 'PUBLISHED');
       setErrors([]);
     } catch (error: any) {
       const message = errorMessage(error, '이벤트 정보를 불러오지 못했습니다.');
@@ -382,7 +382,7 @@ export default function EventSettingsPage({ navigation, route }: any) {
 
   const saveStatus = async () => {
     if (!event) return;
-    if (event.adminCanceled && statusDraft !== 'CANCELED') {
+    if (event.adminCanceled && statusDraft !== 'CANCELLED') {
       Alert.alert('변경 불가', '관리자가 취소한 이벤트는 주최자가 복구할 수 없습니다.');
       return;
     }
@@ -398,7 +398,7 @@ export default function EventSettingsPage({ navigation, route }: any) {
         setStatusSaving(false);
       }
     };
-    if (statusDraft === 'CANCELED' && String(event.status).toUpperCase() !== 'CANCELED') {
+    if (statusDraft === 'CANCELLED' && String(event.status).toUpperCase() !== 'CANCELLED') {
       Alert.alert('이벤트 취소', '취소 후 되돌릴 수 없습니다. 이벤트를 취소하시겠습니까?', [
         { text: '돌아가기', style: 'cancel' },
         { text: '취소 확정', style: 'destructive', onPress: () => void applyStatus() },
@@ -446,8 +446,8 @@ export default function EventSettingsPage({ navigation, route }: any) {
     status: {
       eyebrow: 'Event Status',
       title: '이벤트 상태 변경',
-      topBadge: String(event?.status).toUpperCase() === 'ACTIVE' ? '판매 중' : String(event?.status).toUpperCase() === 'CANCELED' ? '취소' : '비공개',
-      topTone: String(event?.status).toUpperCase() === 'ACTIVE' ? 'green' as const : String(event?.status).toUpperCase() === 'CANCELED' ? 'red' as const : 'gray' as const,
+      topBadge: String(event?.status).toUpperCase() === 'PUBLISHED' ? '판매 중' : String(event?.status).toUpperCase() === 'CANCELLED' ? '취소' : '비공개',
+      topTone: String(event?.status).toUpperCase() === 'PUBLISHED' ? 'green' as const : String(event?.status).toUpperCase() === 'CANCELLED' ? 'red' as const : 'gray' as const,
       heroBadge: '공개 상태',
       heroTitle: '판매와 노출 상태를\n관리하세요.',
       heroMeta: '취소는 되돌릴 수 없으므로 사용자 안내가 필요합니다.',
@@ -598,12 +598,12 @@ export default function EventSettingsPage({ navigation, route }: any) {
           <View style={styles.sectionWrap}>
             <EventFlowNotice
               tone="orange"
-              title={`현재 상태: ${String(event?.status).toUpperCase() === 'ACTIVE' ? '판매 중' : String(event?.status).toUpperCase() === 'CANCELED' ? '취소' : '비공개'}`}
+              title={`현재 상태: ${String(event?.status).toUpperCase() === 'PUBLISHED' ? '판매 중' : String(event?.status).toUpperCase() === 'CANCELLED' ? '취소' : '비공개'}`}
               subtitle="게시중 이벤트는 사용자 앱의 탐색 화면에 표시됩니다."
             />
-            <StatusOption active={statusDraft === 'ACTIVE'} icon="broadcast" title="게시중" subtitle="사용자에게 이벤트가 공개되고 예매가 가능합니다." tone="purple" disabled={String(event?.status).toUpperCase() === 'CANCELED'} onPress={() => setStatusDraft('ACTIVE')} />
-            <StatusOption active={statusDraft === 'INACTIVE'} icon="eyeOff" title="비공개" subtitle="목록에서 숨깁니다. 기존 티켓은 유지됩니다." tone="purple" disabled={String(event?.status).toUpperCase() === 'CANCELED'} onPress={() => setStatusDraft('INACTIVE')} />
-            <StatusOption active={statusDraft === 'CANCELED'} icon="x" title="이벤트 취소" subtitle="취소 후 되돌릴 수 없습니다." tone="red" onPress={() => setStatusDraft('CANCELED')} />
+            <StatusOption active={statusDraft === 'PUBLISHED'} icon="broadcast" title="게시중" subtitle="사용자에게 이벤트가 공개되고 예매가 가능합니다." tone="purple" disabled={String(event?.status).toUpperCase() === 'CANCELLED'} onPress={() => setStatusDraft('PUBLISHED')} />
+            <StatusOption active={statusDraft === 'INACTIVE'} icon="eyeOff" title="비공개" subtitle="목록에서 숨깁니다. 기존 티켓은 유지됩니다." tone="purple" disabled={String(event?.status).toUpperCase() === 'CANCELLED'} onPress={() => setStatusDraft('INACTIVE')} />
+            <StatusOption active={statusDraft === 'CANCELLED'} icon="x" title="이벤트 취소" subtitle="취소 후 되돌릴 수 없습니다." tone="red" onPress={() => setStatusDraft('CANCELLED')} />
           </View>
         ) : null}
 

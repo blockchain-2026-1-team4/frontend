@@ -36,7 +36,7 @@ const APPLICATION_LABEL: Record<string, string> = {
 };
 
 const STATUS_BADGE: Record<string, { label: string; style: 'live' | 'soon' | 'draft' }> = {
-  ACTIVE: { label: '게시중', style: 'live' },
+  PUBLISHED: { label: '게시중', style: 'live' },
   DRAFT: { label: '초안', style: 'draft' },
   INACTIVE: { label: '비공개', style: 'draft' },
 };
@@ -160,15 +160,15 @@ export default function OrganizerDashboardPage({ navigation }: any) {
   const canApply = !latestApplication || latestStatus === 'REJECTED';
 
   const totalEvents = events.length;
-  const publishedEvents = events.filter((event) => String(event.status ?? '').toUpperCase() === 'ACTIVE').length;
+  const publishedEvents = events.filter((event) => String(event.status ?? '').toUpperCase() === 'PUBLISHED').length;
   const todayScheduledEvents = events.filter((event) => {
-    if (String(event.status ?? '').toUpperCase() === 'CANCELED') return false;
+    if (String(event.status ?? '').toUpperCase() === 'CANCELLED') return false;
     const nextRoundTime = getNextRoundTime(event);
     return !Number.isNaN(nextRoundTime) && isToday(new Date(nextRoundTime).toISOString());
   }).length;
 
   const upcomingEvents = events
-    .filter((event) => String(event.status ?? '').toUpperCase() !== 'CANCELED')
+    .filter((event) => String(event.status ?? '').toUpperCase() !== 'CANCELLED')
     .sort((left, right) => {
       const leftTime = getNextRoundTime(left);
       const rightTime = getNextRoundTime(right);

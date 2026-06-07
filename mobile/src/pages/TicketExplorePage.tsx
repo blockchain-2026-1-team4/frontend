@@ -54,7 +54,7 @@ function explorerStatus(ticket: TicketDetail) {
   if (status === 'SOLD') return { label: '판매됨', tone: 'neutral' };
   if (status === 'LISTED') return { label: '리셀', tone: 'yellow' };
   if (status === 'USED') return { label: '입장 완료', tone: 'blue' };
-  if (status === 'CANCELED' || status === 'CANCELLED') return { label: '취소됨', tone: 'red' };
+  if (status === 'CANCELLED') return { label: '취소됨', tone: 'red' };
   return { label: status || '-', tone: 'neutral' };
 }
 

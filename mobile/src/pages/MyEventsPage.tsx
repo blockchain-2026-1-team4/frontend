@@ -44,20 +44,20 @@ function eventStart(event: EventSummary) {
 }
 
 function isEnded(event: EventSummary) {
-  if (String(event.status ?? '').toUpperCase() === 'CANCELED') return false;
+  if (String(event.status ?? '').toUpperCase() === 'CANCELLED') return false;
   const end = new Date(eventEnd(event)).getTime();
   return !Number.isNaN(end) && end < Date.now();
 }
 
 function isCancelled(event: EventSummary) {
-  return String(event.status ?? '').toUpperCase() === 'CANCELED';
+  return String(event.status ?? '').toUpperCase() === 'CANCELLED';
 }
 
 function eventBadge(event: EventSummary): { label: string; tone: 'green' | 'purple' | 'gray' | 'red' | 'yellow' } {
   const status = String(event.status ?? '').toUpperCase();
   if (isCancelled(event)) return { label: '취소', tone: 'red' };
   if (isEnded(event)) return { label: '종료', tone: 'gray' };
-  if (status === 'ACTIVE') return { label: '운영 중', tone: 'green' };
+  if (status === 'PUBLISHED') return { label: '운영 중', tone: 'green' };
   if (status === 'INACTIVE') return { label: '준비 중', tone: 'purple' };
   if (status === 'DRAFT') return { label: '초안', tone: 'gray' };
   return { label: status || '상태 없음', tone: 'yellow' };
@@ -99,7 +99,7 @@ export default function MyEventsPage({ navigation }: any) {
     return events
       .filter((event) => {
         const status = String(event.status ?? '').toUpperCase();
-        if (statusFilter === 'operating') return status === 'ACTIVE' && !isEnded(event) && !isCancelled(event);
+        if (statusFilter === 'operating') return status === 'PUBLISHED' && !isEnded(event) && !isCancelled(event);
         if (statusFilter === 'inactive') return status === 'INACTIVE';
         if (statusFilter === 'ended') return isEnded(event);
         if (statusFilter === 'cancelled') return isCancelled(event);

@@ -309,7 +309,7 @@ export default function SalesStatusPage({ navigation, route }: any) {
       } else {
         const page = await backendApi.getMyEvents({ page: 0, size: 100 });
         const myEvents = (page.items ?? [])
-          .filter((e) => String(e.status).toUpperCase() !== 'CANCELED')
+          .filter((e) => String(e.status).toUpperCase() !== 'CANCELLED')
           .sort((a, b) => {
             const rankDiff = salesSortRank(a) - salesSortRank(b);
             if (rankDiff !== 0) return rankDiff;

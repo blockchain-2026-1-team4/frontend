@@ -66,7 +66,7 @@ function isRoundEnded(ticket: TicketDetail, event?: EventDetail): boolean {
 function roundEntryStatus(ticket: TicketDetail, event?: EventDetail) {
   const status = String(ticket.status ?? '').toUpperCase();
   if (status === 'USED') return { label: '체크인 완료', tone: 'gray' as const };
-  if (status === 'CANCELED') return { label: '사용 불가', tone: 'red' as const };
+  if (status === 'CANCELLED') return { label: '사용 불가', tone: 'red' as const };
   if (status === 'SOLD' || status === 'LISTED') {
     if (isRoundEnded(ticket, event)) return { label: '사용 기간 종료', tone: 'gray' as const };
     return { label: '입장 가능', tone: 'green' as const };
@@ -142,7 +142,7 @@ export default function MyTicketsPage({ navigation }: any) {
       const event = eventsById[ticket.eventId];
       if (statusFilter === 'ENTRY') return roundEntryStatus(ticket, event).label === '입장 가능';
       if (statusFilter === 'RESALE') return canResaleByRound(ticket, event);
-      if (statusFilter === 'USED') return ['USED', 'CANCELED'].includes(String(ticket.status).toUpperCase());
+      if (statusFilter === 'USED') return ['USED', 'CANCELLED'].includes(String(ticket.status).toUpperCase());
       if (statusFilter === 'EXPIRED') {
         const status = String(ticket.status).toUpperCase();
         return (status === 'SOLD' || status === 'LISTED') && isRoundEnded(ticket, event);
