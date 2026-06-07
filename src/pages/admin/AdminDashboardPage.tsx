@@ -65,7 +65,7 @@ export function AdminDashboardPage() {
             backendApi.getOrganizerApplications({ status: "PENDING", page: 0, size: 1 }),
             backendApi.getAdminEvents({ status: "INACTIVE", page: 0, size: 1 }),
             backendApi.getUsers({ status: "ACTIVE", page: 0, size: 1 }),
-            backendApi.getAdminEvents({ status: "ACTIVE", page: 0, size: 1 }),
+            backendApi.getAdminEvents({ status: "PUBLISHED", page: 0, size: 1 }),
             backendApi.getDisputes({ status: "OPEN", page: 0, size: 1 }),
             backendApi.getDisputes({ status: "REVIEWING", page: 0, size: 1 }),
           ]);
