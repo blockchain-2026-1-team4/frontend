@@ -1,92 +1,102 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
-import { ActivityIndicator, Alert, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Svg, { Circle, Path, Rect } from 'react-native-svg';
+import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import {
   OrganizerEmpty,
   OrganizerFilterBar,
   OrganizerHero,
   OrganizerSearch,
-  OrganizerSectionHead,
   OrganizerTopBar,
   organizerColors,
 } from '../components/OrganizerTabKit';
-import { FlowBadge, flowShadow } from '../components/TicketFlowKit';
-
-function BackIcon() {
-  return (
-    <Svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.78)" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-      <Path d="M19 12H5m7 7-7-7 7-7" />
-    </Svg>
-  );
-}
-import { TextInput } from '../components/TextInput';
+import { FlowBadge, TicketIcon, flowShadow } from '../components/TicketFlowKit';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { showDialog } from '../lib/dialog';
 import { errorMessage } from '../lib/account';
 import { backendApi } from '../lib/backend';
-import { getNextRoundTime, salesSortRank, weiToEth } from '../lib/ticketDisplay';
-import type { EventDetail, EventSummary, TicketDetail } from '../types/api';
+import { formatCompactDateTime, getNextRoundTime, salesSortRank, weiToEth } from '../lib/ticketDisplay';
+import type { EventRound, EventSummary, TicketDetail } from '../types/api';
 
-type IconName = 'ticket' | 'cart' | 'search' | 'alert';
-type SalesItem = { event: EventSummary; tickets: TicketDetail[] };
-type SalesFilter = 'all' | 'available' | 'sold' | 'listed' | 'used' | 'cancelled';
+// ─── Types ───────────────────────────────────────────────────────────────────
 
-const FILTERS: { key: SalesFilter; label: string; tone?: 'teal' | 'amber' | 'blue' | 'red' }[] = [
-  { key: 'all', label: '전체' },
-  { key: 'available', label: '판매 중', tone: 'teal' },
-  { key: 'sold', label: '매진', tone: 'red' },
-  { key: 'listed', label: '리셀 중', tone: 'amber' },
+type SalesFilter = 'all' | 'available' | 'sold' | 'listed';
+
+const FILTERS: { key: SalesFilter; label: string }[] = [
+  { key: 'all',       label: '전체' },
+  { key: 'available', label: '판매 중' },
+  { key: 'sold',      label: '매진' },
+  { key: 'listed',    label: '리셀 중' },
 ];
 
-const HeroGradient = LinearGradient as unknown as React.ComponentType<any>;
+type RoundCard = {
+  event: EventSummary;
+  round: EventRound | null;
+  roundIndex: number;       // 0-based → "N+1회차"
+  roundLabel: string;       // display label on card
+  tickets: TicketDetail[];  // tickets for this round
+  allTickets: TicketDetail[];
+};
 
-function eventTitle(event: EventSummary | EventDetail) {
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function evtTitle(event: EventSummary) {
   return event.name || event.title || '이벤트';
 }
 
-function eventDateText(event: EventSummary | EventDetail) {
+function evtDateText(event: EventSummary, round: EventRound | null) {
+  if (round?.eventDate && round.startTime) {
+    return formatCompactDateTime(`${round.eventDate}T${round.startTime}`);
+  }
   const next = getNextRoundTime(event);
-  const value = !Number.isNaN(next) ? new Date(next) : new Date(event.eventStartAt || event.startsAt || event.eventAt || event.eventDateTime || '');
-  if (Number.isNaN(value.getTime())) return '일정 미정';
-  return value.toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' });
+  const val = !Number.isNaN(next) ? new Date(next) : new Date(event.eventStartAt || event.startsAt || event.eventAt || event.eventDateTime || '');
+  if (Number.isNaN(val.getTime())) return '일정 미정';
+  return val.toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' });
 }
 
-function isEnded(event: EventSummary) {
-  const end = new Date(event.eventEndAt || event.endsAt || event.eventAt || event.eventDateTime || '').getTime();
-  return !Number.isNaN(end) && end < Date.now();
+function ticketStats(tickets: TicketDetail[]) {
+  const total = tickets.length;
+  const sold = tickets.filter((t) => ['SOLD', 'LISTED', 'USED'].includes(String(t.status).toUpperCase())).length;
+  const available = tickets.filter((t) => String(t.status).toUpperCase() === 'AVAILABLE').length;
+  const listed = tickets.filter((t) => String(t.status).toUpperCase() === 'LISTED').length;
+  const used = tickets.filter((t) => String(t.status).toUpperCase() === 'USED').length;
+  return { total, sold, available, listed, used };
 }
 
-function ticketStats(event: EventSummary, tickets: TicketDetail[]) {
-  const total = Number(event.totalTicketCount ?? 0) || tickets.length;
-  const sold = Number(event.soldTicketCount ?? 0) || tickets.filter((ticket) => ['SOLD', 'LISTED', 'USED'].includes(String(ticket.status).toUpperCase())).length;
-  const available = event.remainingTicketCount != null
-    ? Number(event.remainingTicketCount)
-    : tickets.filter((ticket) => String(ticket.status).toUpperCase() === 'AVAILABLE').length;
-  const listed = tickets.filter((ticket) => String(ticket.status).toUpperCase() === 'LISTED').length;
-  const used = tickets.filter((ticket) => String(ticket.status).toUpperCase() === 'USED').length;
-  const cancelled = tickets.filter((ticket) => String(ticket.status).toUpperCase() === 'CANCELED').length;
-  return { total, sold, available, listed, used, cancelled };
+function roundBadge(stats: ReturnType<typeof ticketStats>) {
+  if (stats.total === 0) return { label: '미발행', tone: 'gray' as const };
+  if (stats.listed > 0) return { label: '리셀 중', tone: 'yellow' as const };
+  if (stats.available === 0) return { label: '매진', tone: 'red' as const };
+  return { label: '판매 중', tone: 'green' as const };
 }
 
-function matchesTicketFilter(ticket: TicketDetail, filter: SalesFilter) {
-  const status = String(ticket.status).toUpperCase();
+function buildRoundCards(event: EventSummary, allTickets: TicketDetail[]): RoundCard[] {
+  const rounds = event.rounds ?? [];
+  if (rounds.length === 0) {
+    return [{ event, round: null, roundIndex: -1, roundLabel: evtTitle(event), tickets: allTickets, allTickets }];
+  }
+  return rounds.map((round, index) => {
+    const roundId = round.id ? String(round.id) : null;
+    const roundTickets = roundId
+      ? allTickets.filter((t) => t.eventRoundId != null && String(t.eventRoundId) === roundId)
+      : round.eventDate
+        ? allTickets.filter((t) => t.eventDateTime?.slice(0, 10) === round.eventDate.slice(0, 10))
+        : allTickets;
+    return {
+      event,
+      round,
+      roundIndex: index,
+      roundLabel: `${evtTitle(event)} · ${index + 1}회차`,
+      tickets: roundTickets,
+      allTickets,
+    };
+  });
+}
+
+function matchesFilter(stats: ReturnType<typeof ticketStats>, filter: SalesFilter) {
   if (filter === 'all') return true;
-  if (filter === 'available') return status === 'AVAILABLE';
-  if (filter === 'sold') return ['SOLD', 'LISTED', 'USED'].includes(status);
-  if (filter === 'listed') return status === 'LISTED';
-  if (filter === 'used') return status === 'USED';
-  if (filter === 'cancelled') return status === 'CANCELED';
-  return true;
-}
-
-function matchesEventFilter(stat: ReturnType<typeof ticketStats>, filter: SalesFilter) {
-  if (filter === 'all') return true;
-  if (filter === 'available') return stat.available > 0;
-  if (filter === 'sold') return stat.total > 0 && stat.available === 0;
-  if (filter === 'listed') return stat.listed > 0;
-  if (filter === 'used') return stat.used > 0;
-  if (filter === 'cancelled') return stat.cancelled > 0;
+  if (filter === 'available') return stats.available > 0;
+  if (filter === 'sold') return stats.total > 0 && stats.available === 0;
+  if (filter === 'listed') return stats.listed > 0;
   return true;
 }
 
@@ -94,52 +104,194 @@ function sectionOf(ticket: TicketDetail) {
   return ticket.sectionName || String(ticket.seatInfo || '').split(/[-\s]/)[0] || 'GENERAL';
 }
 
-function sectionStats(tickets: TicketDetail[]) {
-  const map = new Map<string, { total: number; sold: number }>();
-  tickets.forEach((ticket) => {
-    const key = sectionOf(ticket);
-    const current = map.get(key) ?? { total: 0, sold: 0 };
-    current.total += 1;
-    if (['SOLD', 'LISTED', 'USED'].includes(String(ticket.status).toUpperCase())) current.sold += 1;
-    map.set(key, current);
+type ZoneData = { total: number; sold: number; available: number; listed: number; minPriceWei?: string; resaleEnabled?: boolean };
+
+function zoneStats(tickets: TicketDetail[]): [string, ZoneData][] {
+  const map = new Map<string, ZoneData>();
+  tickets.forEach((t) => {
+    const key = sectionOf(t);
+    const cur = map.get(key) ?? { total: 0, sold: 0, available: 0, listed: 0 };
+    cur.total += 1;
+    const status = String(t.status).toUpperCase();
+    if (['SOLD', 'LISTED', 'USED'].includes(status)) cur.sold += 1;
+    if (status === 'AVAILABLE') cur.available += 1;
+    if (status === 'LISTED') cur.listed += 1;
+    const price = t.originalPriceWei || t.priceWei;
+    if (price) {
+      if (!cur.minPriceWei) { cur.minPriceWei = price; }
+      else { try { if (BigInt(price) < BigInt(cur.minPriceWei)) cur.minPriceWei = price; } catch { /* skip */ } }
+    }
+    if (t.resaleEnabled) cur.resaleEnabled = true;
+    map.set(key, cur);
   });
   return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0], 'ko-KR', { numeric: true }));
 }
 
-function AppIcon({ name, color = '#534AB7', size = 18 }: { name: IconName; color?: string; size?: number }) {
-  const common = { fill: 'none', stroke: color, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const, strokeWidth: 2 };
+function minPriceWei(tickets: TicketDetail[]): string | null {
+  const prices = tickets.map((t) => t.originalPriceWei || t.priceWei).filter(Boolean) as string[];
+  if (!prices.length) return null;
+  try {
+    return prices.reduce((min, p) => BigInt(p) < BigInt(min) ? p : min, prices[0]);
+  } catch { return prices[0]; }
+}
+
+// ─── Sub-components ───────────────────────────────────────────────────────────
+
+function StatGrid2({ issued, sold }: { issued: number; sold: number }) {
   return (
-    <Svg width={size} height={size} viewBox="0 0 24 24">
-      {name === 'ticket' ? <Path {...common} d="M4 9a3 3 0 0 0 0 6v3h16v-3a3 3 0 0 0 0-6V6H4v3Zm8-2v10" /> : null}
-      {name === 'cart' ? (
-        <>
-          <Circle {...common} cx={9} cy={20} r={1} />
-          <Circle {...common} cx={17} cy={20} r={1} />
-          <Path {...common} d="M3 4h2l2.2 10.5a2 2 0 0 0 2 1.5h7.8a2 2 0 0 0 2-1.6L21 8H7" />
-        </>
-      ) : null}
-      {name === 'search' ? (
-        <>
-          <Circle {...common} cx={11} cy={11} r={8} />
-          <Path {...common} d="m21 21-4.35-4.35" />
-        </>
-      ) : null}
-      {name === 'alert' ? (
-        <>
-          <Path {...common} d="M10.3 4.3 2.4 18a2 2 0 0 0 1.7 3h15.8a2 2 0 0 0 1.7-3L13.7 4.3a2 2 0 0 0-3.4 0Z" />
-          <Path {...common} d="M12 9v4m0 4h.01" />
-        </>
-      ) : null}
-    </Svg>
+    <View style={styles.stat2Grid}>
+      <View style={styles.stat2Cell}>
+        <View style={styles.statIco}><TicketIcon name="ticket" color={organizerColors.purple} size={18} /></View>
+        <Text style={styles.stat2Num}>{issued.toLocaleString()}</Text>
+        <Text style={styles.stat2Label}>총 발급 티켓</Text>
+      </View>
+      <View style={[styles.stat2Cell, styles.stat2CellBorder]}>
+        <View style={styles.statIco}><TicketIcon name="cart" color={organizerColors.purple} size={18} /></View>
+        <Text style={[styles.stat2Num, { color: organizerColors.purple }]}>{sold.toLocaleString()}</Text>
+        <Text style={styles.stat2Label}>판매 완료</Text>
+      </View>
+    </View>
   );
 }
 
-export default function SalesStatusPage({ navigation, route }: any) {
+function StatGrid4({ sold, available, listed, used }: { sold: number; available: number; listed: number; used: number }) {
+  return (
+    <View style={styles.stat4Grid}>
+      {[
+        { label: '판매', value: sold, color: organizerColors.purple },
+        { label: '잔여', value: available, color: '#185FA5' },
+        { label: '리셀', value: listed, color: '#854F0B' },
+        { label: '체크인', value: used, color: organizerColors.green },
+      ].map((item) => (
+        <View key={item.label} style={styles.stat4Cell}>
+          <Text style={[styles.stat4Num, { color: item.color }]}>{item.value}</Text>
+          <Text style={styles.stat4Label}>{item.label}</Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+function ProgressBar({ label, pct, value, muted }: { label: string; pct: number; value: string; muted?: boolean }) {
+  return (
+    <View style={styles.barRow}>
+      <Text style={styles.barLabel}>{label}</Text>
+      <View style={styles.barBg}>
+        <View style={[styles.barFill, { width: `${Math.min(100, pct)}%` as any, backgroundColor: muted ? '#CBD5E1' : organizerColors.purple }]} />
+      </View>
+      <Text style={[styles.barVal, muted && styles.barValMuted]}>{value}</Text>
+    </View>
+  );
+}
+
+function RoundCardItem({ card, onPress }: { card: RoundCard; onPress: () => void }) {
+  const stats = useMemo(() => ticketStats(card.tickets), [card.tickets]);
+  const badge = roundBadge(stats);
+  const soldPct = stats.total > 0 ? (stats.sold / stats.total) * 100 : 0;
+  const availPct = stats.total > 0 ? (stats.available / stats.total) * 100 : 0;
+  const listedPct = stats.total > 0 ? (stats.listed / stats.total) * 100 : 0;
+  const price = minPriceWei(card.allTickets);
+  const sectionCount = new Set(card.allTickets.map(sectionOf)).size;
+
+  return (
+    <View style={styles.eventCard}>
+      <View style={styles.eventTop}>
+        <View style={styles.eventCopy}>
+          <Text style={styles.eventName} numberOfLines={2}>{card.roundLabel}</Text>
+          <Text style={styles.eventMeta}>{card.event.venue || '장소 미정'} · {evtDateText(card.event, card.round)}</Text>
+        </View>
+        <FlowBadge label={badge.label} tone={badge.tone} />
+      </View>
+
+      <View style={styles.progressWrap}>
+        <ProgressBar label="판매" pct={soldPct} value={`${stats.sold}/${stats.total}`} />
+        <ProgressBar label="잔여" pct={availPct} value={String(stats.available)} muted />
+        <ProgressBar label="리셀" pct={listedPct} value={String(stats.listed)} muted={stats.listed === 0} />
+      </View>
+
+      <View style={styles.eventFoot}>
+        <Text style={styles.eventFootMeta}>
+          {price ? `${weiToEth(price)}부터` : '-'}{sectionCount > 0 ? ` · 좌석 ${sectionCount}개 구역` : ''}
+        </Text>
+        <TouchableOpacity style={styles.detailBtn} onPress={onPress} activeOpacity={0.86}>
+          <Text style={styles.detailBtnText}>상세 보기</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+
+function ZoneCard({ name, total, sold, available, listed, minPriceWei: price, resaleEnabled }: { name: string; total: number; sold: number; available: number; listed: number; minPriceWei?: string; resaleEnabled?: boolean }) {
+  const badge = roundBadge({ total, sold, available, listed, used: 0 });
+  const sub = [price ? weiToEth(price) : null, resaleEnabled !== undefined ? (resaleEnabled ? '리셀 허용' : '리셀 불가') : null].filter(Boolean).join(' · ');
+  return (
+    <View style={styles.zoneCard}>
+      <View style={styles.zoneTop}>
+        <View>
+          <Text style={styles.zoneName}>{name}</Text>
+          {sub ? <Text style={styles.zoneSub}>{sub}</Text> : null}
+        </View>
+        <FlowBadge label={badge.label} tone={badge.tone} />
+      </View>
+      <View style={styles.zoneKpis}>
+        {[
+          { k: '판매', v: sold },
+          { k: '이용', v: total },
+          { k: '잔여', v: available },
+          { k: '리셀', v: listed },
+        ].map((item) => (
+          <View key={item.k} style={styles.kpi}>
+            <Text style={styles.kpiKey}>{item.k}</Text>
+            <Text style={styles.kpiVal}>{item.v}</Text>
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+}
+
+function SummaryPanel({ sold, total, available, listed, revenueWei }: { sold: number; total: number; available: number; listed: number; revenueWei?: string | null }) {
+  const rows = [
+    { label: '판매 수량', value: `${sold} / ${total}` },
+    { label: '잔여 수량', value: String(available) },
+    { label: '리셀 등록', value: String(listed) },
+    { label: '예상 매출', value: revenueWei ? weiToEth(revenueWei) : `${sold > 0 ? sold : 0}건` },
+  ];
+  return (
+    <View style={styles.summaryCard}>
+      {rows.map((row, i) => (
+        <View key={row.label} style={[styles.summaryRow, i === rows.length - 1 && styles.summaryRowLast]}>
+          <Text style={styles.summaryLabel}>{row.label}</Text>
+          <Text style={[styles.summaryVal, row.label === '예상 매출' && styles.summaryValPrimary]}>{row.value}</Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+function DetailTopBar({ onBack, badgeLabel, badgeTone }: { onBack: () => void; badgeLabel: string; badgeTone: 'green' | 'gray' | 'red' | 'yellow' | 'purple' }) {
   const insets = useSafeAreaInsets();
+  return (
+    <View style={[styles.detailTopBar, { paddingTop: Math.max(insets.top, 14) }]}>
+      <TouchableOpacity style={styles.detailBack} onPress={onBack} activeOpacity={0.84}>
+        <TicketIcon name="arrowLeft" color={organizerColors.ink} size={20} />
+      </TouchableOpacity>
+      <View style={styles.detailTopCopy}>
+        <Text style={styles.detailTopEyebrow}>Sales Dashboard</Text>
+        <Text style={styles.detailTopTitle}>회차 판매 상세</Text>
+      </View>
+      <FlowBadge label={badgeLabel} tone={badgeTone} />
+    </View>
+  );
+}
+
+// ─── Main Component ───────────────────────────────────────────────────────────
+
+type SalesItem = { event: EventSummary; tickets: TicketDetail[] };
+
+export default function SalesStatusPage({ navigation, route }: any) {
   const eventId = route?.params?.eventId as string | undefined;
-  const [event, setEvent] = useState<EventDetail | null>(null);
   const [items, setItems] = useState<SalesItem[]>([]);
-  const [tickets, setTickets] = useState<TicketDetail[]>([]);
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<SalesFilter>('all');
   const [loading, setLoading] = useState(true);
@@ -148,29 +300,28 @@ export default function SalesStatusPage({ navigation, route }: any) {
   const load = useCallback(async () => {
     try {
       if (eventId) {
-        const [detail, list] = await Promise.all([backendApi.getEvent(eventId), backendApi.getEventTickets(eventId).catch(() => [])]);
-        setEvent(detail);
-        setTickets(list);
-        setItems([]);
-        return;
+        // detail mode — load single event tickets
+        const [detail, list] = await Promise.all([
+          backendApi.getEvent(eventId),
+          backendApi.getEventTickets(eventId).catch(() => [] as TicketDetail[]),
+        ]);
+        setItems([{ event: detail, tickets: list }]);
+      } else {
+        const page = await backendApi.getMyEvents({ page: 0, size: 100 });
+        const myEvents = (page.items ?? [])
+          .filter((e) => String(e.status).toUpperCase() !== 'CANCELED')
+          .sort((a, b) => {
+            const rankDiff = salesSortRank(a) - salesSortRank(b);
+            if (rankDiff !== 0) return rankDiff;
+            return (getNextRoundTime(a) || 0) - (getNextRoundTime(b) || 0);
+          });
+        const withTickets = await Promise.all(
+          myEvents.map(async (e) => ({ event: e, tickets: await backendApi.getEventTickets(e.id).catch(() => [] as TicketDetail[]) })),
+        );
+        setItems(withTickets);
       }
-
-      const page = await backendApi.getMyEvents({ page: 0, size: 100 });
-      const myEvents = (page.items ?? [])
-        .filter((item) => String(item.status).toUpperCase() !== 'CANCELED')
-        .sort((a, b) => {
-          const rankDiff = salesSortRank(a) - salesSortRank(b);
-          if (rankDiff !== 0) return rankDiff;
-          const aTime = getNextRoundTime(a);
-          const bTime = getNextRoundTime(b);
-          return (Number.isNaN(aTime) ? Number.MAX_SAFE_INTEGER : aTime) - (Number.isNaN(bTime) ? Number.MAX_SAFE_INTEGER : bTime);
-        });
-      const withTickets = await Promise.all(myEvents.map(async (item) => ({ event: item, tickets: await backendApi.getEventTickets(item.id).catch(() => []) })));
-      setItems(withTickets);
-      setEvent(null);
-      setTickets([]);
-    } catch (error: any) {
-      Alert.alert('티켓 판매 현황 로드 실패', errorMessage(error, '티켓 판매 현황을 불러오지 못했습니다.'));
+    } catch (cause: any) {
+      showDialog('로드 실패', errorMessage(cause, '판매 현황을 불러오지 못했습니다.'));
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -179,94 +330,122 @@ export default function SalesStatusPage({ navigation, route }: any) {
 
   useFocusEffect(useCallback(() => { void load(); }, [load]));
 
+  // ─── All memo hooks must be declared before any conditional return ───────────
+  const allRoundCards = useMemo(() => {
+    if (eventId) return [];
+    return items.flatMap((item) => buildRoundCards(item.event, item.tickets));
+  }, [eventId, items]);
+
   const totals = useMemo(() => {
-    return items.reduce(
-      (acc, item) => {
-        const stat = ticketStats(item.event, item.tickets);
-        acc.issued += stat.total;
-        acc.sold += stat.sold;
-        return acc;
-      },
-      { issued: 0, sold: 0 },
-    );
-  }, [items]);
+    const eventMap = new Map<string, TicketDetail[]>();
+    allRoundCards.forEach((c) => { if (!eventMap.has(c.event.id)) eventMap.set(c.event.id, c.allTickets); });
+    const all = [...eventMap.values()].flat();
+    return {
+      issued: all.length,
+      sold: all.filter((t) => ['SOLD', 'LISTED', 'USED'].includes(String(t.status).toUpperCase())).length,
+    };
+  }, [allRoundCards]);
 
-  const visibleItems = useMemo(() => {
-    const normalized = query.trim().toLowerCase();
-    return items.filter((item) => {
-      const stat = ticketStats(item.event, item.tickets);
-      if (!matchesEventFilter(stat, filter)) return false;
-      if (!normalized) return true;
-      return `${eventTitle(item.event)} ${item.event.venue || ''}`.toLowerCase().includes(normalized);
+  const visibleCards = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return allRoundCards.filter((card) => {
+      const stats = ticketStats(card.tickets);
+      if (!matchesFilter(stats, filter)) return false;
+      if (!q) return true;
+      return `${card.roundLabel} ${card.event.venue || ''}`.toLowerCase().includes(q);
     });
-  }, [items, query, filter]);
+  }, [allRoundCards, filter, query]);
 
-  if (loading) {
+  // ─── Loading ─────────────────────────────────────────────────────────────────
+  if (loading) return <View style={styles.center}><ActivityIndicator size="large" color={organizerColors.purple} /></View>;
+
+  // ─── Detail mode ─────────────────────────────────────────────────────────────
+  if (eventId && items.length > 0) {
+    const { event, tickets } = items[0];
+    const stats = ticketStats(tickets);
+    // Zones always computed from all tickets; filter controls which zones are SHOWN
+    const allZones = zoneStats(tickets);
+    const visibleZones = allZones.filter(([, z]) => {
+      if (filter === 'all') return true;
+      if (filter === 'available') return z.available > 0;
+      if (filter === 'sold') return z.available === 0 && z.total > 0;
+      if (filter === 'listed') return z.listed > 0;
+      return true;
+    });
+    const badge = roundBadge(stats);
+    let revenueWei: bigint = 0n;
+    tickets.forEach((t) => {
+      if (['SOLD', 'LISTED', 'USED'].includes(String(t.status).toUpperCase())) {
+        try { revenueWei += BigInt(t.originalPriceWei || t.priceWei || '0'); } catch { /* skip */ }
+      }
+    });
+
     return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" color="#534AB7" />
-      </View>
-    );
-  }
+      <ScrollView
+        style={styles.screen}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} />}
+      >
+        <DetailTopBar
+          onBack={() => navigation.goBack()}
+          badgeLabel={badge.label}
+          badgeTone={badge.tone}
+        />
+        <OrganizerHero
+          badge="1회차"
+          title={`${evtTitle(event)}\n판매 현황`}
+          meta={`${weiToEth(event.ticketPriceWei) !== '-' ? `${weiToEth(event.ticketPriceWei)}부터 · ` : ''}판매 ${stats.sold}장 · 잔여 ${stats.available}장`}
+        />
+        <StatGrid4 sold={stats.sold} available={stats.available} listed={stats.listed} used={stats.used} />
+        <OrganizerFilterBar items={FILTERS} value={filter} onChange={(v) => setFilter(v)} />
 
-  if (eventId && event) {
-    const sold = tickets.filter((ticket) => ['SOLD', 'LISTED', 'USED'].includes(String(ticket.status).toUpperCase())).length;
-    const used = tickets.filter((ticket) => String(ticket.status).toUpperCase() === 'USED').length;
-    const available = tickets.filter((ticket) => String(ticket.status).toUpperCase() === 'AVAILABLE').length;
-    const listed = tickets.filter((ticket) => String(ticket.status).toUpperCase() === 'LISTED').length;
-    const filteredTickets = tickets.filter((ticket) => matchesTicketFilter(ticket, filter));
-    const stats = sectionStats(filteredTickets);
-
-    return (
-      <ScrollView style={styles.container} contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} />}>
-        <HeroGradient colors={['#1A1A2E', '#2D2B6B']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.hero, { paddingTop: Math.max(insets.top + 14, 36) }]}>
-          <View style={styles.heroTopBar}>
-            <TouchableOpacity style={styles.heroBackBtn} onPress={() => navigation.goBack()}>
-              <BackIcon />
-            </TouchableOpacity>
-            <Text style={styles.eyebrow}>Sales Dashboard</Text>
+        <View style={styles.sectionHead}>
+          <View>
+            <Text style={styles.sectionTitle}>구역별 판매 현황</Text>
+            <Text style={styles.sectionSub}>좌석 구역 기준 판매/잔여/리셀</Text>
           </View>
-          <Text style={styles.heroTitle}>티켓 판매 현황</Text>
-          <Text style={styles.heroSub} numberOfLines={1}>{eventTitle(event)} · {weiToEth(event.ticketPriceWei)}</Text>
-          <View style={styles.heroChip}><View style={styles.heroDotAmber} /><Text style={styles.heroChipText}>판매 {sold}장 · 잔여 {available}장</Text></View>
-        </HeroGradient>
-        <View style={styles.statStrip}>
-          <MiniStat label="판매" value={sold} color="#0F6E56" />
-          <MiniStat label="잔여" value={available} color="#534AB7" />
-          <MiniStat label="리셀" value={listed} color="#854F0B" />
-          <MiniStat label="체크인" value={used} color="#185FA5" />
+          <TouchableOpacity onPress={() => navigation.navigate('TicketExplore', { eventId })}>
+            <Text style={styles.sectionLink}>전체 티켓</Text>
+          </TouchableOpacity>
         </View>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterWrap}>
-          {FILTERS.map((item) => {
-            const active = filter === item.key;
-            return (
-              <TouchableOpacity key={item.key} style={[styles.filterPill, active && styles.filterPillActive, !active && item.tone === 'teal' && styles.filterPillTeal, !active && item.tone === 'amber' && styles.filterPillAmber, !active && item.tone === 'blue' && styles.filterPillBlue, !active && item.tone === 'red' && styles.filterPillRed]} onPress={() => setFilter(item.key)}>
-                <Text style={[styles.filterText, active && styles.filterTextActive, !active && item.tone === 'teal' && styles.filterTextTeal, !active && item.tone === 'amber' && styles.filterTextAmber, !active && item.tone === 'blue' && styles.filterTextBlue, !active && item.tone === 'red' && styles.filterTextRed]}>{item.label}</Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>구역별 판매 현황</Text>
-          <TouchableOpacity onPress={() => navigation.navigate('TicketExplore', { eventId })}><Text style={styles.sectionLink}>전체 티켓</Text></TouchableOpacity>
+        <View style={styles.zoneList}>
+          {visibleZones.length === 0
+            ? <Text style={styles.emptyText}>조건에 맞는 구역이 없습니다.</Text>
+            : visibleZones.map(([name, z]) => (
+              <ZoneCard key={name} name={name} total={z.total} sold={z.sold} available={z.available} listed={z.listed} minPriceWei={z.minPriceWei} resaleEnabled={z.resaleEnabled} />
+            ))
+          }
         </View>
-        <View style={styles.detailCard}>
-          {stats.length === 0 ? <Text style={styles.emptyText}>발행된 티켓이 없습니다.</Text> : stats.map(([section, item]) => {
-            const pct = item.total > 0 ? Math.round((item.sold / item.total) * 100) : 0;
-            return (
-              <View key={section} style={styles.sectionRow}>
-                <View style={styles.barTop}><Text style={styles.cardName}>{section}</Text><Text style={styles.barValue}>{item.sold}/{item.total}</Text></View>
-                <View style={styles.barBg}><View style={[styles.barFill, { width: `${pct}%`, backgroundColor: '#534AB7' }]} /></View>
-              </View>
-            );
-          })}
+
+        <View style={styles.sectionHead}>
+          <View>
+            <Text style={styles.sectionTitle}>판매 요약</Text>
+            <Text style={styles.sectionSub}>회차 기준 누계</Text>
+          </View>
+        </View>
+        <View style={styles.summaryWrap}>
+          <SummaryPanel
+            sold={stats.sold}
+            total={stats.total}
+            available={stats.available}
+            listed={stats.listed}
+            revenueWei={revenueWei > 0n ? revenueWei.toString() : null}
+          />
         </View>
       </ScrollView>
     );
   }
 
+  // ─── Overview mode ────────────────────────────────────────────────────────────
   return (
-    <ScrollView style={styles.mockContainer} contentContainerStyle={styles.mockContent} stickyHeaderIndices={[0]} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} />}>
+    <ScrollView
+      style={styles.screen}
+      contentContainerStyle={styles.content}
+      stickyHeaderIndices={[0]}
+      showsVerticalScrollIndicator={false}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} />}
+    >
       <OrganizerTopBar
         eyebrow="Ticket Operations"
         title="티켓 판매 현황"
@@ -279,166 +458,97 @@ export default function SalesStatusPage({ navigation, route }: any) {
       />
       <OrganizerHero
         badge="판매 운영"
-        title={'이벤트별 판매율과\n리셀 현황을 확인하세요.'}
-        meta="발급, 판매, 잔여, 리셀 수량을 한 화면에서 관리합니다."
+        title={'회차별 판매율과\n이상 좌석을 확인하세요.'}
+        meta="이벤트별 발급, 판매, 잔여, 리셀 수량을 한 화면에서 관리합니다."
       />
-      <OrganizerSearch value={query} onChangeText={setQuery} placeholder="이벤트명 또는 장소 검색" />
-      <OrganizerFilterBar items={FILTERS} value={filter} onChange={setFilter} />
-      <OrganizerSectionHead title={`판매 운영 ${visibleItems.length}건`} subtitle={`총 발급 ${totals.issued.toLocaleString()}장 · 판매 ${totals.sold.toLocaleString()}장`} actionLabel="최신순" onAction={() => setFilter('all')} />
 
-      {visibleItems.length === 0 ? (
-        <OrganizerEmpty title="운영할 판매 이벤트가 없습니다." actionLabel="내 이벤트 보기" onAction={() => navigation.navigate('MyEvents')} />
-      ) : visibleItems.map((item) => {
-        const stat = ticketStats(item.event, item.tickets);
-        const soldPct = stat.total > 0 ? Math.min(100, Math.round((stat.sold / stat.total) * 100)) : 0;
-        const missing = stat.total <= 0;
-        const soldOut = stat.total > 0 && stat.available <= 0;
-        return (
-          <TouchableOpacity key={item.event.id} style={styles.operationCard} onPress={() => navigation.navigate('SalesStatus', { eventId: item.event.id })}>
-            <View style={styles.operationTop}>
-              <View style={styles.operationCopy}>
-                <Text style={styles.operationName} numberOfLines={1}>{eventTitle(item.event)}</Text>
-                <Text style={styles.operationMeta}>{item.event.venue || '장소 미정'} · {eventDateText(item.event)}</Text>
-              </View>
-              <FlowBadge label={missing ? '미발행' : soldOut ? '매진' : stat.listed > 0 ? '리셀 중' : '판매 중'} tone={missing ? 'yellow' : soldOut ? 'red' : stat.listed > 0 ? 'yellow' : 'green'} />
-            </View>
-            <View style={styles.salesProgressTop}>
-              <Text style={styles.salesProgressLabel}>판매율</Text>
-              <Text style={styles.salesProgressValue}>{soldPct}%</Text>
-            </View>
-            <View style={styles.salesProgressBg}><View style={[styles.salesProgressFill, { width: `${soldPct}%` }]} /></View>
-            <View style={styles.kpiGrid}>
-              <Kpi value={stat.total} label="발급" color="#534AB7" />
-              <Kpi value={stat.sold} label="판매" color="#0F6E56" />
-              <Kpi value={stat.available} label="잔여" color="#185FA5" />
-              <Kpi value={stat.listed} label="리셀" color="#854F0B" />
-            </View>
-          </TouchableOpacity>
-        );
-      })}
+      <View style={styles.stat2Wrap}>
+        <StatGrid2 issued={totals.issued} sold={totals.sold} />
+      </View>
+
+      <OrganizerSearch value={query} onChangeText={setQuery} placeholder="이벤트명, 회차 검색" />
+      <OrganizerFilterBar items={FILTERS} value={filter} onChange={(v) => setFilter(v)} />
+
+      {visibleCards.length === 0 ? (
+        <OrganizerEmpty title="조건에 맞는 판매 이벤트가 없습니다." actionLabel="내 이벤트 보기" onAction={() => navigation.navigate('MyEvents')} />
+      ) : visibleCards.map((card, index) => (
+        <RoundCardItem
+          key={`${card.event.id}-${card.roundIndex}-${index}`}
+          card={card}
+          onPress={() => navigation.push('SalesStatus', { eventId: card.event.id })}
+        />
+      ))}
     </ScrollView>
   );
 }
 
-function Kpi({ value, label, color }: { value: number; label: string; color: string }) {
-  return (
-    <View style={styles.kpi}>
-      <Text style={[styles.kpiValue, { color }]}>{value.toLocaleString()}</Text>
-      <Text style={styles.kpiLabel}>{label}</Text>
-    </View>
-  );
-}
-
-function MetricCard({ icon, iconBg, iconColor, value, label }: { icon: IconName; iconBg: string; iconColor: string; value: number; label: string }) {
-  return (
-    <View style={styles.metricCard}>
-      <View style={[styles.metricIcon, { backgroundColor: iconBg }]}><AppIcon name={icon} color={iconColor} size={15} /></View>
-      <Text style={styles.metricValue}>{value.toLocaleString()}</Text>
-      <Text style={styles.metricLabel}>{label}</Text>
-    </View>
-  );
-}
-
-function MiniStat({ label, value, color }: { label: string; value: number; color: string }) {
-  return (
-    <View style={styles.statMini}><Text style={[styles.statValue, { color }]}>{value.toLocaleString()}</Text><Text style={styles.statLabel}>{label}</Text></View>
-  );
-}
-
-function BarRow({ label, value, pct, color, muted }: { label: string; value: string; pct: number; color: string; muted?: boolean }) {
-  return (
-    <View style={styles.barRow}>
-      <Text style={styles.barLabel}>{label}</Text>
-      <View style={styles.barBg}><View style={[styles.barFill, { width: `${pct}%`, backgroundColor: color }]} /></View>
-      <Text style={[styles.barValue, muted && styles.barValueMuted]}>{value}</Text>
-    </View>
-  );
-}
+// ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  mockContainer: { flex: 1, backgroundColor: organizerColors.background },
-  mockContent: { paddingBottom: 108 },
-  operationCard: { marginHorizontal: 16, marginBottom: 12, padding: 16, backgroundColor: '#FFFFFF', borderRadius: 24, borderWidth: 1, borderColor: organizerColors.border, ...flowShadow },
-  operationTop: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 },
-  operationCopy: { flex: 1, minWidth: 0 },
-  operationName: { color: organizerColors.ink, fontSize: 15, fontWeight: '900' },
-  operationMeta: { color: organizerColors.muted, fontSize: 10, fontWeight: '700', marginTop: 4 },
-  salesProgressTop: { marginTop: 15, marginBottom: 7, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  salesProgressLabel: { color: organizerColors.muted, fontSize: 10, fontWeight: '800' },
-  salesProgressValue: { color: organizerColors.purple, fontSize: 12, fontWeight: '900' },
-  salesProgressBg: { height: 7, borderRadius: 999, overflow: 'hidden', backgroundColor: '#EEEDFE' },
-  salesProgressFill: { height: '100%', borderRadius: 999, backgroundColor: organizerColors.purple },
-  kpiGrid: { marginTop: 15, flexDirection: 'row', gap: 6 },
-  kpi: { flex: 1, paddingVertical: 9, alignItems: 'center', borderRadius: 14, backgroundColor: '#F6F7FB' },
-  kpiValue: { fontSize: 15, fontWeight: '900' },
-  kpiLabel: { color: organizerColors.muted, fontSize: 8, fontWeight: '800', marginTop: 3 },
-  container: { flex: 1, backgroundColor: '#F5F5F5' },
-  content: { paddingBottom: 96 },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F5F5F5' },
-  hero: { paddingHorizontal: 18, paddingBottom: 30 },
-  heroTopBar: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 },
-  heroBackBtn: { width: 28, height: 28, borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.1)', alignItems: 'center', justifyContent: 'center' },
-  eyebrow: { color: '#A89CF7', fontSize: 10, fontWeight: '800', letterSpacing: 1.2, textTransform: 'uppercase' },
-  heroTitle: { color: '#FFFFFF', fontSize: 21, fontWeight: '900', lineHeight: 26 },
-  heroSub: { color: 'rgba(255,255,255,0.48)', fontSize: 11, marginTop: 4 },
-  heroChip: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: 'rgba(255,255,255,0.1)', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.2)', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4, marginTop: 12 },
-  heroDotAmber: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#FAC775' },
-  heroChipText: { color: 'rgba(255,255,255,0.85)', fontSize: 10, fontWeight: '700' },
-  metricGrid: { flexDirection: 'row', gap: 8, paddingHorizontal: 14, marginTop: -18, marginBottom: 10 },
-  metricCard: { flex: 1, backgroundColor: '#FFFFFF', borderRadius: 12, borderWidth: 0.5, borderColor: '#E5E7EB', padding: 11 },
-  metricIcon: { width: 26, height: 26, borderRadius: 7, alignItems: 'center', justifyContent: 'center', marginBottom: 7 },
-  metricValue: { fontSize: 20, fontWeight: '900', color: '#1A1A2E', lineHeight: 22 },
-  metricLabel: { fontSize: 10, color: '#9CA3AF', marginTop: 2, fontWeight: '700' },
-  searchWrap: { paddingHorizontal: 14, paddingTop: 8, paddingBottom: 6 },
-  searchBox: { flexDirection: 'row', alignItems: 'center', gap: 7, backgroundColor: '#FFFFFF', borderWidth: 0.5, borderColor: '#E5E7EB', borderRadius: 10, paddingHorizontal: 11 },
-  searchInput: { flex: 1, paddingVertical: 9, color: '#1A1A2E', fontSize: 12 },
-  filterWrap: { paddingHorizontal: 14, paddingBottom: 8, gap: 6 },
-  filterPill: { paddingHorizontal: 11, paddingVertical: 6, borderRadius: 20, borderWidth: 0.5, borderColor: '#E5E7EB', backgroundColor: '#FFFFFF' },
-  filterPillActive: { backgroundColor: '#1A1A2E', borderColor: '#1A1A2E' },
-  filterPillTeal: { backgroundColor: '#E1F5EE', borderColor: '#9FE1CB' },
-  filterPillAmber: { backgroundColor: '#FAEEDA', borderColor: '#FAC775' },
-  filterPillBlue: { backgroundColor: '#E6F1FB', borderColor: '#A9CDEB' },
-  filterPillRed: { backgroundColor: '#FCEBEB', borderColor: '#F7C1C1' },
-  filterText: { color: '#6B7280', fontSize: 10, fontWeight: '800' },
-  filterTextActive: { color: '#FFFFFF' },
-  filterTextTeal: { color: '#0F6E56' },
-  filterTextAmber: { color: '#854F0B' },
-  filterTextBlue: { color: '#185FA5' },
-  filterTextRed: { color: '#A32D2D' },
-  resultLabel: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 14, paddingBottom: 6 },
-  resultText: { fontSize: 10, color: '#9CA3AF', fontWeight: '800' },
-  sortText: { fontSize: 10, color: '#534AB7', fontWeight: '800' },
-  ticketCard: { backgroundColor: '#FFFFFF', borderRadius: 12, borderWidth: 0.5, borderColor: '#E5E7EB', padding: 12, marginHorizontal: 14, marginBottom: 7 },
-  cardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10, marginBottom: 8 },
-  cardCopy: { flex: 1, minWidth: 0 },
-  cardName: { fontSize: 12, fontWeight: '900', color: '#1A1A2E' },
-  cardMeta: { fontSize: 10, color: '#9CA3AF', marginTop: 2 },
-  badge: { paddingHorizontal: 7, paddingVertical: 3, borderRadius: 20 },
-  badgeSell: { backgroundColor: '#E6F1FB' },
-  badgeWarn: { backgroundColor: '#FAEEDA' },
-  badgeText: { fontSize: 9, fontWeight: '900' },
-  badgeTextSell: { color: '#185FA5' },
-  badgeTextWarn: { color: '#854F0B' },
-  bars: { gap: 5 },
-  barRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  barLabel: { width: 30, fontSize: 9, color: '#9CA3AF', fontWeight: '800' },
-  barBg: { flex: 1, height: 5, borderRadius: 99, backgroundColor: '#F3F4F6', overflow: 'hidden' },
-  barFill: { height: '100%', borderRadius: 99 },
-  barValue: { width: 34, textAlign: 'right', fontSize: 9, fontWeight: '900', color: '#1A1A2E' },
-  barValueMuted: { color: '#9CA3AF' },
-  warnBox: { backgroundColor: '#FAEEDA', borderRadius: 8, padding: 8, flexDirection: 'row', alignItems: 'flex-start', gap: 6 },
-  warnText: { flex: 1, color: '#854F0B', fontSize: 10, fontWeight: '700', lineHeight: 15 },
-  emptyBox: { backgroundColor: '#FFFFFF', borderRadius: 12, padding: 24, borderWidth: 0.5, borderColor: '#E5E7EB', marginHorizontal: 14, alignItems: 'center' },
-  emptyTitle: { color: '#6B7280', fontSize: 13, fontWeight: '800' },
-  statStrip: { flexDirection: 'row', gap: 7, paddingHorizontal: 14, paddingTop: 14, paddingBottom: 10 },
-  statMini: { flex: 1, backgroundColor: '#FFFFFF', borderRadius: 10, borderWidth: 0.5, borderColor: '#E5E7EB', paddingVertical: 9, alignItems: 'center' },
-  statValue: { fontSize: 17, fontWeight: '900', lineHeight: 19 },
-  statLabel: { fontSize: 9, color: '#9CA3AF', marginTop: 2, fontWeight: '700' },
-  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 14, paddingVertical: 8 },
-  sectionTitle: { fontSize: 12, fontWeight: '900', color: '#1A1A2E' },
-  sectionLink: { color: '#534AB7', fontSize: 11, fontWeight: '800' },
-  detailCard: { marginHorizontal: 14, backgroundColor: '#FFFFFF', borderRadius: 12, borderWidth: 0.5, borderColor: '#E5E7EB', padding: 12 },
-  sectionRow: { paddingVertical: 9 },
-  barTop: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
-  emptyText: { color: '#9CA3AF', paddingVertical: 16, textAlign: 'center', fontSize: 12, fontWeight: '700' },
+  screen: { flex: 1, backgroundColor: organizerColors.background },
+  content: { paddingBottom: 112 },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: organizerColors.background },
+
+  stat2Wrap: { paddingHorizontal: 16, paddingBottom: 12 },
+  stat2Grid: { backgroundColor: '#FFFFFF', borderRadius: 24, borderWidth: 1, borderColor: organizerColors.border, flexDirection: 'row', ...flowShadow },
+  stat2Cell: { flex: 1, paddingVertical: 16, paddingHorizontal: 18 },
+  stat2CellBorder: { borderLeftWidth: 1, borderLeftColor: organizerColors.border },
+  stat2Num: { fontSize: 24, fontWeight: '900', color: organizerColors.ink, letterSpacing: -0.6 },
+  stat2Label: { fontSize: 11, color: organizerColors.muted, fontWeight: '800', marginTop: 3 },
+
+  stat4Grid: { flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingBottom: 12 },
+  stat4Cell: { flex: 1, backgroundColor: '#FFFFFF', borderRadius: 17, borderWidth: 1, borderColor: organizerColors.border, paddingVertical: 12, alignItems: 'center', ...flowShadow },
+  stat4Num: { fontSize: 18, fontWeight: '900', letterSpacing: -0.4 },
+  stat4Label: { fontSize: 9, color: organizerColors.muted, fontWeight: '800', marginTop: 3 },
+
+  eventCard: { marginHorizontal: 16, marginBottom: 12, padding: 16, backgroundColor: '#FFFFFF', borderRadius: 24, borderWidth: 1, borderColor: organizerColors.border, ...flowShadow },
+  eventTop: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10, marginBottom: 13 },
+  eventCopy: { flex: 1, minWidth: 0 },
+  eventName: { fontSize: 15, fontWeight: '900', color: organizerColors.ink, lineHeight: 20, letterSpacing: -0.3 },
+  eventMeta: { fontSize: 11, color: organizerColors.muted, fontWeight: '700', marginTop: 4 },
+
+  progressWrap: { gap: 7, marginBottom: 14 },
+  barRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  barLabel: { width: 26, fontSize: 10, color: organizerColors.muted, fontWeight: '900' },
+  barBg: { flex: 1, height: 7, backgroundColor: '#EEF2F7', borderRadius: 999, overflow: 'hidden' },
+  barFill: { height: '100%', borderRadius: 999 },
+  barVal: { width: 38, textAlign: 'right', fontSize: 10, fontWeight: '900', color: organizerColors.ink },
+  barValMuted: { color: organizerColors.muted },
+
+  eventFoot: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: 12, borderTopWidth: 1, borderTopColor: '#F1F5F9', gap: 10 },
+  eventFootMeta: { flex: 1, fontSize: 11, color: organizerColors.muted, fontWeight: '700' },
+  detailBtn: { height: 34, borderRadius: 13, backgroundColor: '#EEEDFE', paddingHorizontal: 13, alignItems: 'center', justifyContent: 'center' },
+  detailBtnText: { fontSize: 12, fontWeight: '900', color: organizerColors.purple },
+
+  statIco: { width: 36, height: 36, borderRadius: 14, backgroundColor: '#EEEDFE', alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
+
+  detailTopBar: { backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: organizerColors.border, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingBottom: 10, gap: 12 },
+  detailBack: { width: 38, height: 38, borderRadius: 14, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: organizerColors.border, alignItems: 'center', justifyContent: 'center', ...flowShadow },
+  detailTopCopy: { flex: 1 },
+  detailTopEyebrow: { fontSize: 10, fontWeight: '900', color: organizerColors.purple, letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 2 },
+  detailTopTitle: { fontSize: 18, fontWeight: '900', color: organizerColors.ink, letterSpacing: -0.4 },
+
+  sectionHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', paddingHorizontal: 18, paddingTop: 8, paddingBottom: 10 },
+  sectionTitle: { fontSize: 17, fontWeight: '900', color: organizerColors.ink, letterSpacing: -0.3 },
+  sectionSub: { fontSize: 11, color: '#64748B', fontWeight: '700', marginTop: 3 },
+  sectionLink: { fontSize: 12, fontWeight: '900', color: organizerColors.purple, paddingBottom: 2 },
+  emptyText: { textAlign: 'center', color: organizerColors.muted, paddingVertical: 28, fontWeight: '800' },
+
+  zoneList: { paddingHorizontal: 16, gap: 10, paddingBottom: 4 },
+  zoneCard: { backgroundColor: '#FFFFFF', borderRadius: 24, borderWidth: 1, borderColor: organizerColors.border, padding: 16, ...flowShadow },
+  zoneTop: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10, marginBottom: 12 },
+  zoneName: { fontSize: 16, fontWeight: '900', color: organizerColors.ink, letterSpacing: -0.3 },
+  zoneSub: { fontSize: 10, color: organizerColors.muted, fontWeight: '800', marginTop: 3 },
+  zoneKpis: { flexDirection: 'row', gap: 8 },
+  kpi: { flex: 1, backgroundColor: '#F8FAFC', borderRadius: 14, borderWidth: 1, borderColor: '#EDF2F7', paddingVertical: 10, alignItems: 'center' },
+  kpiKey: { fontSize: 9, fontWeight: '900', color: organizerColors.muted, marginBottom: 4 },
+  kpiVal: { fontSize: 13, fontWeight: '900', color: organizerColors.ink },
+
+  summaryWrap: { paddingHorizontal: 16, paddingBottom: 8 },
+  summaryCard: { backgroundColor: '#FFFFFF', borderRadius: 24, borderWidth: 1, borderColor: organizerColors.border, overflow: 'hidden', ...flowShadow },
+  summaryRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 13, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
+  summaryRowLast: { borderBottomWidth: 0 },
+  summaryLabel: { fontSize: 12, color: '#64748B', fontWeight: '800' },
+  summaryVal: { fontSize: 13, fontWeight: '900', color: organizerColors.ink },
+  summaryValPrimary: { color: organizerColors.purple },
 });
