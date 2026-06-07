@@ -60,6 +60,12 @@ function isRoundEnded(ticket: TicketDetail, event?: EventDetail): boolean {
     if (ticketDateStr < todayStr) return true;
   }
 
+  // Fallback: if sale period ended, the event has almost certainly passed too.
+  if (ticket.saleEndAt) {
+    const saleEnd = new Date(ticket.saleEndAt).getTime();
+    if (!Number.isNaN(saleEnd) && now > saleEnd) return true;
+  }
+
   return isEventEnded(event);
 }
 
@@ -67,6 +73,8 @@ function roundEntryStatus(ticket: TicketDetail, event?: EventDetail) {
   const status = String(ticket.status ?? '').toUpperCase();
   if (status === 'USED') return { label: '체크인 완료', tone: 'gray' as const };
   if (status === 'CANCELLED') return { label: '사용 불가', tone: 'red' as const };
+  const eventStatus = String(event?.status ?? '').toUpperCase();
+  if (eventStatus === 'CANCELLED') return { label: '이벤트 취소', tone: 'red' as const };
   if (status === 'SOLD' || status === 'LISTED') {
     if (isRoundEnded(ticket, event)) return { label: '사용 기간 종료', tone: 'gray' as const };
     return { label: '입장 가능', tone: 'green' as const };

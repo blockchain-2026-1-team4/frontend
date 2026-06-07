@@ -306,8 +306,8 @@ export default function EventDetailPage({ route, navigation }: any) {
       try {
         const [eventData, ticketData, resaleData] = await Promise.all([
           backendApi.getEvent(eventId),
-          backendApi.getEventTickets(eventId),
-          backendApi.getResaleListings({ size: 50 }),
+          backendApi.getEventTickets(eventId).catch(() => [] as TicketDetail[]),
+          backendApi.getResaleListings({ size: 50 }).catch(() => ({ items: [] as ResaleListing[] })),
         ]);
         const rounds = displayRoundsOf(eventData);
         setEvent({ ...eventData, rounds });
@@ -332,15 +332,26 @@ export default function EventDetailPage({ route, navigation }: any) {
   const selectedRound = rounds[selectedRoundIndex] || rounds[0];
   const activeRoundKey = selectedRound ? roundKey(selectedRound, selectedRoundIndex) : null;
 
+  // 이벤트 상태가 PUBLISHED가 아니면 구매 불가 (CANCELLED, INACTIVE, DRAFT 등)
+  const eventStatus = String(event?.status ?? '').toUpperCase();
+  const isEventSalable = eventStatus === 'PUBLISHED';
+  const unsalableState: SaleState = eventStatus === 'CANCELLED'
+    ? { label: '이벤트 취소', tone: 'red' }
+    : { label: '판매 불가', tone: 'gray' };
+
   const roundTickets = useMemo(
     () => (activeRoundKey ? tickets.filter((ticket) => roundKeyOfTicket(ticket, rounds) === activeRoundKey) : []),
     [activeRoundKey, rounds, tickets],
   );
 
-  const sectionGroups = useMemo(
-    () => (selectedRound ? groupTicketsBySection(roundTickets, selectedRound) : []),
-    [roundTickets, selectedRound],
-  );
+  const sectionGroups = useMemo(() => {
+    if (!selectedRound) return [];
+    const groups = groupTicketsBySection(roundTickets, selectedRound);
+    if (!isEventSalable) {
+      return groups.map((g) => ({ ...g, availableCount: 0, saleState: unsalableState }));
+    }
+    return groups;
+  }, [roundTickets, selectedRound, isEventSalable, unsalableState]);
 
   useEffect(() => {
     setSelectedSectionKey((current) => {
@@ -356,7 +367,7 @@ export default function EventDetailPage({ route, navigation }: any) {
     const seatInfo = String(ticket.seatInfo ?? '').toUpperCase();
     return !query || seatInfo.includes(query);
   });
-  const purchasableTickets = filteredTickets.filter((ticket) => {
+  const purchasableTickets = !isEventSalable ? [] : filteredTickets.filter((ticket) => {
     const ticketState = saleStateOf({
       saleStartAt: ticket.saleStartAt || selectedRound?.saleStartAt,
       saleEndAt: ticket.saleEndAt || selectedSection?.saleEndAt,
@@ -383,14 +394,16 @@ export default function EventDetailPage({ route, navigation }: any) {
   const roundCards = rounds.map((round, index) => {
     const key = roundKey(round, index);
     const targetTickets = tickets.filter((ticket) => roundKeyOfTicket(ticket, rounds) === key);
-    const availableCount = targetTickets.filter(isAvailable).length;
+    const availableCount = isEventSalable ? targetTickets.filter(isAvailable).length : 0;
     return {
       key,
       round,
       index,
       availableCount,
       minPriceWei: minWei(targetTickets.map((ticket) => ticket.originalPriceWei || ticket.priceWei)) || event?.ticketPriceWei,
-      saleState: saleStateOf({ saleStartAt: round.saleStartAt, saleEndAt: round.saleEndAt, soldOut: availableCount === 0 }),
+      saleState: isEventSalable
+        ? saleStateOf({ saleStartAt: round.saleStartAt, saleEndAt: round.saleEndAt, soldOut: availableCount === 0 })
+        : unsalableState,
     };
   });
 
