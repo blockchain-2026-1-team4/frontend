@@ -37,43 +37,6 @@ export function AdminPagination({
         </button>
       </div>
       <span>{size}개씩 보기</span>
-      <style>{`
-        .admin-pagination {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 0.75rem;
-          padding: 0.85rem 1rem;
-          border-top: 1px solid var(--border);
-          background: #f8fafc;
-          color: var(--txt-sub);
-          font-size: 0.84rem;
-          font-weight: 700;
-          flex-wrap: wrap;
-        }
-        .admin-pagination div {
-          display: inline-flex;
-          align-items: center;
-          gap: 0.55rem;
-        }
-        .admin-pagination strong {
-          color: var(--txt-main);
-          font-variant-numeric: tabular-nums;
-        }
-        .admin-pagination button {
-          border: 1px solid var(--border);
-          background: var(--panel);
-          color: var(--txt-main);
-          border-radius: 8px;
-          padding: 0.36rem 0.72rem;
-          font: inherit;
-          cursor: pointer;
-        }
-        .admin-pagination button:disabled {
-          opacity: 0.45;
-          cursor: not-allowed;
-        }
-      `}</style>
     </div>
   );
 }

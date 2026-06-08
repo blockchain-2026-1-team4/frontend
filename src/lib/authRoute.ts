@@ -10,5 +10,5 @@ export async function requireAdminPath() {
   }
 
   clearAccessToken();
-  throw new Error("ADMIN 계정이 필요합니다. 관리자 계정으로 로그인하세요.");
+  throw new Error("ADMIN 계정이 필요합니다. 관리자 계정으로 로그인해주세요.");
 }

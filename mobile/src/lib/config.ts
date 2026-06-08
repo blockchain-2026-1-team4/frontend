@@ -9,6 +9,7 @@ type ExpoHostConstants = typeof Constants & {
 
 const API_PATH = "/api/v1";
 const API_PORT = process.env.EXPO_PUBLIC_API_PORT || "8080";
+const ADMIN_WEB_PORT = process.env.EXPO_PUBLIC_ADMIN_WEB_PORT || "5173";
 
 function trimUrl(value: string) {
   return value.replace(/\/$/, "");
@@ -74,6 +75,20 @@ function getApiBaseUrl() {
   return `http://10.0.2.2:${API_PORT}${API_PATH}`;
 }
 
+function getAdminWebUrl() {
+  const explicitUrl = process.env.EXPO_PUBLIC_ADMIN_WEB_URL;
+  if (explicitUrl) {
+    return trimUrl(explicitUrl);
+  }
+
+  const expoHost = getExpoDevHost();
+  if (expoHost) {
+    return `http://${expoHost}:${ADMIN_WEB_PORT}/login`;
+  }
+
+  return `http://localhost:${ADMIN_WEB_PORT}/login`;
+}
+
 // Converts a relative image URL returned by the backend (e.g. "/images/uuid.jpg")
 // into an absolute URL using the server origin derived from apiBaseUrl.
 // Required because React Native's Image component cannot resolve relative URLs.
@@ -86,6 +101,7 @@ export function resolveImageUrl(imageUrl: string | null | undefined): string | n
 
 export const config = {
   apiBaseUrl: getApiBaseUrl(),
+  adminWebUrl: getAdminWebUrl(),
   dappName: process.env.EXPO_PUBLIC_DAPP_NAME || "Trust Ticket",
   dappUrl: process.env.EXPO_PUBLIC_DAPP_URL || "https://trust-ticket.local",
   appScheme: process.env.EXPO_PUBLIC_APP_SCHEME || "trustticket",

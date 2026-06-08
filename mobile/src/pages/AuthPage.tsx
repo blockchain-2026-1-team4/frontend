@@ -119,6 +119,14 @@ async function openWalletApp() {
   Alert.alert('지갑 앱을 열 수 없습니다', 'MetaMask 앱에서 대기 중인 서명 요청을 확인해주세요.');
 }
 
+async function openAdminWebConsole() {
+  try {
+    await Linking.openURL(config.adminWebUrl);
+  } catch {
+    Alert.alert('관리자 웹사이트를 열 수 없습니다', config.adminWebUrl);
+  }
+}
+
 function authCopy(isOrganizer: boolean, isLogin: boolean, isSigning: boolean) {
   if (isSigning) {
     return {
@@ -222,6 +230,10 @@ export default function AuthPage({ navigation, route }: any) {
         return;
       }
       const userRole = profile.roles?.includes('ORGANIZER') ? 'ORGANIZER' : 'USER';
+      if (profile.roles?.includes('ADMIN')) {
+        await openAdminWebConsole();
+        return;
+      }
       navigation.replace(userRole === 'ORGANIZER' ? 'Organizer' : routeForEntry(profile, userRole));
     } catch (error: any) {
       const message = error?.response?.data?.message ?? '테스트 계정 로그인에 실패했습니다. 서버가 실행 중인지 확인해주세요.';
@@ -267,6 +279,10 @@ export default function AuthPage({ navigation, route }: any) {
         return;
       }
 
+      if (profile.roles?.includes('ADMIN')) {
+        await openAdminWebConsole();
+        return;
+      }
       navigation.replace(role === 'ORGANIZER' ? 'Organizer' : routeForEntry(profile, role));
     } catch (error: any) {
       const message = error?.response

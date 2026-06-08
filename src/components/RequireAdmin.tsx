@@ -26,7 +26,7 @@ export function RequireAdmin() {
         }
 
         clearAccessToken();
-        window.alert("ADMIN 계정이 아닙니다. 관리자 계정으로 로그인하세요.");
+        window.alert("ADMIN 계정이 아닙니다. 관리자 계정으로 로그인해주세요.");
         setState("blocked");
       } catch {
         if (active) {
