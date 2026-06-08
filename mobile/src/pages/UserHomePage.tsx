@@ -326,8 +326,8 @@ export default function UserHomePage({ navigation }: any) {
         </View>
         <View style={styles.heroBody}>
           <Text style={styles.eyebrow}>Blockchain Ticketing</Text>
-          <Text style={styles.heroTitle}>위변조 없는{'\n'}티켓의 시작</Text>
-          <Text style={styles.heroSub}>지갑 하나로 예매하고, QR로 입장하고, 투명하게 리셀하세요.</Text>
+          <Text style={styles.heroTitle}>신뢰할 수 있는{'\n'}티켓의 거래의 시작</Text>
+          <Text style={styles.heroSub}>블록체인 지갑 하나로 예매부터 입장, 리셀까지</Text>
         </View>
       </View>
 
@@ -338,15 +338,15 @@ export default function UserHomePage({ navigation }: any) {
               <Icon name="ticket" color="#1e1e20" />
             </View>
             <Text style={styles.roleTitle}>티켓 예매</Text>
-            <Text style={styles.roleSub}>공연과 스포츠 티켓을 지갑으로 예매합니다.</Text>
+            <Text style={styles.roleSub}>관심 있는 이벤트를 찾아보세요</Text>
             <Text style={styles.roleAction}>{profile ? '이벤트 탐색' : '사용자로 시작'}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={[styles.card, styles.roleCard, styles.roleDark]} onPress={() => void startWithWallet('ORGANIZER')} disabled={startingRole !== null}>
             <View style={[styles.roleIcon, styles.roleDarkIcon]}>
               <Icon name="building" color="#A89CF7" />
             </View>
-            <Text style={[styles.roleTitle, styles.roleDarkTitle]}>이벤트 운영</Text>
-            <Text style={[styles.roleSub, styles.roleDarkSub]}>등록, 발행, 체크인을 한 곳에서 관리합니다.</Text>
+            <Text style={[styles.roleTitle, styles.roleDarkTitle]}>티켓 발매</Text>
+            <Text style={[styles.roleSub, styles.roleDarkSub]}>이벤트를 등록하고 운영해보세요.</Text>
             <Text style={styles.roleDarkAction}>주최자로 시작</Text>
           </TouchableOpacity>
         </View>
