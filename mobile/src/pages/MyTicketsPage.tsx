@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { TextInput } from '../components/TextInput';
-import { FlowBadge, FlowHero, PosterArt, TicketIcon, flowShadow } from '../components/TicketFlowKit';
+import { FlowBadge, FlowHero, PosterThumb, TicketIcon, flowShadow } from '../components/TicketFlowKit';
 import { backendApi } from '../lib/backend';
+import { resolveImageUrl } from '../lib/config';
 import {
   canRegisterResale,
   eventDateLabel,
@@ -64,7 +65,12 @@ export default function MyTicketsPage({ navigation }: any) {
     const loadTickets = async () => {
       setLoading(true);
       try {
-        const data = await backendApi.getMyTickets();
+        const [raw, myEventsPage] = await Promise.all([
+          backendApi.getMyTickets(),
+          backendApi.getMyEvents({ page: 0, size: 200 }).catch(() => ({ items: [] as any[] })),
+        ]);
+        const ownedEventIds = new Set((myEventsPage.items ?? []).map((e: any) => String(e.id)));
+        const data = raw.filter((t) => !ownedEventIds.has(String(t.eventId)));
         setTickets(data);
         const eventIds = Array.from(new Set(data.map((ticket) => ticket.eventId).filter(Boolean)));
         const entries = await Promise.all(
@@ -171,7 +177,7 @@ export default function MyTicketsPage({ navigation }: any) {
                   onPress={() => navigation.navigate('TicketDetail', { ticketId: id })}
                   activeOpacity={0.86}
                 >
-                  <PosterArt title={eventTitle(event, ticket)} variant={index} />
+                  <PosterThumb imageUrl={resolveImageUrl(event?.imageUrl)} title={eventTitle(event, ticket)} variant={index} style={styles.poster} />
                   <View style={styles.ticketInfo}>
                     <View style={styles.ticketTop}>
                       <FlowBadge label={entry.label} tone={entry.tone === 'red' ? 'red' : entry.tone === 'gray' ? 'gray' : entry.tone === 'yellow' ? 'yellow' : 'green'} />
@@ -232,6 +238,7 @@ const styles = StyleSheet.create({
   filterText: { color: '#64748B', fontSize: 12, fontWeight: '900' },
   filterTextActive: { color: '#FFFFFF' },
   ticketList: { paddingHorizontal: 16, gap: 12 },
+  poster: { width: 84, height: 112, borderRadius: 18, overflow: 'hidden', flexShrink: 0 },
   ticket: { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 24, padding: 12, flexDirection: 'row', gap: 12, ...flowShadow },
   ticketInfo: { flex: 1, minWidth: 0 },
   ticketTop: { flexDirection: 'row', justifyContent: 'space-between', gap: 8, marginBottom: 8 },

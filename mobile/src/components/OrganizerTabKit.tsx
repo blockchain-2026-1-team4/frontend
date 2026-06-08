@@ -63,16 +63,18 @@ export function OrganizerHero({
   title,
   meta,
   posters = true,
+  imageUrl,
 }: {
   size?: 'md' | 'lg';
   badge: string;
   title: string;
   meta: string;
   posters?: boolean;
+  imageUrl?: string | null;
 }) {
   return (
     <View style={styles.heroWrap}>
-      <FlowHero height={size === 'lg' ? 224 : 188} badge={badge} title={title} meta={meta} posters={posters} />
+      <FlowHero height={size === 'lg' ? 224 : 188} badge={badge} title={title} meta={meta} posters={posters} imageUrl={imageUrl} />
     </View>
   );
 }

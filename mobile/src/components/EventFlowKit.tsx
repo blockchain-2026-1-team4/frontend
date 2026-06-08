@@ -40,6 +40,7 @@ export function EventFlowHero({
   title,
   meta,
   posters = false,
+  imageUrl,
 }: {
   size?: 'md' | 'lg';
   height?: number;
@@ -47,10 +48,11 @@ export function EventFlowHero({
   title: string;
   meta: string;
   posters?: boolean;
+  imageUrl?: string | null;
 }) {
   return (
     <View style={styles.heroWrap}>
-      <FlowHero height={height ?? (size === 'lg' ? 240 : 188)} badge={badge} title={title} meta={meta} posters={posters} />
+      <FlowHero height={height ?? (size === 'lg' ? 240 : 188)} badge={badge} title={title} meta={meta} posters={posters} imageUrl={imageUrl} />
     </View>
   );
 }

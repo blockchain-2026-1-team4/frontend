@@ -9,9 +9,10 @@ import {
   OrganizerTopBar,
   organizerColors,
 } from '../components/OrganizerTabKit';
-import { FlowBadge, TicketIcon, flowShadow } from '../components/TicketFlowKit';
+import { FlowBadge, PosterThumb, TicketIcon, flowShadow } from '../components/TicketFlowKit';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { showDialog } from '../lib/dialog';
+import { resolveImageUrl } from '../lib/config';
 import { errorMessage } from '../lib/account';
 import { backendApi } from '../lib/backend';
 import { eventProgressStatus, formatCompactDateTime, getNextRoundTime, matchTicketsToRound, roundProgressStatus, salesSortRank, weiToEth } from '../lib/ticketDisplay';
@@ -195,10 +196,12 @@ function RoundCardItem({ card, onPress }: { card: RoundCard; onPress: () => void
   const listedPct = stats.total > 0 ? (stats.listed / stats.total) * 100 : 0;
   const price = minPriceWei(card.allTickets);
   const sectionCount = new Set(card.allTickets.map(sectionOf)).size;
+  const posterUrl = resolveImageUrl(card.event.imageUrl);
 
   return (
     <View style={styles.eventCard}>
       <View style={styles.eventTop}>
+        <PosterThumb imageUrl={posterUrl} title={card.roundLabel} variant={card.roundIndex} style={styles.eventPoster} />
         <View style={styles.eventCopy}>
           <Text style={styles.eventName} numberOfLines={2}>{card.roundLabel}</Text>
           <Text style={styles.eventMeta}>{card.event.venue || '장소 미정'} · {evtDateText(card.event, card.round)}</Text>
@@ -404,6 +407,7 @@ export default function SalesStatusPage({ navigation, route }: any) {
           badge="1회차"
           title={`${evtTitle(event)}\n판매 현황`}
           meta={`${weiToEth(event.ticketPriceWei) !== '-' ? `${weiToEth(event.ticketPriceWei)}부터 · ` : ''}판매 ${stats.sold}장 · 잔여 ${stats.available}장`}
+          imageUrl={resolveImageUrl(event.imageUrl)}
         />
         <StatGrid4 sold={stats.sold} available={stats.available} listed={stats.listed} used={stats.used} />
         <OrganizerFilterBar items={FILTERS} value={filter} onChange={(v) => setFilter(v)} />
@@ -510,7 +514,8 @@ const styles = StyleSheet.create({
   stat4Label: { fontSize: 9, color: organizerColors.muted, fontWeight: '800', marginTop: 3 },
 
   eventCard: { marginHorizontal: 16, marginBottom: 12, padding: 16, backgroundColor: '#FFFFFF', borderRadius: 24, borderWidth: 1, borderColor: organizerColors.border, ...flowShadow },
-  eventTop: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10, marginBottom: 13 },
+  eventTop: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 13 },
+  eventPoster: { width: 54, height: 70, borderRadius: 14, overflow: 'hidden', flexShrink: 0 },
   eventCopy: { flex: 1, minWidth: 0 },
   eventName: { fontSize: 15, fontWeight: '900', color: organizerColors.ink, lineHeight: 20, letterSpacing: -0.3 },
   eventMeta: { fontSize: 11, color: organizerColors.muted, fontWeight: '700', marginTop: 4 },

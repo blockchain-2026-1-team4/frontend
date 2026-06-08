@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { FlowBadge, FlowHero, IconButton, PosterArt, TicketIcon, flowShadow } from '../components/TicketFlowKit';
+import { FlowBadge, FlowHero, IconButton, PosterThumb, TicketIcon, flowShadow } from '../components/TicketFlowKit';
 import { backendApi } from '../lib/backend';
+import { resolveImageUrl } from '../lib/config';
 import {
   canRegisterResale,
   compactId,
@@ -109,7 +110,7 @@ export default function TicketDetailPage({ route, navigation }: any) {
             <View style={styles.notchLeft} />
             <View style={styles.notchRight} />
             <View style={styles.passTop}>
-              <PosterArt title={title} variant={1} />
+              <PosterThumb imageUrl={resolveImageUrl(event?.imageUrl)} title={title} variant={1} style={styles.ticketPoster} />
               <View style={styles.ticketInfo}>
                 <View style={styles.ticketTop}>
                   <FlowBadge label={entry.label} tone={entry.tone === 'red' ? 'red' : entry.tone === 'gray' ? 'gray' : 'green'} />
@@ -164,6 +165,7 @@ export default function TicketDetailPage({ route, navigation }: any) {
 }
 
 const styles = StyleSheet.create({
+  ticketPoster: { width: 84, height: 112, borderRadius: 18, overflow: 'hidden', flexShrink: 0 },
   container: { flex: 1, backgroundColor: '#F6F7FB' },
   screen: { flex: 1 },
   content: { paddingBottom: 112 },

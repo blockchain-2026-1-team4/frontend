@@ -11,6 +11,7 @@ import {
 import { TicketIcon, flowShadow } from '../components/TicketFlowKit';
 import { errorMessage } from '../lib/account';
 import { backendApi } from '../lib/backend';
+import { resolveImageUrl } from '../lib/config';
 import { formatEventCategory, formatEventRange, getEventDisplayStatus } from '../lib/ticketDisplay';
 import type { EventDetail, TicketDetail } from '../types/api';
 
@@ -111,6 +112,7 @@ export default function OrganizerEventDetailPage({ navigation, route }: any) {
         title={eventTitle(event)}
         meta={`${event.venue || '장소 미정'} · ${roundSummary(event)}\n${issuedMessage}`}
         posters
+        imageUrl={resolveImageUrl(event.imageUrl)}
       />
 
       <View style={styles.stats}>

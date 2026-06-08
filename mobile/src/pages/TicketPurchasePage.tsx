@@ -1,10 +1,11 @@
 import { useProvider } from '@reown/appkit-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
 import WalletRequiredView from '../components/WalletRequiredView';
 import { backendApi } from '../lib/backend';
+import { resolveImageUrl } from '../lib/config';
 import { purchaseTicketOnChain } from '../lib/blockchain/client';
 import { showDialog } from '../lib/dialog';
 import { formatCompactDateTime, formatTicketStatus, weiToEth } from '../lib/ticketDisplay';
@@ -192,10 +193,13 @@ export default function TicketPurchasePage({ route, navigation }: any) {
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <LinearGradient colors={['#1A1A2E', '#534AB7', '#1D9E75']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.hero}>
-          <View style={styles.posterRow}>
-            <LinearGradient colors={['#0C447C', '#185FA5', '#639922']} style={styles.miniPoster} />
-            <LinearGradient colors={['#26215C', '#534AB7', '#1D9E75']} style={styles.miniPoster} />
-          </View>
+          {event?.imageUrl ? <Image source={{ uri: resolveImageUrl(event.imageUrl) ?? undefined }} style={StyleSheet.absoluteFill} resizeMode="cover" /> : null}
+          {!event?.imageUrl ? (
+            <View style={styles.posterRow}>
+              <LinearGradient colors={['#0C447C', '#185FA5', '#639922']} style={styles.miniPoster} />
+              <LinearGradient colors={['#26215C', '#534AB7', '#1D9E75']} style={styles.miniPoster} />
+            </View>
+          ) : null}
           <View style={styles.heroDim} />
           <View style={styles.heroBody}>
             <Text style={styles.glassBadge}>최종 확인</Text>

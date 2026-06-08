@@ -1,6 +1,6 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import React from 'react';
-import { StyleProp, StyleSheet, Text, View, ViewStyle } from 'react-native';
+import { Image, StyleProp, StyleSheet, Text, View, ViewStyle } from 'react-native';
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
 
 export type TicketIconName =
@@ -140,6 +140,27 @@ export function PosterRow() {
   );
 }
 
+export function PosterThumb({
+  imageUrl,
+  title,
+  variant = 0,
+  style,
+}: {
+  imageUrl?: string | null;
+  title: string;
+  variant?: number;
+  style?: StyleProp<ViewStyle>;
+}) {
+  if (!imageUrl) return <PosterArt title={title} variant={variant} style={style} />;
+  return (
+    <View style={[style, { overflow: 'hidden' }]}>
+      <Image source={{ uri: imageUrl }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+      <LinearGradient colors={['transparent', 'rgba(0,0,0,0.72)']} style={kitStyles.posterThumbDim} />
+      <Text style={kitStyles.posterThumbTitle} numberOfLines={2}>{title}</Text>
+    </View>
+  );
+}
+
 export function FlowHero({
   height,
   badge,
@@ -147,6 +168,7 @@ export function FlowHero({
   meta,
   style,
   posters = true,
+  imageUrl,
 }: {
   height: number;
   badge: string;
@@ -154,11 +176,13 @@ export function FlowHero({
   meta: string;
   style?: StyleProp<ViewStyle>;
   posters?: boolean;
+  imageUrl?: string | null;
 }) {
   return (
     <LinearGradient colors={HERO_COLORS as any} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[kitStyles.hero, { height }, style]}>
-      {posters ? <PosterRow /> : null}
+      {imageUrl ? <Image source={{ uri: imageUrl }} style={StyleSheet.absoluteFill} resizeMode="cover" /> : null}
       <View style={kitStyles.heroDim} />
+      {posters ? <PosterRow /> : null}
       <View style={kitStyles.heroBody}>
         <FlowBadge label={badge} glass />
         <Text style={kitStyles.heroTitle}>{title}</Text>
@@ -204,6 +228,8 @@ const kitStyles = StyleSheet.create({
   posterText: { position: 'absolute', left: 9, right: 9, bottom: 9, zIndex: 2, color: '#FFFFFF', fontSize: 11, fontWeight: '900', lineHeight: 14 },
   posterRow: { position: 'absolute', right: -10, top: 20, flexDirection: 'row', gap: 8, transform: [{ rotate: '8deg' }], opacity: 0.74, zIndex: 1 },
   miniPoster: { width: 58, height: 84, borderRadius: 14, borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)' },
+  posterThumbDim: { position: 'absolute', bottom: 0, left: 0, right: 0, height: '40%' as any },
+  posterThumbTitle: { position: 'absolute', bottom: 5, left: 6, right: 6, color: '#FFFFFF', fontSize: 9, fontWeight: '900' as const, lineHeight: 12 },
   hero: { borderRadius: 28, position: 'relative', overflow: 'hidden', ...flowShadow },
   heroDim: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.18)' },
   heroBody: { position: 'absolute', left: 17, right: 17, bottom: 17, zIndex: 2 },

@@ -14,8 +14,9 @@ import { TextInput } from '../components/TextInput';
 import { TicketIcon } from '../components/TicketFlowKit';
 import { errorMessage } from '../lib/account';
 import { backendApi } from '../lib/backend';
+import { resolveImageUrl } from '../lib/config';
 import { checkInResult, ticketId } from '../lib/entrySchedule';
-import type { CheckInRecord, TicketDetail } from '../types/api';
+import type { CheckInRecord, EventDetail, TicketDetail } from '../types/api';
 
 const PAGE_SIZE = 20;
 const FILTERS = [
@@ -60,6 +61,7 @@ async function loadHistories(tickets: TicketDetail[]) {
 export default function CheckInStatusPage({ navigation, route }: any) {
   const eventId = String(route?.params?.eventId ?? '');
   const roundId = route?.params?.roundId != null ? String(route.params.roundId) : undefined;
+  const [event, setEvent] = useState<EventDetail | null>(null);
   const [tickets, setTickets] = useState<TicketDetail[]>([]);
   const [records, setRecords] = useState<CheckInRecord[]>([]);
   const [query, setQuery] = useState('');
@@ -70,9 +72,13 @@ export default function CheckInStatusPage({ navigation, route }: any) {
 
   const load = useCallback(async () => {
     try {
-      const allTickets = await backendApi.getEventTickets(eventId).catch(() => [] as TicketDetail[]);
+      const [allTickets, eventDetail] = await Promise.all([
+        backendApi.getEventTickets(eventId).catch(() => [] as TicketDetail[]),
+        backendApi.getEvent(eventId).catch(() => null),
+      ]);
       const scoped = roundId ? allTickets.filter((ticket) => String(ticket.eventRoundId ?? '') === roundId) : allTickets;
       const histories = await loadHistories(scoped);
+      setEvent(eventDetail);
       setTickets(scoped);
       setRecords(histories.flat());
       setPage(1);
@@ -152,7 +158,7 @@ export default function CheckInStatusPage({ navigation, route }: any) {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} />}
     >
       <EntryTopBar eyebrow="Entry Status" title="입장 현황" back onBack={() => navigation.goBack()} rightIcon="download" rightLabel="입장 기록 내보내기" onRight={() => void exportRecords()} />
-      <EntryHero badge="입장 현황" title={'최근 입장 기록을\n확인하세요.'} subtitle="성공, 실패, 미입장 상태를 기준으로 검증 이력을 추적합니다." />
+      <EntryHero badge="입장 현황" title={'최근 입장 기록을\n확인하세요.'} subtitle="성공, 실패, 미입장 상태를 기준으로 검증 이력을 추적합니다." imageUrl={resolveImageUrl(event?.imageUrl)} />
 
       <View style={entryStyles.section}>
         <EntrySummary items={[{ label: '성공', value: entered }, { label: '실패', value: failure }, { label: '미입장', value: pending }]} />

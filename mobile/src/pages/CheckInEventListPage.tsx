@@ -15,6 +15,7 @@ import { TextInput } from '../components/TextInput';
 import { TicketIcon } from '../components/TicketFlowKit';
 import { errorMessage } from '../lib/account';
 import { backendApi } from '../lib/backend';
+import { resolveImageUrl } from '../lib/config';
 import {
   buildEntrySchedules,
   entryTicketStats,
@@ -133,6 +134,7 @@ export default function CheckInEventListPage({ navigation, route }: any) {
                   schedule={schedule}
                   meta={`${scheduleStateLabel(schedule)} · 티켓 ${stats.total}장 · 입장 ${stats.entered}명\n${schedule.event.venue || '장소 미정'}`}
                   onPress={() => navigation.navigate('CheckInManage', { eventId: schedule.event.id, roundId: schedule.roundId })}
+                  imageUrl={resolveImageUrl(schedule.event.imageUrl)}
                 />
               );
             })}

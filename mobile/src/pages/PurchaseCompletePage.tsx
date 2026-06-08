@@ -1,8 +1,10 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Svg, { Path, Rect } from 'react-native-svg';
+import { PosterThumb } from '../components/TicketFlowKit';
 import { backendApi } from '../lib/backend';
+import { resolveImageUrl } from '../lib/config';
 import { formatCompactDateTime, formatEventCategory, formatTicketStatus, weiToEth } from '../lib/ticketDisplay';
 import type { EventDetail, TicketDetail } from '../types/api';
 
@@ -115,6 +117,7 @@ export default function PurchaseCompletePage({ route, navigation }: any) {
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
       <LinearGradient colors={['#1A1A2E', '#534AB7', '#1D9E75']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.completeHero}>
+        {event?.imageUrl ? <Image source={{ uri: resolveImageUrl(event.imageUrl) ?? undefined }} style={StyleSheet.absoluteFill} resizeMode="cover" /> : null}
         <View style={styles.heroDim} />
         <View style={styles.completeCenter}>
           <View style={styles.check}>
@@ -129,10 +132,7 @@ export default function PurchaseCompletePage({ route, navigation }: any) {
       <View style={styles.section}>
         <View style={styles.ticketPass}>
           <View style={styles.ticketTop}>
-            <LinearGradient colors={['#0C447C', '#185FA5', '#639922']} style={styles.poster}>
-              <View style={styles.posterDim} />
-              <Text style={styles.posterText}>{eventTitle(event, ticket)}</Text>
-            </LinearGradient>
+            <PosterThumb imageUrl={resolveImageUrl(event?.imageUrl)} title={eventTitle(event, ticket)} style={styles.poster} />
             <View style={styles.info}>
               <View style={styles.badges}>
                 <Text style={[styles.badge, styles.badgeGreen]}>예매 완료</Text>

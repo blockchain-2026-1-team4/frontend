@@ -1,10 +1,10 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import React from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { EntrySchedule } from '../lib/entrySchedule';
 import { scheduleDateParts, scheduleTitle } from '../lib/entrySchedule';
-import { FlowBadge, TicketIcon, type TicketIconName, flowShadow } from './TicketFlowKit';
+import { FlowBadge, PosterThumb, TicketIcon, type TicketIconName, flowShadow } from './TicketFlowKit';
 
 export const entryColors = {
   background: '#F6F7FB',
@@ -58,15 +58,19 @@ export function EntryHero({
   title,
   subtitle,
   posters = true,
+  imageUrl,
 }: {
   badge: string;
   title: string;
   subtitle: string;
   posters?: boolean;
+  imageUrl?: string | null;
 }) {
   return (
     <LinearGradient colors={['#1A1A2E', '#534AB7', '#1D9E75']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.hero}>
+      {imageUrl ? <Image source={{ uri: imageUrl }} style={StyleSheet.absoluteFill} resizeMode="cover" /> : null}
       <View style={styles.heroGlow} />
+      <LinearGradient colors={['transparent', 'rgba(0,0,0,0.18)', 'rgba(0,0,0,0.78)']} style={StyleSheet.absoluteFill} />
       {posters ? (
         <View style={styles.posterRow}>
           <LinearGradient colors={['#26215C', '#534AB7', '#1D9E75']} style={styles.poster} />
@@ -74,7 +78,6 @@ export function EntryHero({
           <LinearGradient colors={['#712B13', '#D85A30', '#EF9F27']} style={styles.poster} />
         </View>
       ) : null}
-      <LinearGradient colors={['transparent', 'rgba(0,0,0,0.18)', 'rgba(0,0,0,0.78)']} style={StyleSheet.absoluteFill} />
       <View style={styles.heroBody}>
         <FlowBadge label={badge} glass />
         <Text style={styles.heroTitle}>{title}</Text>
@@ -114,19 +117,25 @@ export function EntryEventCard({
   meta,
   actionLabel = '관리',
   onPress,
+  imageUrl,
 }: {
   schedule: EntrySchedule;
   meta: string;
   actionLabel?: string;
   onPress: () => void;
+  imageUrl?: string | null;
 }) {
   const date = scheduleDateParts(schedule);
   return (
     <View style={styles.eventCard}>
-      <View style={styles.date}>
-        <Text style={styles.dateMonth}>{date.month}</Text>
-        <Text style={styles.dateDay}>{date.day}</Text>
-      </View>
+      {imageUrl ? (
+        <PosterThumb imageUrl={imageUrl} title={scheduleTitle(schedule)} style={styles.date} />
+      ) : (
+        <View style={styles.date}>
+          <Text style={styles.dateMonth}>{date.month}</Text>
+          <Text style={styles.dateDay}>{date.day}</Text>
+        </View>
+      )}
       <View style={styles.eventMain}>
         <Text style={styles.eventTitle} numberOfLines={2}>{scheduleTitle(schedule)}</Text>
         <Text style={styles.eventMeta}>{meta}</Text>

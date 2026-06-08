@@ -9,10 +9,11 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { FlowBadge, FlowHero, IconButton, PosterArt, TicketIcon, flowShadow } from '../components/TicketFlowKit';
+import { FlowBadge, FlowHero, IconButton, PosterThumb, TicketIcon, flowShadow } from '../components/TicketFlowKit';
 import { errorMessage } from '../lib/account';
 import { showDialog } from '../lib/dialog';
 import { backendApi } from '../lib/backend';
+import { resolveImageUrl } from '../lib/config';
 import { formatDateTime, weiToEthLabel } from '../lib/ticketFlowDisplay';
 import type { DisputeRecord, ResaleListing, TicketDetail } from '../types/api';
 
@@ -54,6 +55,7 @@ type DisputeTargetSummary = {
   price?: string;
   transactionDate?: string;
   kind: string;
+  imageUrl?: string;
 };
 
 const FILTERS: { id: StatusFilter; label: string }[] = [
@@ -245,7 +247,7 @@ export default function MyDisputesPage({ navigation }: any) {
                 </View>
 
                 <View style={styles.targetBox}>
-                  <PosterArt title={summary?.title ?? '분쟁 대상'} variant={index + 1} style={styles.targetPoster} />
+                  <PosterThumb imageUrl={resolveImageUrl(summary?.imageUrl)} title={summary?.title ?? '분쟁 대상'} variant={index + 1} style={styles.targetPoster} />
                   <View style={styles.targetCopy}>
                     <FlowBadge label={summary?.kind ?? (item.resaleListingId ? '리셀 거래' : '내 티켓')} />
                     <Text style={styles.targetName} numberOfLines={2}>{summary?.title ?? '분쟁 대상 정보를 불러오는 중입니다.'}</Text>
@@ -301,6 +303,7 @@ async function loadTargetSummary(item: DisputeRecord): Promise<DisputeTargetSumm
       price: embedded.priceWei || embedded.price,
       transactionDate: item.resaleListingId ? item.createdAt : undefined,
       kind: item.resaleListingId ? '리셀 거래' : '내 티켓',
+      imageUrl: undefined,
     };
   }
 
@@ -319,6 +322,7 @@ async function loadTargetSummary(item: DisputeRecord): Promise<DisputeTargetSumm
         price: listing.priceWei || listing.price,
         transactionDate: listing.purchasedAt || listing.createdAt || item.createdAt,
         kind: '리셀 거래',
+        imageUrl: event?.imageUrl,
       };
     }
   }
@@ -334,6 +338,7 @@ async function loadTargetSummary(item: DisputeRecord): Promise<DisputeTargetSumm
         seat: ticket.seatInfo,
         price: ticket.priceWei || ticket.originalPriceWei,
         kind: '내 티켓',
+        imageUrl: event?.imageUrl,
       };
     }
   }
@@ -342,6 +347,7 @@ async function loadTargetSummary(item: DisputeRecord): Promise<DisputeTargetSumm
     title: item.resaleListingId ? '리셀 거래 신고' : '티켓 신고',
     eventDate: item.createdAt,
     kind: item.resaleListingId ? '리셀 거래' : '내 티켓',
+    imageUrl: undefined,
   };
 }
 

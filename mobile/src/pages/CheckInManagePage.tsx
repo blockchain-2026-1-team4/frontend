@@ -15,6 +15,7 @@ import { FlowBadge } from '../components/TicketFlowKit';
 import { TextInput } from '../components/TextInput';
 import { errorMessage } from '../lib/account';
 import { backendApi } from '../lib/backend';
+import { resolveImageUrl } from '../lib/config';
 import {
   buildEntrySchedules,
   buildZoneStats,
@@ -129,7 +130,7 @@ export default function CheckInManagePage({ navigation, route }: any) {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} />}
     >
       <EntryTopBar eyebrow="Event Entry" title="이벤트 입장 관리" back onBack={() => navigation.goBack()} rightIcon="qr" rightLabel="QR 스캔" onRight={openScan} />
-      <EntryHero badge="선택된 이벤트" title={scheduleTitle(schedule)} subtitle={`${event?.venue || '장소 미정'} · ${date.full}`} posters={false} />
+      <EntryHero badge="선택된 이벤트" title={scheduleTitle(schedule)} subtitle={`${event?.venue || '장소 미정'} · ${date.full}`} posters={false} imageUrl={resolveImageUrl(event?.imageUrl)} />
 
       <View style={entryStyles.section}>
         <EntrySummary items={[{ label: '총 티켓', value: stats.total }, { label: '입장 완료', value: stats.entered }, { label: '미입장', value: stats.pending }]} />

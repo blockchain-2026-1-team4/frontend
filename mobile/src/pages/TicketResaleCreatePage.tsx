@@ -2,10 +2,11 @@ import { useProvider } from '@reown/appkit-react-native';
 import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { TextInput } from '../components/TextInput';
-import { FlowBadge, FlowHero, IconButton, PosterArt, TicketIcon, flowShadow } from '../components/TicketFlowKit';
+import { FlowBadge, FlowHero, IconButton, PosterThumb, TicketIcon, flowShadow } from '../components/TicketFlowKit';
 import WalletRequiredView from '../components/WalletRequiredView';
 import { errorMessage } from '../lib/account';
 import { backendApi } from '../lib/backend';
+import { resolveImageUrl } from '../lib/config';
 import { listTicketOnChain } from '../lib/blockchain/client';
 import { showDialog } from '../lib/dialog';
 import {
@@ -197,7 +198,7 @@ export default function TicketResaleCreatePage({ route, navigation }: any) {
               <FlowBadge label={validityLabel(validity)} tone={validity?.valid === false ? 'red' : 'green'} />
             </View>
             <View style={styles.selectedTicket}>
-              <PosterArt title={title} variant={1} />
+              <PosterThumb imageUrl={resolveImageUrl(event?.imageUrl)} title={title} variant={1} style={styles.ticketPoster} />
               <View style={styles.ticketInfo}>
                 <Text style={styles.ticketName} numberOfLines={3}>{title}</Text>
                 <Text style={styles.ticketMeta}>{eventDateLabel(event, ticket)}{'\n'}{sectionNameOf(ticket)} · {ticket?.seatInfo || ticketIdOf(ticket)}</Text>
@@ -285,6 +286,7 @@ const styles = StyleSheet.create({
   headTitle: { fontSize: 17, fontWeight: '900', color: '#0F172A', letterSpacing: 0 },
   headSub: { fontSize: 11, color: '#64748B', marginTop: 3, fontWeight: '700', lineHeight: 16 },
   selectedTicket: { flexDirection: 'row', gap: 12 },
+  ticketPoster: { width: 84, height: 112, borderRadius: 18, overflow: 'hidden', flexShrink: 0 },
   ticketInfo: { flex: 1, minWidth: 0 },
   ticketName: { fontSize: 15, fontWeight: '900', lineHeight: 19, letterSpacing: 0, color: '#0F172A', marginBottom: 7 },
   ticketMeta: { fontSize: 11, color: '#64748B', lineHeight: 17, fontWeight: '700', marginBottom: 3 },

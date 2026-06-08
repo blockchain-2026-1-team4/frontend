@@ -13,6 +13,7 @@ import {
 import { flowShadow } from '../components/TicketFlowKit';
 import { errorMessage } from '../lib/account';
 import { backendApi } from '../lib/backend';
+import { resolveImageUrl } from '../lib/config';
 import {
   buildEntrySchedules,
   entryTicketStats,
@@ -119,6 +120,7 @@ export default function CheckInHomePage({ navigation }: any) {
                   schedule={schedule}
                   meta={`${scheduleStatusBadge(schedule).label} · ${schedule.event.venue || '장소 미정'} · ${date.time} · 입장 ${stats.entered}/${stats.total}`}
                   actionLabel={active === 'ended' ? '현황' : '관리'}
+                  imageUrl={resolveImageUrl(schedule.event.imageUrl)}
                   onPress={() => active === 'ended'
                     ? navigation.navigate('CheckInStatus', { eventId: schedule.event.id, roundId: schedule.roundId })
                     : goManage(schedule)}
@@ -135,7 +137,7 @@ export default function CheckInHomePage({ navigation }: any) {
           <View style={styles.list}>
             {grouped.upcoming.slice(0, 2).map((schedule) => {
               const date = scheduleDateParts(schedule);
-              return <EntryEventCard key={scheduleKey(schedule)} schedule={schedule} meta={`${scheduleStatusBadge(schedule).label} · ${schedule.event.venue || '장소 미정'} · ${date.time}`} onPress={() => goManage(schedule)} />;
+              return <EntryEventCard key={scheduleKey(schedule)} schedule={schedule} meta={`${scheduleStatusBadge(schedule).label} · ${schedule.event.venue || '장소 미정'} · ${date.time}`} imageUrl={resolveImageUrl(schedule.event.imageUrl)} onPress={() => goManage(schedule)} />;
             })}
           </View>
         </View>

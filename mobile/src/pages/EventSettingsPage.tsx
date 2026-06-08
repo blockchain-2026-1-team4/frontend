@@ -458,7 +458,7 @@ export default function EventSettingsPage({ navigation, route }: any) {
     <View style={styles.container}>
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content} stickyHeaderIndices={[0]}>
         <EventFlowTopBar eyebrow={modeMeta.eyebrow} title={modeMeta.title} badge={modeMeta.topBadge} badgeTone={modeMeta.topTone} onBack={() => navigation.goBack()} />
-        <EventFlowHero badge={modeMeta.heroBadge} title={modeMeta.heroTitle} meta={modeMeta.heroMeta} />
+        <EventFlowHero badge={modeMeta.heroBadge} title={modeMeta.heroTitle} meta={modeMeta.heroMeta} imageUrl={posterPreviewUri || null} />
 
         {mode === 'info' ? <>
         <View style={[styles.card, styles.fieldCard]}>

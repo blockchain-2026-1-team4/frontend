@@ -1,6 +1,6 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
-import { ActivityIndicator, Alert, Image, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import {
   OrganizerEmpty,
   OrganizerFilterBar,
@@ -11,7 +11,7 @@ import {
   organizerColors,
   organizerTabStyles,
 } from '../components/OrganizerTabKit';
-import { FlowBadge, PosterArt, TicketIcon, flowShadow } from '../components/TicketFlowKit';
+import { FlowBadge, PosterThumb, TicketIcon, flowShadow } from '../components/TicketFlowKit';
 import { errorMessage } from '../lib/account';
 import { backendApi } from '../lib/backend';
 import { resolveImageUrl } from '../lib/config';
@@ -147,11 +147,7 @@ function EventCard({ event, index, onPress }: { event: EventSummary; index: numb
 
   return (
     <TouchableOpacity style={styles.eventCard} onPress={onPress}>
-      {posterUrl ? (
-        <Image source={{ uri: posterUrl }} style={styles.poster} resizeMode="cover" />
-      ) : (
-        <PosterArt title={title} variant={index} style={styles.poster} />
-      )}
+      <PosterThumb imageUrl={posterUrl} title={title} variant={index} style={styles.poster} />
       <View style={styles.eventCopy}>
         <View style={styles.eventTop}>
           <FlowBadge label={badge.label} tone={badge.tone} />

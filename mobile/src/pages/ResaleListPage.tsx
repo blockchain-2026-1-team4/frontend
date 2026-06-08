@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { TextInput } from '../components/TextInput';
-import { FlowBadge, FlowHero, IconButton, PosterArt, TicketIcon, flowShadow } from '../components/TicketFlowKit';
+import { FlowBadge, FlowHero, IconButton, PosterThumb, TicketIcon, flowShadow } from '../components/TicketFlowKit';
 import { backendApi } from '../lib/backend';
 import { showDialog } from '../lib/dialog';
+import { resolveImageUrl } from '../lib/config';
 import {
   compactId,
   eventDateLabel,
@@ -218,15 +219,9 @@ export default function ResaleListPage({ navigation, route }: any) {
           // 3. 리스팅 취소
           if (String(item.status ?? '').toUpperCase() === 'CANCELED') return false;
 
-          // 6-8. 회차 기준 판정
+          // 종료된 회차만 숨김 (시작 후 진행 중인 회차는 계속 표시)
           const times = resolveRoundTimes(item.eventRoundId ?? null, item.eventDateTime ?? null, event);
-          if (!times) return false; // 회차 정보 불명 → 숨김
-
-          // 종료된 회차 → 숨김
-          if (now >= times.endMs) return false;
-
-          // 이미 시작된 회차 → 숨김
-          if (!Number.isNaN(times.startMs) && now >= times.startMs) return false;
+          if (times && now >= times.endMs) return false;
 
           return true;
         });
@@ -333,7 +328,7 @@ export default function ResaleListPage({ navigation, route }: any) {
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.hotStrip}>
               {eventGroups.slice(0, 4).map((group, index) => (
                 <TouchableOpacity key={`hot-${group.eventId}`} style={styles.hot} onPress={() => navigation.navigate('ResaleList', { eventId: group.eventId })} activeOpacity={0.86}>
-                  <PosterArt title={groupTitleOf(group)} variant={index} style={styles.hotImg} />
+                  <PosterThumb imageUrl={resolveImageUrl(group.event?.imageUrl)} title={groupTitleOf(group)} variant={index} style={styles.hotImg} />
                   <View style={styles.hotBody}>
                     <Text style={styles.hotName} numberOfLines={2}>{groupTitleOf(group)}</Text>
                     <Text style={styles.hotPrice}>{weiToEthLabel(minListingOf(group.listings)?.priceWei ?? minListingOf(group.listings)?.price)}~</Text>
@@ -348,7 +343,7 @@ export default function ResaleListPage({ navigation, route }: any) {
               const lowest = minListingOf(group.listings);
               return (
                 <TouchableOpacity key={group.eventId} style={styles.eventCard} onPress={() => navigation.navigate('ResaleList', { eventId: group.eventId })} activeOpacity={0.88}>
-                  <PosterArt title={groupTitleOf(group)} variant={index} style={styles.poster} />
+                  <PosterThumb imageUrl={resolveImageUrl(group.event?.imageUrl)} title={groupTitleOf(group)} variant={index} style={styles.poster} />
                   <View style={styles.eventInfo}>
                     <View style={styles.eventTop}>
                       <FlowBadge label={`${group.listings.length}개 판매중`} tone="green" />

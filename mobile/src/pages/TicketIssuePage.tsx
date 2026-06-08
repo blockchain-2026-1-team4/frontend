@@ -14,8 +14,10 @@ import {
 import Svg, { Path } from 'react-native-svg';
 import { TextInput } from '../components/TextInput';
 import { EventFlowHero, EventFlowSectionHead, EventFlowTopBar, EventFormGroup } from '../components/EventFlowKit';
+import { PosterThumb } from '../components/TicketFlowKit';
 import { accountStatusMessage, errorMessage } from '../lib/account';
 import { backendApi } from '../lib/backend';
+import { resolveImageUrl } from '../lib/config';
 import type { EventDetail, EventRound, TicketDetail } from '../types/api';
 
 type TicketIconName = 'settings' | 'list' | 'ticket' | 'calendar' | 'seat' | 'hash' | 'eth' | 'repeat' | 'adjust' | 'check' | 'plus' | 'rocket';
@@ -981,6 +983,7 @@ export default function TicketIssuePage({ navigation, route }: any) {
           title={heroTitle}
           meta={heroSubtitle}
           posters
+          imageUrl={resolveImageUrl(event?.imageUrl)}
         />
         <StepProgress page={flowPage} />
         {policyMode === 'round' && (flowPage === 2 || flowPage === 3) ? (
@@ -1010,9 +1013,7 @@ export default function TicketIssuePage({ navigation, route }: any) {
         {flowPage === 1 ? (
           <>
             <View style={[styles.card, styles.targetEventCard]}>
-              <View style={styles.targetPoster}>
-                <Text style={styles.targetPosterText}>{eventName}{'\n'}LIVE</Text>
-              </View>
+              <PosterThumb imageUrl={resolveImageUrl(event?.imageUrl)} title={eventName} style={styles.targetPoster} />
               <View style={styles.targetEventCopy}>
                 <Text style={styles.targetBadge}>발행 대상 이벤트</Text>
                 <Text style={styles.targetEventTitle}>{eventName}</Text>

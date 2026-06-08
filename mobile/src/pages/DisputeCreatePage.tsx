@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { TextInput } from '../components/TextInput';
-import { FlowBadge, FlowHero, IconButton, PosterArt, TicketIcon, flowShadow } from '../components/TicketFlowKit';
+import { FlowBadge, FlowHero, IconButton, PosterThumb, TicketIcon, flowShadow } from '../components/TicketFlowKit';
 import { errorMessage } from '../lib/account';
 import { backendApi } from '../lib/backend';
+import { resolveImageUrl } from '../lib/config';
 import {
   eventDateLabel,
   eventTitle,
@@ -58,6 +59,7 @@ function TargetSummary({
   seat,
   price,
   selected,
+  imageUrl,
 }: {
   title: string;
   venue?: string;
@@ -65,10 +67,11 @@ function TargetSummary({
   seat?: string;
   price?: string;
   selected?: boolean;
+  imageUrl?: string | null;
 }) {
   return (
     <View style={[styles.selectedTicket, selected && styles.selectedTicketActive]}>
-      <PosterArt title={title} variant={2} style={styles.targetPoster} />
+      <PosterThumb imageUrl={imageUrl} title={title} variant={2} style={styles.targetPoster} />
       <View style={styles.targetCopy}>
         {selected ? <FlowBadge label="선택됨" /> : null}
         <Text style={styles.ticketName} numberOfLines={2}>{title}</Text>
@@ -343,6 +346,7 @@ export default function DisputeCreatePage({ route, navigation }: any) {
                 venue={eventVenue(selectedTicket.event, selectedTicket.ticket)}
                 date={selectedTicket.event?.eventAt || selectedTicket.event?.eventStartAt || selectedTicket.ticket.eventDateTime}
                 seat={`${sectionNameOf(selectedTicket.ticket)} · ${selectedTicket.ticket.seatInfo}`}
+                imageUrl={resolveImageUrl(selectedTicket.event?.imageUrl)}
               />
             ) : null}
 
@@ -354,6 +358,7 @@ export default function DisputeCreatePage({ route, navigation }: any) {
                 date={selectedResale.event?.eventAt || selectedResale.event?.eventStartAt || selectedResale.ticket?.eventDateTime}
                 seat={selectedResale.ticket?.seatInfo || selectedResale.listing.seatInfo}
                 price={weiToEthLabel(selectedResale.listing.priceWei ?? selectedResale.listing.price)}
+                imageUrl={resolveImageUrl(selectedResale.event?.imageUrl)}
               />
             ) : null}
 
@@ -368,6 +373,7 @@ export default function DisputeCreatePage({ route, navigation }: any) {
                         venue={eventVenue(option.event, option.ticket)}
                         date={eventDateLabel(option.event, option.ticket)}
                         seat={`${sectionNameOf(option.ticket)} · ${option.ticket.seatInfo}`}
+                        imageUrl={resolveImageUrl(option.event?.imageUrl)}
                       />
                     </TouchableOpacity>
                   );
@@ -394,6 +400,7 @@ export default function DisputeCreatePage({ route, navigation }: any) {
                         date={option.event?.eventAt || option.event?.eventStartAt || option.ticket?.eventDateTime}
                         seat={option.ticket?.seatInfo || option.listing.seatInfo}
                         price={weiToEthLabel(option.listing.priceWei ?? option.listing.price)}
+                        imageUrl={resolveImageUrl(option.event?.imageUrl)}
                       />
                     </TouchableOpacity>
                   );

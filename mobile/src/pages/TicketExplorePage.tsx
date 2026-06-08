@@ -1,13 +1,14 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useCallback, useMemo, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
-import { ActivityIndicator, FlatList, Modal, Platform, RefreshControl, ScrollView, Share, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, FlatList, Image, Modal, Platform, RefreshControl, ScrollView, Share, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { TextInput } from '../components/TextInput';
 import { TicketIcon } from '../components/TicketFlowKit';
 import { errorMessage } from '../lib/account';
 import { showDialog } from '../lib/dialog';
 import { backendApi } from '../lib/backend';
+import { resolveImageUrl } from '../lib/config';
 import { formatCompactDateTime, weiToEth } from '../lib/ticketDisplay';
 import type { EventDetail, TicketDetail } from '../types/api';
 
@@ -302,11 +303,14 @@ export default function TicketExplorePage({ navigation, route }: any) {
         ListHeaderComponent={(
           <>
             <LinearGradient colors={['#1A1A2E', '#534AB7', '#1D9E75']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.hero}>
+              {event?.imageUrl ? <Image source={{ uri: resolveImageUrl(event.imageUrl) ?? undefined }} style={StyleSheet.absoluteFill} resizeMode="cover" /> : null}
               <View style={styles.heroGlow} />
-              <View style={styles.posterRow}>
-                <LinearGradient colors={['#26215C', '#534AB7', '#1D9E75']} style={styles.miniPoster} />
-                <LinearGradient colors={['#0C447C', '#185FA5', '#639922']} style={styles.miniPoster} />
-              </View>
+              {!event?.imageUrl ? (
+                <View style={styles.posterRow}>
+                  <LinearGradient colors={['#26215C', '#534AB7', '#1D9E75']} style={styles.miniPoster} />
+                  <LinearGradient colors={['#0C447C', '#185FA5', '#639922']} style={styles.miniPoster} />
+                </View>
+              ) : null}
               <LinearGradient colors={['transparent', 'rgba(0,0,0,0.16)', 'rgba(0,0,0,0.78)']} style={StyleSheet.absoluteFill} />
               <View style={styles.heroBody}>
                 <View style={styles.glassBadge}>

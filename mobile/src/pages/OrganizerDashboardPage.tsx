@@ -19,10 +19,11 @@ import {
   OrganizerTopBar,
   organizerColors,
 } from '../components/OrganizerTabKit';
-import { FlowBadge, flowShadow } from '../components/TicketFlowKit';
+import { FlowBadge, PosterThumb, flowShadow } from '../components/TicketFlowKit';
 import { accountStatusMessage, errorMessage } from '../lib/account';
 import { clearAccessToken } from '../lib/auth';
 import { backendApi } from '../lib/backend';
+import { resolveImageUrl } from '../lib/config';
 import { showDialog } from '../lib/dialog';
 import { getNextRoundTime } from '../lib/ticketDisplay';
 import type { EventSummary, OrganizerApplication, UserProfile } from '../types/api';
@@ -353,16 +354,21 @@ export default function OrganizerDashboardPage({ navigation }: any) {
             const dateStr = !Number.isNaN(nextTime) ? new Date(nextTime).toISOString() : null;
             const { month, day } = formatDate(dateStr);
             const badge = getEventBadge(event);
+            const posterUrl = resolveImageUrl(event.imageUrl);
             const sold = Number(event.soldTicketCount ?? 0);
             const total = Number(event.totalTicketCount ?? 0);
             const pct = total > 0 ? Math.min(100, Math.round((sold / total) * 100)) : 0;
             return (
               <TouchableOpacity key={event.id} style={styles.upcomingCard} onPress={() => navigation.navigate('OrganizerEventDetail', { eventId: event.id })}>
                 <View style={styles.upcomingTop}>
-                  <View style={styles.upcomingDate}>
-                    <Text style={styles.upcomingMonth}>{month}</Text>
-                    <Text style={styles.upcomingDay}>{day}</Text>
-                  </View>
+                  {posterUrl ? (
+                    <PosterThumb imageUrl={posterUrl} title={eventTitle(event)} style={styles.upcomingDate} />
+                  ) : (
+                    <View style={styles.upcomingDate}>
+                      <Text style={styles.upcomingMonth}>{month}</Text>
+                      <Text style={styles.upcomingDay}>{day}</Text>
+                    </View>
+                  )}
                   <View style={styles.upcomingCopy}>
                     <Text style={styles.upcomingName} numberOfLines={2}>{eventTitle(event)}</Text>
                     <Text style={styles.upcomingMeta}>{event.venue || '장소 미정'} · {eventTimeLabel(dateStr)}</Text>
