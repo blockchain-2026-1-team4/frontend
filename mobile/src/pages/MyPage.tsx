@@ -16,6 +16,7 @@ import { TicketIcon, TicketIconName, flowShadow } from '../components/TicketFlow
 import { errorMessage } from '../lib/account';
 import { clearAccessToken } from '../lib/auth';
 import { backendApi } from '../lib/backend';
+import { showDialog } from '../lib/dialog';
 import { hasOrganizerAccess } from '../lib/roles';
 import type { UserProfile } from '../types/api';
 
@@ -147,7 +148,7 @@ export default function MyPage({ navigation }: any) {
   };
 
   const handleLogout = () => {
-    Alert.alert('로그아웃', '정말 로그아웃 하시겠습니까?', [
+    showDialog('로그아웃', '정말 로그아웃 하시겠습니까?', [
       {
         text: '로그아웃',
         style: 'destructive',
@@ -156,7 +157,7 @@ export default function MyPage({ navigation }: any) {
             await clearAccessToken();
             navigation.reset({ index: 0, routes: [{ name: 'Main' }] });
           } catch (cause: any) {
-            Alert.alert('로그아웃 실패', errorMessage(cause, '세션을 종료하지 못했습니다.'));
+            showDialog('로그아웃 실패', errorMessage(cause, '세션을 종료하지 못했습니다.'));
           }
         },
       },
