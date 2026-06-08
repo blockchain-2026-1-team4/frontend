@@ -154,9 +154,11 @@ function roundEndIso(round: EventRoundDraft) {
   return end;
 }
 
-function defaultBackendSaleWindow(eventStartIso: string) {
-  const eventStart = new Date(eventStartIso);
-  const saleEnd = Number.isNaN(eventStart.getTime()) ? new Date() : eventStart;
+function defaultBackendSaleWindow(firstRoundStartIso: string, lastRoundStartIso: string) {
+  const firstStart = new Date(firstRoundStartIso);
+  const lastStart = new Date(lastRoundStartIso);
+  // Sale opens now, closes when the last round begins (can still buy tickets for later rounds after earlier ones start)
+  const saleEnd = Number.isNaN(lastStart.getTime()) ? (Number.isNaN(firstStart.getTime()) ? new Date() : firstStart) : lastStart;
   const now = new Date();
   const saleStart = now < saleEnd ? now : new Date(saleEnd.getTime() - 24 * 60 * 60 * 1000);
   return {
@@ -359,7 +361,7 @@ export default function EventCreatePage({ navigation }: any) {
     const sortedRounds = [...rounds].sort((a, b) => roundStartIso(a).localeCompare(roundStartIso(b)));
     const firstRound = sortedRounds[0];
     const lastRound = [...sortedRounds].sort((a, b) => roundEndIso(b).localeCompare(roundEndIso(a)))[0];
-    const backendSaleWindow = defaultBackendSaleWindow(roundStartIso(firstRound));
+    const backendSaleWindow = defaultBackendSaleWindow(roundStartIso(firstRound), roundStartIso(lastRound));
 
     setSubmitting(true);
     try {
@@ -645,7 +647,7 @@ function MonthCalendar({
   const cells = [
     ...Array.from({ length: firstDay }, () => ''),
     ...monthDates,
-    ...Array.from({ length: 42 - firstDay - monthDates.length }, () => ''),
+    ...Array.from({ length: Math.ceil((firstDay + daysInMonth) / 7) * 7 - firstDay - daysInMonth }, () => ''),
   ];
 
   const moveMonth = (amount: number) => {
@@ -921,7 +923,7 @@ const styles = StyleSheet.create({
   weekRow: { flexDirection: 'row' },
   weekText: { width: `${100 / 7}%`, textAlign: 'center', color: '#9CA3AF', fontSize: 11, fontWeight: '700' },
   dayGrid: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 5 },
-  dayCell: { width: `${100 / 7}%`, aspectRatio: 1.1, alignItems: 'center', justifyContent: 'center', borderRadius: 6, paddingVertical: 4 },
+  dayCell: { width: `${100 / 7}%`, aspectRatio: 1.5, alignItems: 'center', justifyContent: 'center', borderRadius: 6, paddingVertical: 2 },
   emptyDayCell: { backgroundColor: '#F5F5F5', opacity: 0.45 },
   selectedDay: { backgroundColor: '#534AB7' },
   rangeDay: { backgroundColor: '#EEEDFE' },
