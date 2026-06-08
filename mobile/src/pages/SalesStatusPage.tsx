@@ -14,7 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { showDialog } from '../lib/dialog';
 import { errorMessage } from '../lib/account';
 import { backendApi } from '../lib/backend';
-import { formatCompactDateTime, getNextRoundTime, matchTicketsToRound, salesSortRank, weiToEth } from '../lib/ticketDisplay';
+import { formatCompactDateTime, getNextRoundTime, matchTicketsToRound, roundProgressStatus, roundSalesStatus, salesSortRank, weiToEth } from '../lib/ticketDisplay';
 import type { EventRound, EventSummary, TicketDetail } from '../types/api';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -63,53 +63,18 @@ function ticketStats(tickets: TicketDetail[]) {
 }
 
 function roundBadge(
-  stats: ReturnType<typeof ticketStats>,
-  event: EventSummary,
   round: EventRound | null,
-): { label: string; tone: 'green' | 'gray' | 'red' | 'yellow' | 'purple' } {
-  const now = Date.now();
-  const parseMs = (s?: string | null) => (s ? new Date(s).getTime() : NaN);
+  event: EventSummary,
+  tickets: TicketDetail[],
+): { label: string; tone: 'green' | 'gray' | 'red' } {
   const eventStatus = String(event.status ?? '').toUpperCase();
-
-  // 1. CANCELLED → 취소
   if (eventStatus === 'CANCELLED') return { label: '취소', tone: 'red' };
-  // 2. DRAFT / INACTIVE → 판매 불가
-  if (eventStatus === 'DRAFT' || eventStatus === 'INACTIVE') return { label: '판매 불가', tone: 'gray' };
-
-  let roundStartMs: number;
-  let roundEndMs: number;
-  let saleStartMs: number;
-  let saleEndMs: number;
-
-  if (round?.eventDate) {
-    roundStartMs = parseMs(round.startTime ? `${round.eventDate}T${round.startTime}` : round.eventDate);
-    roundEndMs = parseMs(round.endTime ? `${round.eventDate}T${round.endTime}` : round.eventDate);
-    saleStartMs = parseMs(round.saleStartAt || event.primarySaleStart || event.salesStartAt);
-    saleEndMs = parseMs(round.saleEndAt || event.primarySaleEnd || event.salesEndAt);
-  } else {
-    roundStartMs = parseMs(event.eventStartAt || event.startsAt || event.eventAt || event.eventDateTime);
-    roundEndMs = parseMs(event.eventEndAt || event.endsAt || event.eventAt || event.eventDateTime);
-    saleStartMs = parseMs(event.primarySaleStart || event.salesStartAt);
-    saleEndMs = parseMs(event.primarySaleEnd || event.salesEndAt);
-  }
-
-  // 3. 회차 종료 후 → 종료
-  if (!Number.isNaN(roundEndMs) && now >= roundEndMs) return { label: '종료', tone: 'gray' };
-  // 4. stats.total === 0 → 미발행
-  if (stats.total === 0) return { label: '미발행', tone: 'gray' };
-  // 5. stats.available === 0 AND stats.total > 0 → 매진
-  if (stats.available === 0 && stats.total > 0) return { label: '매진', tone: 'red' };
-  // 6. 판매 시작 전 → 판매 예정
-  if (!Number.isNaN(saleStartMs) && now < saleStartMs) return { label: '판매 예정', tone: 'yellow' };
-  // 7. 판매 종료 후 + 회차 시작 전 → 판매 종료
-  if (!Number.isNaN(saleEndMs) && now >= saleEndMs && (Number.isNaN(roundStartMs) || now < roundStartMs)) {
-    return { label: '판매 종료', tone: 'gray' };
-  }
-  // 8. 판매기간 내 AND stats.available > 0 → 판매 중
-  const inSale = (Number.isNaN(saleStartMs) || now >= saleStartMs) && (Number.isNaN(saleEndMs) || now <= saleEndMs);
-  if (inSale && stats.available > 0) return { label: '판매 중', tone: 'green' };
-  // 9. 그 외 → 상태 확인 필요
-  return { label: '상태 확인 필요', tone: 'purple' };
+  if (eventStatus !== 'PUBLISHED') return { label: '비공개', tone: 'gray' };
+  const nowMs = Date.now();
+  if (round && roundProgressStatus(round, event, nowMs) === '종료') return { label: '종료', tone: 'gray' };
+  return roundSalesStatus(round, tickets) === '판매 중'
+    ? { label: '판매 중', tone: 'green' }
+    : { label: '판매 완료', tone: 'gray' };
 }
 
 function buildRoundCards(event: EventSummary, allTickets: TicketDetail[]): RoundCard[] {
@@ -225,7 +190,7 @@ function ProgressBar({ label, pct, value, muted }: { label: string; pct: number;
 
 function RoundCardItem({ card, onPress }: { card: RoundCard; onPress: () => void }) {
   const stats = useMemo(() => ticketStats(card.tickets), [card.tickets]);
-  const badge = roundBadge(stats, card.event, card.round);
+  const badge = roundBadge(card.round, card.event, card.tickets);
   const soldPct = stats.total > 0 ? (stats.sold / stats.total) * 100 : 0;
   const availPct = stats.total > 0 ? (stats.available / stats.total) * 100 : 0;
   const listedPct = stats.total > 0 ? (stats.listed / stats.total) * 100 : 0;
@@ -261,7 +226,12 @@ function RoundCardItem({ card, onPress }: { card: RoundCard; onPress: () => void
 }
 
 function ZoneCard({ name, total, sold, available, listed, minPriceWei: price, resaleEnabled, event }: { name: string; total: number; sold: number; available: number; listed: number; minPriceWei?: string; resaleEnabled?: boolean; event: EventSummary }) {
-  const badge = roundBadge({ total, sold, available, listed, used: 0 }, event, null);
+  const eventStatus = String(event.status ?? '').toUpperCase();
+  const badge: { label: string; tone: 'green' | 'gray' | 'red' } =
+    eventStatus === 'CANCELLED' ? { label: '취소', tone: 'red' } :
+    eventStatus !== 'PUBLISHED' ? { label: '비공개', tone: 'gray' } :
+    available > 0 ? { label: '판매 중', tone: 'green' } :
+    { label: '판매 완료', tone: 'gray' };
   const sub = [price ? weiToEth(price) : null, resaleEnabled !== undefined ? (resaleEnabled ? '리셀 허용' : '리셀 불가') : null].filter(Boolean).join(' · ');
   return (
     <View style={styles.zoneCard}>
@@ -411,7 +381,7 @@ export default function SalesStatusPage({ navigation, route }: any) {
       if (filter === 'listed') return z.listed > 0;
       return true;
     });
-    const badge = roundBadge(stats, event, null);
+    const badge = roundBadge(null, event, tickets);
     let revenueWei: bigint = 0n;
     tickets.forEach((t) => {
       if (['SOLD', 'LISTED', 'USED'].includes(String(t.status).toUpperCase())) {

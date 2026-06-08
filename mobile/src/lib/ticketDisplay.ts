@@ -556,6 +556,98 @@ export function resaleListingState(
   return 'hidden';
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+//  주최자용 집계 상태 — bottom-up: 티켓 → 구역 → 회차 → 이벤트
+//  판매 상태 / 입장 상태 / 진행 상태 (세 축 독립)
+// ═══════════════════════════════════════════════════════════════════════════
+
+export type SalesStatusAgg    = '판매 중' | '판매 완료';
+export type EntryStatusAgg    = '입장 예정' | '입장 완료' | null;
+export type ProgressStatusAgg = '진행 예정' | '진행 중' | '종료';
+
+function groupBySection(tickets: TicketDetail[]): TicketDetail[][] {
+  const map = new Map<string, TicketDetail[]>();
+  tickets.forEach((t) => {
+    const key = t.sectionName ?? 'default';
+    map.set(key, [...(map.get(key) ?? []), t]);
+  });
+  return [...map.values()];
+}
+
+// ── 구역 단위 ──
+
+export function sectionSalesStatus(sectionTickets: TicketDetail[]): SalesStatusAgg {
+  return sectionTickets.some((t) => normalized(t.status) === 'AVAILABLE') ? '판매 중' : '판매 완료';
+}
+
+export function sectionEntryStatus(sectionTickets: TicketDetail[]): EntryStatusAgg {
+  if (sectionTickets.some((t) => normalized(t.status) === 'SOLD')) return '입장 예정';
+  if (sectionTickets.some((t) => normalized(t.status) === 'USED')) return '입장 완료';
+  return null;
+}
+
+// ── 회차 단위 ──
+
+export function roundSalesStatus(
+  round: EventRound | null | undefined,
+  allTickets: TicketDetail[],
+): SalesStatusAgg {
+  const rTickets = matchTicketsToRound(round, allTickets) ?? allTickets;
+  return groupBySection(rTickets).some((s) => sectionSalesStatus(s) === '판매 중') ? '판매 중' : '판매 완료';
+}
+
+export function roundEntryStatus(
+  round: EventRound | null | undefined,
+  allTickets: TicketDetail[],
+): EntryStatusAgg {
+  const rTickets = matchTicketsToRound(round, allTickets) ?? allTickets;
+  const sections = groupBySection(rTickets);
+  if (sections.some((s) => sectionEntryStatus(s) === '입장 예정')) return '입장 예정';
+  if (sections.some((s) => sectionEntryStatus(s) === '입장 완료')) return '입장 완료';
+  return null;
+}
+
+export function roundProgressStatus(
+  round: EventRound,
+  event: EventSummary,
+  nowMs = Date.now(),
+): ProgressStatusAgg {
+  const rms = getRoundMs(round, event);
+  if (isRoundEnded(rms, nowMs))   return '종료';
+  if (isRoundStarted(rms, nowMs)) return '진행 중';
+  return '진행 예정';
+}
+
+// ── 이벤트 단위 ──
+
+export function eventSalesStatus(
+  event: EventSummary,
+  allTickets: TicketDetail[],
+): SalesStatusAgg {
+  const rounds = event.rounds?.length ? event.rounds : ([null] as Array<EventRound | null>);
+  return rounds.some((r) => roundSalesStatus(r, allTickets) === '판매 중') ? '판매 중' : '판매 완료';
+}
+
+export function eventEntryStatus(
+  event: EventSummary,
+  allTickets: TicketDetail[],
+): EntryStatusAgg {
+  const rounds = event.rounds?.length ? event.rounds : ([null] as Array<EventRound | null>);
+  if (rounds.some((r) => roundEntryStatus(r, allTickets) === '입장 예정')) return '입장 예정';
+  if (rounds.some((r) => roundEntryStatus(r, allTickets) === '입장 완료')) return '입장 완료';
+  return null;
+}
+
+export function eventProgressStatus(
+  event: EventSummary,
+  nowMs = Date.now(),
+): ProgressStatusAgg {
+  const rounds = event.rounds ?? [];
+  if (rounds.some((r) => roundProgressStatus(r, event, nowMs) === '진행 중'))   return '진행 중';
+  if (rounds.some((r) => roundProgressStatus(r, event, nowMs) === '진행 예정')) return '진행 예정';
+  return '종료';
+}
+
 export function weiToEth(wei?: string | number | null) {
   if (wei === undefined || wei === null || wei === '') return '-';
   try {
