@@ -1004,9 +1004,9 @@ export default function TicketIssuePage({ navigation, route }: any) {
           </View>
         ) : null}
 
-        {feedback ? (
-          <View style={[styles.messageBox, feedback.type === 'success' ? styles.successBox : styles.errorBox]}>
-            <Text style={[styles.messageText, feedback.type === 'success' ? styles.successText : styles.errorText]}>{feedback.message}</Text>
+        {feedback?.type === 'error' ? (
+          <View style={[styles.messageBox, styles.errorBox]}>
+            <Text style={[styles.messageText, styles.errorText]}>{feedback.message}</Text>
           </View>
         ) : null}
 
@@ -1635,6 +1635,11 @@ export default function TicketIssuePage({ navigation, route }: any) {
 
       {showBottomBar ? (
         <View style={styles.bottomBar}>
+          {feedback?.type === 'success' ? (
+            <View style={[styles.messageBox, styles.successBox, { marginTop: 0, marginHorizontal: 0, marginBottom: 10 }]}>
+              <Text style={[styles.messageText, styles.successText]}>{feedback.message}</Text>
+            </View>
+          ) : null}
           {flowPage === 1 ? (
             <View style={styles.bottomRow}>
               <TouchableOpacity style={styles.bottomSecondaryButton} onPress={goBackToEventFlow}>
