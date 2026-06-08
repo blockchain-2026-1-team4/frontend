@@ -14,9 +14,9 @@ import type { EventDetail, TicketDetail } from '../types/api';
 const PAGE_SIZE = 20;
 const STATUS_FILTERS = [
   { value: 'ALL' as const,       label: '전체',     tone: undefined },
-  { value: 'AVAILABLE' as const, label: '판매 가능', tone: 'green' as const },
-  { value: 'SOLD' as const,      label: '판매됨',   tone: undefined },
-  { value: 'LISTED' as const,    label: '리셀',     tone: undefined },
+  { value: 'AVAILABLE' as const, label: '판매 중',   tone: 'green' as const },
+  { value: 'SOLD' as const,      label: '판매 완료', tone: undefined },
+  { value: 'LISTED' as const,    label: '리셀 중',   tone: undefined },
   { value: 'USED' as const,      label: '입장 완료', tone: undefined },
 ];
 
@@ -48,72 +48,14 @@ function matchesTicketStatusFilter(status: string, selected: (typeof STATUS_FILT
   return selected === 'ALL' || status === selected;
 }
 
-function resolveTicketTimes(ticket: TicketDetail, event: EventDetail | null) {
-  if (!event) return null;
-  const parseMs = (s?: string | null) => (s ? new Date(s).getTime() : NaN);
-  const { rounds } = event;
-  let found = rounds?.length
-    ? (ticket.eventRoundId
-        ? rounds.find((r) => r.id != null && String(r.id) === String(ticket.eventRoundId))
-        : undefined) ??
-      (ticket.eventDateTime
-        ? rounds.find((r) => r.eventDate?.slice(0, 10) === ticket.eventDateTime!.slice(0, 10))
-        : undefined)
-    : undefined;
-  if (found?.eventDate) {
-    return {
-      roundStartMs: parseMs(found.startTime ? `${found.eventDate}T${found.startTime}` : found.eventDate),
-      roundEndMs:   parseMs(found.endTime   ? `${found.eventDate}T${found.endTime}`   : found.eventDate),
-      saleStartMs:  parseMs(found.saleStartAt || event.primarySaleStart || event.salesStartAt),
-      saleEndMs:    parseMs(found.saleEndAt   || event.primarySaleEnd   || event.salesEndAt),
-    };
-  }
-  return {
-    roundStartMs: parseMs(event.eventStartAt || event.startsAt || event.eventAt || event.eventDateTime),
-    roundEndMs:   parseMs(event.eventEndAt   || event.endsAt   || event.eventAt || event.eventDateTime),
-    saleStartMs:  parseMs(event.primarySaleStart || event.salesStartAt),
-    saleEndMs:    parseMs(event.primarySaleEnd   || event.salesEndAt),
-  };
-}
-
 function explorerStatus(ticket: TicketDetail, event: EventDetail | null): { label: string; tone: string } {
-  const now = Date.now();
   const ticketStatus = String(ticket.status ?? '').toUpperCase();
   const eventStatus  = String(event?.status  ?? '').toUpperCase();
-
-  // 1. event.status = CANCELLED
   if (eventStatus === 'CANCELLED') return { label: '이벤트 취소', tone: 'red' };
-  // 2. event.status = DRAFT / INACTIVE
-  if (eventStatus === 'DRAFT' || eventStatus === 'INACTIVE') return { label: '판매 불가', tone: 'gray' };
-  // 3. ticket.status = CANCELLED
   if (ticketStatus === 'CANCELLED') return { label: '취소됨', tone: 'red' };
-  // 4. ticket.status = USED
-  if (ticketStatus === 'USED') return { label: '입장 완료', tone: 'blue' };
-  // 5. ticket.status = LISTED
-  if (ticketStatus === 'LISTED') return { label: '리셀 중', tone: 'yellow' };
-  // 6. ticket.status = SOLD
-  if (ticketStatus === 'SOLD') return { label: '판매됨', tone: 'neutral' };
-
-  // 7–11: AVAILABLE 전용 타이밍 판정
-  if (ticketStatus !== 'AVAILABLE') return { label: ticketStatus || '-', tone: 'neutral' };
-
-  const times = resolveTicketTimes(ticket, event);
-  if (!times) return { label: '상태 확인 필요', tone: 'gray' };
-  const { roundStartMs, roundEndMs, saleStartMs, saleEndMs } = times;
-
-  // 7. AVAILABLE AND 해당 회차 종료
-  if (!Number.isNaN(roundEndMs) && now >= roundEndMs) return { label: '판매 종료', tone: 'gray' };
-  // 8. AVAILABLE AND 해당 회차 시작 후/진행 중
-  if (!Number.isNaN(roundStartMs) && now >= roundStartMs) return { label: '판매 종료', tone: 'gray' };
-  // 9. AVAILABLE AND 판매 기간 종료
-  if (!Number.isNaN(saleEndMs) && now > saleEndMs) return { label: '판매 종료', tone: 'gray' };
-  // 10. AVAILABLE AND 판매 시작 전
-  if (!Number.isNaN(saleStartMs) && now < saleStartMs) return { label: '판매 예정', tone: 'yellow' };
-  // 11. AVAILABLE AND 판매기간 내
-  const inSale = (Number.isNaN(saleStartMs) || now >= saleStartMs) && (Number.isNaN(saleEndMs) || now <= saleEndMs);
-  if (inSale) return { label: '판매 가능', tone: 'purple' };
-  // 12. 그 외
-  return { label: '상태 확인 필요', tone: 'gray' };
+  return ticketStatus === 'AVAILABLE'
+    ? { label: '판매 중', tone: 'green' }
+    : { label: '판매 완료', tone: 'gray' };
 }
 
 type SelectOption<T extends string> = { id: T; label: string; sub: string };
@@ -378,7 +320,7 @@ export default function TicketExplorePage({ navigation, route }: any) {
             <View style={styles.statStrip}>
               {[
                 { label: '판매 완료', value: sold },
-                { label: '판매 가능', value: available },
+                { label: '판매 중',   value: available },
                 { label: '리셀 중',   value: listed },
                 { label: '입장 완료', value: used },
               ].map((m) => (

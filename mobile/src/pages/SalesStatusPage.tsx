@@ -14,7 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { showDialog } from '../lib/dialog';
 import { errorMessage } from '../lib/account';
 import { backendApi } from '../lib/backend';
-import { formatCompactDateTime, getNextRoundTime, matchTicketsToRound, roundProgressStatus, roundSalesStatus, salesSortRank, weiToEth } from '../lib/ticketDisplay';
+import { eventProgressStatus, formatCompactDateTime, getNextRoundTime, matchTicketsToRound, roundProgressStatus, salesSortRank, weiToEth } from '../lib/ticketDisplay';
 import type { EventRound, EventSummary, TicketDetail } from '../types/api';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -65,16 +65,15 @@ function ticketStats(tickets: TicketDetail[]) {
 function roundBadge(
   round: EventRound | null,
   event: EventSummary,
-  tickets: TicketDetail[],
-): { label: string; tone: 'green' | 'gray' | 'red' } {
+): { label: string; tone: 'green' | 'gray' | 'red' | 'yellow' } {
   const eventStatus = String(event.status ?? '').toUpperCase();
-  if (eventStatus === 'CANCELLED') return { label: '취소', tone: 'red' };
+  if (eventStatus === 'CANCELLED') return { label: '이벤트 취소', tone: 'red' };
   if (eventStatus !== 'PUBLISHED') return { label: '비공개', tone: 'gray' };
   const nowMs = Date.now();
-  if (round && roundProgressStatus(round, event, nowMs) === '종료') return { label: '종료', tone: 'gray' };
-  return roundSalesStatus(round, tickets) === '판매 중'
-    ? { label: '판매 중', tone: 'green' }
-    : { label: '판매 완료', tone: 'gray' };
+  const progress = round ? roundProgressStatus(round, event, nowMs) : eventProgressStatus(event, nowMs);
+  if (progress === '진행 중')  return { label: '진행 중',  tone: 'green' };
+  if (progress === '진행 예정') return { label: '진행 예정', tone: 'yellow' };
+  return { label: '종료', tone: 'gray' };
 }
 
 function buildRoundCards(event: EventSummary, allTickets: TicketDetail[]): RoundCard[] {
@@ -90,7 +89,7 @@ function buildRoundCards(event: EventSummary, allTickets: TicketDetail[]): Round
       round,
       roundIndex: index,
       roundLabel: `${evtTitle(event)} · ${index + 1}회차`,
-      tickets: matched ?? [],  // null = 회차 식별 불가 → 빈 배열 → roundBadge가 '미발행' 반환
+      tickets: matched ?? [],  // null = 회차 식별 불가 → 빈 배열
       allTickets,
     };
   });
@@ -190,7 +189,7 @@ function ProgressBar({ label, pct, value, muted }: { label: string; pct: number;
 
 function RoundCardItem({ card, onPress }: { card: RoundCard; onPress: () => void }) {
   const stats = useMemo(() => ticketStats(card.tickets), [card.tickets]);
-  const badge = roundBadge(card.round, card.event, card.tickets);
+  const badge = roundBadge(card.round, card.event);
   const soldPct = stats.total > 0 ? (stats.sold / stats.total) * 100 : 0;
   const availPct = stats.total > 0 ? (stats.available / stats.total) * 100 : 0;
   const listedPct = stats.total > 0 ? (stats.listed / stats.total) * 100 : 0;
@@ -381,7 +380,7 @@ export default function SalesStatusPage({ navigation, route }: any) {
       if (filter === 'listed') return z.listed > 0;
       return true;
     });
-    const badge = roundBadge(null, event, tickets);
+    const badge = roundBadge(null, event);
     let revenueWei: bigint = 0n;
     tickets.forEach((t) => {
       if (['SOLD', 'LISTED', 'USED'].includes(String(t.status).toUpperCase())) {
