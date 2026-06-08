@@ -84,6 +84,22 @@ function isDeadlineEvent(event: EventSummary) {
   return days !== null && days >= 0 && days <= 5;
 }
 
+function formatDdayLabel(days: number) {
+  return days === 0 ? 'D-DAY' : `D-${days}`;
+}
+
+function deadlineBadgeLabel(event: EventSummary) {
+  const days = daysUntilEvent(event);
+  if (days === null || days < 0 || days > 5) return null;
+  return formatDdayLabel(days);
+}
+
+function upcomingDdayBadgeLabel(event: EventSummary) {
+  const days = daysUntilEvent(event);
+  if (days === null || days < 0) return null;
+  return formatDdayLabel(days);
+}
+
 function normalizeCategory(value?: string): CategoryId {
   return CATEGORIES.some((item) => item.id === value) ? (value as CategoryId) : 'ALL';
 }
@@ -221,8 +237,11 @@ function PosterArt({ event, index, compact = false }: { event: EventSummary; ind
   const colors = POSTER_GRADIENTS[index % POSTER_GRADIENTS.length];
   const title = eventName(event);
   const listed = isEventListedNow(event);
-  const deadline = daysUntilEvent(event);
-  const badge = deadline !== null && deadline >= 0 && deadline <= 5 ? `D-${deadline}` : listed ? '예매 가능' : '공식';
+  const ddayBadge = compact ? upcomingDdayBadgeLabel(event) : deadlineBadgeLabel(event);
+  const badge = ddayBadge ?? (listed ? '예매 가능' : '공식');
+  const badgeStyle = compact
+    ? [styles.hotBadge, ddayBadge ? styles.hotBadgeDeadline : listed ? styles.hotBadgeSale : styles.hotBadgeDefault]
+    : [styles.posterBadge, ddayBadge ? styles.posterBadgeDeadline : listed ? styles.posterBadgeSale : styles.posterBadgeDefault];
 
   return (
     <View style={compact ? styles.hotImage : styles.poster}>
@@ -232,7 +251,7 @@ function PosterArt({ event, index, compact = false }: { event: EventSummary; ind
         <LinearGradient colors={colors as any} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />
       )}
       <LinearGradient colors={['transparent', 'rgba(0,0,0,0.72)']} style={StyleSheet.absoluteFill} />
-      <Text style={[styles.posterBadge, compact && styles.hotTag]} numberOfLines={1}>{badge}</Text>
+      <Text style={badgeStyle} numberOfLines={1}>{badge}</Text>
       {!compact ? <Text style={styles.posterTitle} numberOfLines={2}>{title}</Text> : null}
     </View>
   );
@@ -446,7 +465,6 @@ export default function EventListPage({ navigation, route }: any) {
                 <Text style={styles.sectionTitle}>마감 임박</Text>
                 <Text style={styles.sectionSub}>놓치기 쉬운 티켓</Text>
               </View>
-              <Text style={styles.sectionSub}>전체 보기</Text>
             </View>
 
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.hotRow}>
@@ -669,7 +687,22 @@ const styles = StyleSheet.create({
   hotRow: { gap: 12, paddingHorizontal: 16, paddingBottom: 18 },
   hotCard: { width: 150, flexShrink: 0, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 22, overflow: 'hidden', ...shadow },
   hotImage: { height: 112, position: 'relative', overflow: 'hidden' },
-  hotTag: { top: undefined, bottom: 9, backgroundColor: '#E24B4A' },
+  hotBadge: {
+    position: 'absolute',
+    top: 9,
+    left: 9,
+    zIndex: 2,
+    minHeight: 23,
+    borderRadius: 999,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    fontSize: 10,
+    fontWeight: '900',
+    overflow: 'hidden',
+  },
+  hotBadgeDeadline: { backgroundColor: '#EF4444', color: '#FFFFFF', borderWidth: 1, borderColor: 'rgba(255,255,255,0.32)' },
+  hotBadgeSale: { backgroundColor: '#DCFCE7', color: '#0F6E56', borderWidth: 1, borderColor: '#BBF7D0' },
+  hotBadgeDefault: { backgroundColor: 'rgba(15,23,42,0.72)', color: '#FFFFFF', borderWidth: 1, borderColor: 'rgba(255,255,255,0.18)' },
   hotBody: { padding: 10 },
   hotName: { fontSize: 13, fontWeight: '900', color: '#0F172A', lineHeight: 17, marginBottom: 4 },
   hotDate: { fontSize: 10, color: '#64748B', fontWeight: '700' },
@@ -683,8 +716,6 @@ const styles = StyleSheet.create({
     top: 9,
     left: 9,
     zIndex: 2,
-    backgroundColor: 'rgba(0,0,0,0.42)',
-    color: '#FFFFFF',
     borderRadius: 999,
     paddingHorizontal: 7,
     paddingVertical: 4,
@@ -692,6 +723,9 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     overflow: 'hidden',
   },
+  posterBadgeDeadline: { backgroundColor: '#EF4444', color: '#FFFFFF' },
+  posterBadgeSale: { backgroundColor: '#DCFCE7', color: '#0F6E56' },
+  posterBadgeDefault: { backgroundColor: 'rgba(0,0,0,0.42)', color: '#FFFFFF' },
   posterTitle: { position: 'absolute', left: 10, right: 10, bottom: 10, zIndex: 2, color: '#FFFFFF', fontSize: 12, fontWeight: '900', lineHeight: 15 },
   eventInfo: { flex: 1, minWidth: 0, paddingVertical: 2 },
   infoTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 7 },
