@@ -288,6 +288,11 @@ export default function OrganizerDashboardPage({ navigation }: any) {
     }
   };
 
+  const goBack = () => {
+    if (navigation.canGoBack?.()) navigation.goBack();
+    else navigation.navigate('Main');
+  };
+
   if (loading) {
     return (
       <View style={styles.center}>
@@ -299,7 +304,16 @@ export default function OrganizerDashboardPage({ navigation }: any) {
 
   return (
     <ScrollView style={styles.mockContainer} contentContainerStyle={styles.mockContent} stickyHeaderIndices={[0]} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}>
-      <OrganizerTopBar eyebrow="Organizer" title="주최자 센터" rightIcon="bell" rightLabel="알림" onRightPress={showNotifications} />
+      <OrganizerTopBar
+        eyebrow="Organizer"
+        title="주최자 센터"
+        leftIcon="arrowLeft"
+        leftLabel="뒤로가기"
+        onLeftPress={goBack}
+        rightIcon="bell"
+        rightLabel="알림"
+        onRightPress={showNotifications}
+      />
       <OrganizerHero
         size="lg"
         badge="오늘 해야 할 일"
