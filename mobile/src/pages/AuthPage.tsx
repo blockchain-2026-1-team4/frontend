@@ -6,6 +6,7 @@ import {
   Alert,
   KeyboardAvoidingView,
   Linking,
+  Modal,
   Platform,
   ScrollView,
   StyleSheet,
@@ -29,6 +30,16 @@ type EthereumProvider = {
 const CONNECT_TIMEOUT_MS = 20 * 1000;
 const SIGN_TIMEOUT_MS = 5 * 60 * 1000;
 const isWalletConnectConfigured = Boolean(config.reownProjectId);
+
+const TEST_ACCOUNTS = [
+  { userId: '00000000-0000-0000-0000-000000000020', label: 'USER_A', desc: '티켓 보유 · 리셀 등록 · 분쟁 있음' },
+  { userId: '00000000-0000-0000-0000-000000000021', label: 'USER_B', desc: '리셀 구매자' },
+  { userId: '00000000-0000-0000-0000-000000000022', label: 'USER_C', desc: '신규 사용자 · 티켓 없음' },
+  { userId: '00000000-0000-0000-0000-000000000010', label: 'ORGANIZER_A', desc: '이벤트 운영 · 체크인 데이터 보유' },
+  { userId: '00000000-0000-0000-0000-000000000011', label: 'ORGANIZER_B', desc: '다른 이벤트 운영' },
+  { userId: '00000000-0000-0000-0000-000000000012', label: 'ORGANIZER_PENDING', desc: '주최자 승인 대기' },
+  { userId: '00000000-0000-0000-0000-000000000004', label: 'ADMIN', desc: '관리자' },
+];
 const Gradient = LinearGradient as unknown as React.ComponentType<any>;
 
 function AppIcon({ name, color = '#534AB7', size = 20 }: { name: 'back' | 'wallet' | 'check' | 'shield'; color?: string; size?: number }) {
@@ -165,6 +176,7 @@ export default function AuthPage({ navigation, route }: any) {
   const [loading, setLoading] = useState(false);
   const [pendingWalletLogin, setPendingWalletLogin] = useState(false);
   const [feedback, setFeedback] = useState<{ type: 'error' | 'success'; message: string } | null>(null);
+  const [showTestModal, setShowTestModal] = useState(false);
   const walletCompletionRef = useRef(false);
 
   const { open } = useAppKit();
@@ -194,6 +206,30 @@ export default function AuthPage({ navigation, route }: any) {
     setIsLogin(true);
     setDisplayName('');
     resetWalletUi();
+  };
+
+  const loginAsTestAccount = async (userId: string) => {
+    setShowTestModal(false);
+    setLoading(true);
+    setFeedback(null);
+    try {
+      const result = await backendApi.loginDevAccount(userId);
+      const profile = result.user ?? await backendApi.getMe();
+      const statusMessage = accountStatusMessage(profile.status);
+      if (statusMessage) {
+        setFeedback({ type: 'error', message: statusMessage });
+        Alert.alert('로그인 실패', statusMessage);
+        return;
+      }
+      const userRole = profile.roles?.includes('ORGANIZER') ? 'ORGANIZER' : 'USER';
+      navigation.replace(userRole === 'ORGANIZER' ? 'Organizer' : routeForEntry(profile, userRole));
+    } catch (error: any) {
+      const message = error?.response?.data?.message ?? '테스트 계정 로그인에 실패했습니다. 서버가 실행 중인지 확인해주세요.';
+      setFeedback({ type: 'error', message });
+      Alert.alert('로그인 실패', message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const completeWalletAuth = async (walletProvider: EthereumProvider, address: string) => {
@@ -430,6 +466,18 @@ export default function AuthPage({ navigation, route }: any) {
               )}
             </TouchableOpacity>
 
+            {__DEV__ && isLogin && !isSigning ? (
+              <TouchableOpacity
+                style={[styles.testLoginButton, isOrganizer && styles.darkTestLoginButton]}
+                onPress={() => setShowTestModal(true)}
+                disabled={loading}
+              >
+                <Text style={[styles.testLoginButtonText, isOrganizer && styles.darkTestLoginButtonText]}>
+                  테스트 계정 로그인
+                </Text>
+              </TouchableOpacity>
+            ) : null}
+
             {!isSigning ? (
               <>
                 {!isOrganizer && isLogin ? (
@@ -467,6 +515,35 @@ export default function AuthPage({ navigation, route }: any) {
           </View>
         ) : null}
       </ScrollView>
+
+      <Modal
+        visible={showTestModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowTestModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalSheet}>
+            <View style={styles.modalHandle} />
+            <Text style={styles.modalTitle}>테스트 계정 선택</Text>
+            {TEST_ACCOUNTS.map((account) => (
+              <TouchableOpacity
+                key={account.userId}
+                style={styles.accountRow}
+                onPress={() => loginAsTestAccount(account.userId)}
+              >
+                <View style={styles.accountInfo}>
+                  <Text style={styles.accountLabel}>{account.label}</Text>
+                  <Text style={styles.accountDesc}>{account.desc}</Text>
+                </View>
+              </TouchableOpacity>
+            ))}
+            <TouchableOpacity style={styles.modalCancel} onPress={() => setShowTestModal(false)}>
+              <Text style={styles.modalCancelText}>취소</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
@@ -840,6 +917,87 @@ const styles = StyleSheet.create({
   },
   orgMainButtonText: {
     color: '#1A1A2E',
+  },
+  testLoginButton: {
+    width: '100%',
+    height: 44,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: '#534AB7',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 10,
+    backgroundColor: 'transparent',
+  },
+  darkTestLoginButton: {
+    borderColor: 'rgba(168,156,247,0.6)',
+  },
+  testLoginButtonText: {
+    color: '#534AB7',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  darkTestLoginButtonText: {
+    color: '#A89CF7',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'flex-end',
+  },
+  modalSheet: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingTop: 12,
+    paddingBottom: 36,
+    paddingHorizontal: 20,
+  },
+  modalHandle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#E2E8F0',
+    alignSelf: 'center',
+    marginBottom: 16,
+  },
+  modalTitle: {
+    fontSize: 16,
+    fontWeight: '900',
+    color: '#0F172A',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  accountRow: {
+    paddingVertical: 13,
+    paddingHorizontal: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+  accountInfo: {
+    gap: 2,
+  },
+  accountLabel: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#534AB7',
+  },
+  accountDesc: {
+    fontSize: 11,
+    color: '#64748B',
+  },
+  modalCancel: {
+    marginTop: 16,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: '#F1F5F9',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalCancelText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#64748B',
   },
   divider: {
     flexDirection: 'row',

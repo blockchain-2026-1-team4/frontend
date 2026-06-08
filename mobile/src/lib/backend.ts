@@ -36,6 +36,14 @@ export const backendApi = {
     return data;
   },
 
+  async loginDevAccount(userId: string) {
+    const data = await unwrap<AuthTokens>(http.post("/auth/dev/login", { userId }));
+    if (data.accessToken) {
+      await setAccessToken(data.accessToken);
+    }
+    return data;
+  },
+
   async issueWalletNonce(payload: { walletAddress: string }) {
     return unwrap<WalletNonce>(http.post("/auth/wallet/nonce", payload));
   },
