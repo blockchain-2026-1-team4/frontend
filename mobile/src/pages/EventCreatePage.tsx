@@ -395,7 +395,6 @@ export default function EventCreatePage({ navigation }: any) {
         primarySaleEnd: backendSaleWindow.saleEndAt,
         salesStartAt: backendSaleWindow.saleStartAt,
         salesEndAt: backendSaleWindow.saleEndAt,
-        ticketPriceWei: '1',
         totalTicketCount: 0,
         resaleAllowed: false,
         maxResalePriceRate: 10000,

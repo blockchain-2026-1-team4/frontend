@@ -1,4 +1,4 @@
-﻿import React, { useCallback, useMemo, useState } from 'react';
+﻿import React, { useCallback, useMemo, useRef, useState } from 'react';
 import * as ImagePicker from 'expo-image-picker';
 import { useFocusEffect } from '@react-navigation/native';
 import { ActivityIndicator, Alert, Image, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
@@ -110,9 +110,10 @@ function roundEndIso(round: RoundDraft) {
   return toDateTimeIso(round.eventDate, round.endTime);
 }
 
-function defaultBackendSaleWindow(eventStartIso: string) {
-  const eventStart = new Date(eventStartIso);
-  const saleEnd = Number.isNaN(eventStart.getTime()) ? new Date() : eventStart;
+function defaultBackendSaleWindow(firstRoundStartIso: string, lastRoundStartIso: string) {
+  const firstStart = new Date(firstRoundStartIso);
+  const lastStart = new Date(lastRoundStartIso);
+  const saleEnd = Number.isNaN(lastStart.getTime()) ? (Number.isNaN(firstStart.getTime()) ? new Date() : firstStart) : lastStart;
   const now = new Date();
   const saleStart = now < saleEnd ? now : new Date(saleEnd.getTime() - 24 * 60 * 60 * 1000);
   return {
@@ -192,6 +193,7 @@ export default function EventSettingsPage({ navigation, route }: any) {
   const [statusDraft, setStatusDraft] = useState('PUBLISHED');
   const [statusSaving, setStatusSaving] = useState(false);
   const [categoryOpen, setCategoryOpen] = useState(false);
+  const dirtyRef = useRef(false);
 
   const markedRounds = rounds.map((round, index) => ({ date: round.eventDate, label: `${index + 1}회차` }));
   const scheduleLocked = issuedTicketCount > 0;
@@ -226,6 +228,7 @@ export default function EventSettingsPage({ navigation, route }: any) {
       setIssuedTicketCount(issuedTickets.length);
       setStatusDraft(detail.status || 'PUBLISHED');
       setErrors([]);
+      dirtyRef.current = false;
     } catch (error: any) {
       const message = errorMessage(error, '이벤트 정보를 불러오지 못했습니다.');
       setLoadError(message);
@@ -254,12 +257,14 @@ export default function EventSettingsPage({ navigation, route }: any) {
     if (!result.canceled && result.assets[0]) {
       setPoster(result.assets[0]);
       setPosterRemoved(false);
+      dirtyRef.current = true;
     }
   };
 
   const updateRound = (id: string, patch: Partial<RoundDraft>) => {
     if (scheduleLocked) return;
     setRounds((current) => current.map((round) => (round.id === id ? { ...round, ...patch } : round)));
+    dirtyRef.current = true;
   };
 
   const addRound = () => {
@@ -325,7 +330,7 @@ export default function EventSettingsPage({ navigation, route }: any) {
     const sortedRounds = [...rounds].sort((a, b) => roundStartIso(a).localeCompare(roundStartIso(b)));
     const firstRound = sortedRounds[0];
     const lastRound = [...sortedRounds].sort((a, b) => roundEndIso(b).localeCompare(roundEndIso(a)))[0];
-    const backendSaleWindow = defaultBackendSaleWindow(roundStartIso(firstRound));
+    const backendSaleWindow = defaultBackendSaleWindow(roundStartIso(firstRound), roundStartIso(lastRound));
     const updatePayload: Record<string, unknown> = {
       name: name.trim(),
       category,
@@ -370,6 +375,7 @@ export default function EventSettingsPage({ navigation, route }: any) {
       if (poster) {
         await backendApi.uploadEventImage(event.id, posterFile(poster));
       }
+      dirtyRef.current = false;
       Alert.alert('저장 완료', '이벤트 정보가 수정되었습니다.');
       await load();
       navigation.navigate('OrganizerEventDetail', { eventId: event.id });
@@ -406,6 +412,21 @@ export default function EventSettingsPage({ navigation, route }: any) {
       return;
     }
     await applyStatus();
+  };
+
+  const handleBack = () => {
+    if (mode !== 'status' && dirtyRef.current) {
+      Alert.alert(
+        '변경사항이 있습니다',
+        '저장하지 않고 나가시겠습니까?',
+        [
+          { text: '취소', style: 'cancel' },
+          { text: '나가기', style: 'destructive', onPress: () => navigation.goBack() },
+        ],
+      );
+    } else {
+      navigation.goBack();
+    }
   };
 
   if (loading) {
@@ -457,7 +478,7 @@ export default function EventSettingsPage({ navigation, route }: any) {
   return (
     <View style={styles.container}>
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content} stickyHeaderIndices={[0]}>
-        <EventFlowTopBar eyebrow={modeMeta.eyebrow} title={modeMeta.title} badge={modeMeta.topBadge} badgeTone={modeMeta.topTone} onBack={() => navigation.goBack()} />
+        <EventFlowTopBar eyebrow={modeMeta.eyebrow} title={modeMeta.title} badge={modeMeta.topBadge} badgeTone={modeMeta.topTone} onBack={handleBack} />
         <EventFlowHero badge={modeMeta.heroBadge} title={modeMeta.heroTitle} meta={modeMeta.heroMeta} imageUrl={posterPreviewUri || null} />
 
         {mode === 'info' ? <>
@@ -473,15 +494,15 @@ export default function EventSettingsPage({ navigation, route }: any) {
             {categoryOpen ? (
               <View style={styles.categoryGrid}>
                 {EVENT_CATEGORIES.map((item) => (
-                  <TouchableOpacity key={item.value} style={[styles.categoryChip, category === item.value && styles.activeCategoryChip]} onPress={() => { setCategory(item.value); setCategoryOpen(false); }}>
+                  <TouchableOpacity key={item.value} style={[styles.categoryChip, category === item.value && styles.activeCategoryChip]} onPress={() => { setCategory(item.value); dirtyRef.current = true; setCategoryOpen(false); }}>
                     <Text style={[styles.categoryChipText, category === item.value && styles.activeCategoryChipText]}>{item.label}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
             ) : null}
           </EventFormGroup>
-          <EventFormGroup icon="ticket" label="이벤트 이름" helper="사용자에게 가장 크게 표시되는 제목입니다." value={name} onChangeText={setName} />
-          <EventFormGroup icon="map" label="장소" helper="목록, 상세, 티켓 QR 화면에 함께 표시됩니다." value={venue} onChangeText={setVenue} />
+          <EventFormGroup icon="ticket" label="이벤트 이름" helper="사용자에게 가장 크게 표시되는 제목입니다." value={name} onChangeText={(v) => { setName(v); dirtyRef.current = true; }} />
+          <EventFormGroup icon="map" label="장소" helper="목록, 상세, 티켓 QR 화면에 함께 표시됩니다." value={venue} onChangeText={(v) => { setVenue(v); dirtyRef.current = true; }} />
         </View>
 
         <View style={[styles.card, styles.fieldCard]}>
@@ -496,7 +517,7 @@ export default function EventSettingsPage({ navigation, route }: any) {
             label="소개 문구"
             helper="출연진, 운영 시간, 입장 안내를 포함하면 좋습니다."
             value={description}
-            onChangeText={setDescription}
+            onChangeText={(v) => { setDescription(v); dirtyRef.current = true; }}
             placeholder="공연 소개, 출연진, 운영 시간, 입장 안내, 주의사항 등을 입력해주세요."
             multiline
             count={`${description.length}/500`}

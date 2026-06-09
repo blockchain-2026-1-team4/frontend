@@ -118,10 +118,19 @@ export default function TicketPurchasePage({ route, navigation }: any) {
     setSubmitting(true);
     try {
       const tokenId = ticket?.contractTokenId;
-      const priceWei = ticket?.originalPriceWei ?? ticket?.priceWei ?? event?.ticketPriceWei;
+      const priceWei = event?.ticketPriceWei ?? ticket?.originalPriceWei ?? ticket?.priceWei;
+      
+      console.log('[PrimaryPurchase] ticket:', ticket);
+      console.log('[PrimaryPurchase] event:', event);
+      console.log('[PrimaryPurchase] tokenId:', tokenId);
+      console.log('[PrimaryPurchase] priceWei:', priceWei);
+      
       if (!tokenId) throw new Error('티켓 tokenId가 없습니다. 주최자가 티켓을 다시 발행해야 합니다.');
       if (!priceWei) throw new Error('티켓 가격 정보를 확인할 수 없습니다.');
       const transactionHash = await purchaseTicketOnChain(provider, String(tokenId), String(priceWei));
+      
+      console.log('[PrimaryPurchase] transactionHash:', transactionHash);
+      
       const purchased = await backendApi.purchasePrimary(String(ticketId), transactionHash);
       navigation.replace('PurchaseComplete', { type: 'primary', ticketId: purchased.id ?? purchased.ticketId, eventId: purchased.eventId });
     } catch (error: any) {

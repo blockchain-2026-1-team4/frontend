@@ -755,7 +755,11 @@ export default function TicketIssuePage({ navigation, route }: any) {
     try {
       const requestedTotal = issuedCount + payload.reduce((sum, section) => sum + section.quantity, 0);
       const totalTicketCount = Math.max(eventTotalCount, totalConfiguredCapacity, requestedTotal);
-      const issued = await backendApi.issueTickets(eventId, { totalTicketCount, ticketSections: payload });
+      const firstPriceEth = policyMode === 'global'
+        ? globalSections[0]?.priceEth
+        : roundPolicies[roundKey(rounds[0], 0)]?.sections[0]?.priceEth;
+      const baseTicketPriceWei = firstPriceEth ? ethToWei(firstPriceEth) : undefined;
+      const issued = await backendApi.issueTickets(eventId, { totalTicketCount, ticketSections: payload, baseTicketPriceWei });
       const summary = issued.slice(0, 3).map((ticket) => ticket.seatInfo).join(', ');
       const issuedIds = issued.map(ticketIdentifier).filter(Boolean);
       setLastIssuedSummary(summary ? `${summary}${issued.length > 3 ? ` 외 ${issued.length - 3}장` : ''}` : `${issued.length}장`);

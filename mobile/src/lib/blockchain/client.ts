@@ -108,6 +108,7 @@ async function waitForHash(tx: any) {
 }
 
 export async function purchaseTicketOnChain(provider: unknown, tokenId: string, valueWei: string) {
+  if (!tokenId || BigInt(tokenId) === 0n) throw new Error('티켓이 아직 온체인에 발행되지 않았습니다. 주최자에게 문의하세요.');
   const contract = await contractWithSigner(provider);
   const tx = await contract.purchaseTicket(BigInt(tokenId), { value: BigInt(valueWei) });
   return waitForHash(tx);
