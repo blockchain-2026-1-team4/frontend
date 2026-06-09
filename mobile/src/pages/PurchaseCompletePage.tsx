@@ -1,6 +1,6 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Svg, { Path, Rect } from 'react-native-svg';
 import { PosterThumb } from '../components/TicketFlowKit';
 import { backendApi } from '../lib/backend';
@@ -117,8 +117,6 @@ export default function PurchaseCompletePage({ route, navigation }: any) {
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
       <LinearGradient colors={['#1A1A2E', '#534AB7', '#1D9E75']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.completeHero}>
-        {event?.imageUrl ? <Image source={{ uri: resolveImageUrl(event.imageUrl) ?? undefined }} style={StyleSheet.absoluteFill} resizeMode="cover" /> : null}
-        <View style={styles.heroDim} />
         <View style={styles.completeCenter}>
           <View style={styles.check}>
             <Icon name="check" size={48} color="#A89CF7" />
