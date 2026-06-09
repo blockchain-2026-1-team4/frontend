@@ -1,7 +1,7 @@
 ﻿import React, { useCallback, useMemo, useRef, useState } from 'react';
 import * as ImagePicker from 'expo-image-picker';
 import { useFocusEffect } from '@react-navigation/native';
-import { ActivityIndicator, Alert, Image, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, Modal, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import { EventCategorySummary, EventFlowHero, EventFlowNotice, EventFlowTopBar, EventFormGroup } from '../components/EventFlowKit';
 import { FlowBadge, TicketIcon, flowShadow } from '../components/TicketFlowKit';
@@ -405,10 +405,15 @@ export default function EventSettingsPage({ navigation, route }: any) {
       }
     };
     if (statusDraft === 'CANCELLED' && String(event.status).toUpperCase() !== 'CANCELLED') {
-      Alert.alert('이벤트 취소', '취소 후 되돌릴 수 없습니다. 이벤트를 취소하시겠습니까?', [
-        { text: '돌아가기', style: 'cancel' },
-        { text: '취소 확정', style: 'destructive', onPress: () => void applyStatus() },
-      ]);
+      if (Platform.OS === 'web') {
+        if (!window.confirm('취소 후 되돌릴 수 없습니다. 이벤트를 취소하시겠습니까?')) return;
+        await applyStatus();
+      } else {
+        Alert.alert('이벤트 취소', '취소 후 되돌릴 수 없습니다. 이벤트를 취소하시겠습니까?', [
+          { text: '돌아가기', style: 'cancel' },
+          { text: '취소 확정', style: 'destructive', onPress: () => void applyStatus() },
+        ]);
+      }
       return;
     }
     await applyStatus();
