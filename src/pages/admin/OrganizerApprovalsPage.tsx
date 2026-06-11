@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { AdminPagination } from "../../components/AdminPagination";
 import { backendApi } from "../../lib/backend";
-import { addOrganizerOnChain } from "../../lib/blockchain/client";
 import type { OrganizerApplication } from "../../types/api";
 import { buildAdminError, formatDateTime, shortId } from "./adminUtils";
 
@@ -96,8 +95,7 @@ export function OrganizerApprovalsPage() {
     setReviewingId(item.id);
     setError(null);
     try {
-      const transactionHash = decision === "APPROVED" ? await addOrganizerOnChain(String(item.userWalletAddress ?? "")) : undefined;
-      await backendApi.reviewOrganizerApplication(item.id, decision, transactionHash);
+      await backendApi.reviewOrganizerApplication(item.id, decision);
       setMessage(decision === "APPROVED" ? "주최자 신청을 승인했습니다." : "주최자 신청을 거절했습니다.");
       await load();
     } catch (cause) {
