@@ -21,7 +21,7 @@ import {
 } from '../components/OrganizerTabKit';
 import { FlowBadge, PosterThumb, flowShadow } from '../components/TicketFlowKit';
 import { accountStatusMessage, errorMessage } from '../lib/account';
-import { clearAccessToken } from '../lib/auth';
+import { clearAuthSession } from '../lib/auth';
 import { backendApi } from '../lib/backend';
 import { resolveImageUrl } from '../lib/config';
 import { showDialog } from '../lib/dialog';
@@ -246,7 +246,7 @@ export default function OrganizerDashboardPage({ navigation }: any) {
 
   const handleLogout = async () => {
     try {
-      await clearAccessToken();
+      await clearAuthSession();
       navigation.reset({ index: 0, routes: [{ name: 'Main' }] });
     } catch (error: any) {
       Alert.alert('로그아웃 실패', errorMessage(error, '세션을 종료하지 못했습니다.'));

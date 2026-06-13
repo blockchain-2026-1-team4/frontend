@@ -1,5 +1,6 @@
 import * as SecureStore from "expo-secure-store";
 import { Platform } from "react-native";
+import { clearWalletSessionStorage } from "./appkitStorage";
 
 const ACCESS_TOKEN_KEY = "trust-ticket-access-token";
 
@@ -24,4 +25,9 @@ export async function clearAccessToken() {
     return;
   }
   await SecureStore.deleteItemAsync(ACCESS_TOKEN_KEY);
+}
+
+export async function clearAuthSession() {
+  await clearAccessToken();
+  await clearWalletSessionStorage();
 }

@@ -11,7 +11,7 @@ import {
 import { TicketIcon, flowShadow } from '../components/TicketFlowKit';
 import { TextInput } from '../components/TextInput';
 import { errorMessage } from '../lib/account';
-import { clearAccessToken } from '../lib/auth';
+import { clearAuthSession } from '../lib/auth';
 import { backendApi } from '../lib/backend';
 import { showDialog } from '../lib/dialog';
 import { formatRoles } from '../lib/roles';
@@ -96,7 +96,7 @@ export default function OrganizerProfilePage({ navigation }: any) {
         style: 'destructive',
         onPress: async () => {
           try {
-            await clearAccessToken();
+            await clearAuthSession();
             navigation.reset({ index: 0, routes: [{ name: 'Main' }] });
           } catch (error: any) {
             showDialog('로그아웃 실패', errorMessage(error, '세션을 종료하지 못했습니다.'));

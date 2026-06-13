@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import type { Storage } from '@reown/appkit-react-native';
+import type { Storage as AppKitStorage } from '@reown/appkit-react-native';
+import { Platform } from 'react-native';
 
 const STORAGE_PREFIX = '@trustticket:appkit:';
 const WALLET_STORAGE_PREFIXES = [
@@ -15,6 +16,15 @@ const WALLET_STORAGE_PREFIXES = [
   'WALLETCONNECT_',    // 대문자 접두사 변형
 ];
 const WALLET_STORAGE_KEYS = ['WALLETCONNECT_DEEPLINK_CHOICE'];
+const WEB_STORAGE_HINTS = [
+  'appkit',
+  'reown',
+  'walletconnect',
+  'wagmi',
+  'w3m',
+  'wc@',
+  'wc_',
+];
 
 function keyFor(key: string) {
   return `${STORAGE_PREFIX}${key}`;
@@ -34,7 +44,7 @@ function decodeValue<T>(value: string | null): T | undefined {
   }
 }
 
-export const appKitStorage: Storage = {
+export const appKitStorage: AppKitStorage = {
   async getKeys() {
     const keys = await AsyncStorage.getAllKeys();
     return keys.filter((key) => key.startsWith(STORAGE_PREFIX)).map(stripPrefix);
@@ -83,4 +93,52 @@ export async function clearWalletSessionStorage() {
   } else {
     console.log('[WalletStorage] No wallet keys to clear');
   }
+
+  if (Platform.OS === 'web') {
+    await clearWebWalletStorage();
+  }
+}
+
+async function clearWebWalletStorage() {
+  const global = globalThis as typeof globalThis & {
+    indexedDB?: IDBFactory & {
+      databases?: () => Promise<Array<{ name?: string | null }>>;
+    };
+    caches?: CacheStorage;
+    localStorage?: Storage;
+    sessionStorage?: Storage;
+  };
+
+  clearMatchingWebStorage(global.localStorage);
+  clearMatchingWebStorage(global.sessionStorage);
+
+  const databases = await global.indexedDB?.databases?.().catch(() => []);
+  await Promise.all((databases ?? [])
+    .filter((database) => WEB_STORAGE_HINTS.some((hint) => String(database.name ?? '').toLowerCase().includes(hint)))
+    .map((database) => deleteIndexedDb(global.indexedDB, database.name)));
+
+  if (global.caches) {
+    const cacheKeys = await global.caches.keys().catch(() => []);
+    await Promise.all(cacheKeys
+      .filter((key) => WEB_STORAGE_HINTS.some((hint) => key.toLowerCase().includes(hint)))
+      .map((key) => global.caches?.delete(key)));
+  }
+}
+
+function clearMatchingWebStorage(storage?: Storage) {
+  if (!storage) return;
+  const keys = Array.from({ length: storage.length }, (_, index) => storage.key(index)).filter(Boolean) as string[];
+  keys
+    .filter((key) => WEB_STORAGE_HINTS.some((hint) => key.toLowerCase().includes(hint)))
+    .forEach((key) => storage.removeItem(key));
+}
+
+function deleteIndexedDb(indexedDb: IDBFactory | undefined, name?: string | null) {
+  if (!indexedDb || !name) return Promise.resolve();
+  return new Promise<void>((resolve) => {
+    const request = indexedDb.deleteDatabase(name);
+    request.onsuccess = () => resolve();
+    request.onerror = () => resolve();
+    request.onblocked = () => resolve();
+  });
 }

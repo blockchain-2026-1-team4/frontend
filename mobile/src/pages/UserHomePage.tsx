@@ -14,7 +14,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
 import { accountStatusMessage, errorMessage } from '../lib/account';
-import { clearAccessToken, getAccessToken } from '../lib/auth';
+import { clearAuthSession, getAccessToken } from '../lib/auth';
 import { backendApi } from '../lib/backend';
 import { resolveImageUrl } from '../lib/config';
 import { showDialog } from '../lib/dialog';
@@ -280,7 +280,7 @@ export default function UserHomePage({ navigation }: any) {
       await startWithWallet('USER');
       return;
     }
-    await clearAccessToken();
+    await clearAuthSession();
     setProfile(null);
   };
 

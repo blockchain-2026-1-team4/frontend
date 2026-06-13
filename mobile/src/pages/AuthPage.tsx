@@ -25,6 +25,7 @@ type WalletStep = 'idle' | 'signing' | 'signed';
 
 type EthereumProvider = {
   request: (args: { method: string; params?: unknown[] }, chainId?: string) => Promise<unknown>;
+  selectedAddress?: string | null;
 };
 
 const CONNECT_TIMEOUT_MS = 20 * 1000;
@@ -72,6 +73,26 @@ function getEthereumProvider() {
     window?: { ethereum?: EthereumProvider };
   };
   return global.ethereum ?? global.window?.ethereum ?? null;
+}
+
+async function requestActiveWebWalletAddress(provider: EthereumProvider) {
+  await provider.request({ method: 'wallet_requestPermissions', params: [{ eth_accounts: {} }] }).catch((error: any) => {
+    const code = error?.code ?? error?.error?.code;
+    if (code === 4001 || code === '4001') throw error;
+  });
+
+  const rawAccounts = await withTimeout(
+    provider.request({ method: 'eth_requestAccounts' }),
+    CONNECT_TIMEOUT_MS,
+    'MetaMask 연결 요청이 아직 승인되지 않았습니다. Chrome 오른쪽 위 MetaMask 아이콘을 열어 대기 중인 요청을 승인한 뒤 다시 시도해 주세요.',
+  );
+  const accounts = (Array.isArray(rawAccounts) ? rawAccounts : []).filter((item): item is string => typeof item === 'string');
+  const selected = provider.selectedAddress?.trim();
+  const active = selected && accounts.some((account) => account.toLowerCase() === selected.toLowerCase())
+    ? selected
+    : accounts[0];
+  if (!active) throw new Error('연결된 지갑 주소를 가져오지 못했습니다.');
+  return active;
 }
 
 function toHexMessage(message: string) {
@@ -319,13 +340,7 @@ export default function AuthPage({ navigation, route }: any) {
         message: 'MetaMask 연결 요청을 보냈습니다. 팝업이 보이지 않으면 Chrome 오른쪽 위 MetaMask 아이콘을 열어 승인해 주세요.',
       });
       try {
-        const rawAccounts = await withTimeout(
-          injectedProvider.request({ method: 'eth_requestAccounts' }),
-          CONNECT_TIMEOUT_MS,
-          'MetaMask 연결 요청이 아직 승인되지 않았습니다. Chrome 오른쪽 위 MetaMask 아이콘을 열어 대기 중인 요청을 승인한 뒤 다시 시도해 주세요.',
-        );
-        const address = (Array.isArray(rawAccounts) ? rawAccounts : []).find((item): item is string => typeof item === 'string');
-        if (!address) throw new Error('연결된 지갑 주소를 가져오지 못했습니다.');
+        const address = await requestActiveWebWalletAddress(injectedProvider);
         setWalletAddress(address);
         await completeWalletAuth(injectedProvider, address);
       } catch (error: any) {
