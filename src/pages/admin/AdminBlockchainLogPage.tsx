@@ -3,11 +3,12 @@ import { backendApi } from "../../lib/backend";
 import type { BlockchainTransactionRecord } from "../../types/api";
 import { buildAdminError, formatDateTime, shortId } from "./adminUtils";
 
-type StatusFilter = "ALL" | "SIMULATED" | "SUBMITTED" | "FAILED";
+type StatusFilter = "ALL" | "SIMULATED" | "SUBMITTED" | "CONFIRMED" | "FAILED";
 
 const STATUS_LABEL: Record<string, string> = {
   SIMULATED: "시뮬레이션",
   SUBMITTED: "제출 완료",
+  CONFIRMED: "확정",
   FAILED: "실패",
 };
 
@@ -26,7 +27,8 @@ const ACTION_LABEL: Record<string, string> = {
 };
 
 function statusClass(status?: string) {
-  if (status === "SUBMITTED") return "green";
+  if (status === "CONFIRMED") return "green";
+  if (status === "SUBMITTED") return "on";
   if (status === "FAILED") return "red";
   return "on";
 }
@@ -91,6 +93,7 @@ export function AdminBlockchainLogPage() {
   }, [items, query, status]);
 
   const failedCount = items.filter((item) => item.status === "FAILED").length;
+  const confirmedCount = items.filter((item) => item.status === "CONFIRMED").length;
   const submittedCount = items.filter((item) => item.status === "SUBMITTED").length;
   const simulatedCount = items.filter((item) => item.status === "SIMULATED").length;
 
@@ -102,6 +105,7 @@ export function AdminBlockchainLogPage() {
     { label: "전체", value: "ALL" },
     { label: "시뮬레이션", value: "SIMULATED" },
     { label: "제출 완료", value: "SUBMITTED" },
+    { label: "확정", value: "CONFIRMED" },
     { label: "실패", value: "FAILED" },
   ];
 
@@ -121,6 +125,10 @@ export function AdminBlockchainLogPage() {
           <div className="mini-stat">
             <div className="mini-label">제출 완료</div>
             <div className="mini-num">{submittedCount}</div>
+          </div>
+          <div className="mini-stat">
+            <div className="mini-label">확정</div>
+            <div className="mini-num">{confirmedCount}</div>
           </div>
           <div className="mini-stat">
             <div className="mini-label">실패</div>
@@ -143,6 +151,11 @@ export function AdminBlockchainLogPage() {
             <div className="bar" />
             <b>제출 완료</b>
             <div className="sub">체인 제출 후 트랜잭션 해시를 받은 상태입니다.</div>
+          </div>
+          <div className="status-note">
+            <div className="bar" />
+            <b>확정</b>
+            <div className="sub">체인 영수증까지 확인되어 온체인 처리가 완료된 상태입니다.</div>
           </div>
           <div className="status-note">
             <div className="bar" />
