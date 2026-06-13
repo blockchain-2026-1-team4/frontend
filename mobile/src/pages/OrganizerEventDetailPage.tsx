@@ -1,6 +1,6 @@
 import React, { useCallback, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
-import { ActivityIndicator, Alert, RefreshControl, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import {
   EventFlowHero,
   EventFlowMenuRow,
@@ -13,6 +13,7 @@ import { errorMessage } from '../lib/account';
 import { backendApi } from '../lib/backend';
 import { issueFanClubMembershipOnChain, setMembershipPolicyOnChain } from '../lib/blockchain/client';
 import { resolveImageUrl } from '../lib/config';
+import { showDialog } from '../lib/dialog';
 import { formatEventCategory, formatEventRange, getEventDisplayStatus } from '../lib/ticketDisplay';
 import type { EventDetail, TicketDetail } from '../types/api';
 
@@ -101,7 +102,7 @@ export default function OrganizerEventDetailPage({ navigation, route }: any) {
       setEvent(detail);
       setTickets(eventTickets);
     } catch (error: any) {
-      Alert.alert('이벤트 로드 실패', errorMessage(error, '이벤트 정보를 불러오지 못했습니다.'));
+      showDialog('이벤트 로드 실패', errorMessage(error, '이벤트 정보를 불러오지 못했습니다.'));
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -152,7 +153,7 @@ export default function OrganizerEventDetailPage({ navigation, route }: any) {
     setMembershipStatus('멤버십 NFT 발급 요청을 준비하고 있습니다.');
     if (!isValidAddress(address)) {
       setMembershipStatus('지갑 주소 형식이 올바르지 않습니다.');
-      Alert.alert('지갑 주소 확인', '멤버십을 발급할 지갑 주소를 정확히 입력해주세요.');
+      showDialog('지갑 주소 확인', '멤버십을 발급할 지갑 주소를 정확히 입력해주세요.');
       return;
     }
     try {
@@ -160,15 +161,15 @@ export default function OrganizerEventDetailPage({ navigation, route }: any) {
       setMembershipStatus('MetaMask에 FanClubMembership 발급 트랜잭션을 요청했습니다.');
       const hash = await issueFanClubMembershipOnChain(undefined, address);
       setMembershipStatus('멤버십 NFT 발급 트랜잭션이 확정되었습니다.');
-      Alert.alert('멤버십 발급 완료', `FanClubMembership NFT가 발급되었습니다.\n\n${hash}`);
+      showDialog('멤버십 발급 완료', `FanClubMembership NFT가 발급되었습니다.\n\n${hash}`);
     } catch (error: any) {
       if (isAlreadyMemberError(error)) {
         setMembershipStatus('이 지갑은 이미 FanClubMembership NFT를 보유하고 있습니다. 선예매 적용으로 진행하세요.');
-        Alert.alert('이미 멤버십 보유 중', '이 지갑은 이미 FanClubMembership NFT를 보유하고 있습니다. 선예매 적용으로 진행하세요.');
+        showDialog('이미 멤버십 보유 중', '이 지갑은 이미 FanClubMembership NFT를 보유하고 있습니다. 선예매 적용으로 진행하세요.');
         return;
       }
       setMembershipStatus(errorMessage(error, '멤버십 NFT 발급에 실패했습니다.'));
-      Alert.alert('멤버십 발급 실패', errorMessage(error, 'MEMBERSHIP_ISSUER_ROLE이 있는 지갑으로 서명해야 합니다.'));
+      showDialog('멤버십 발급 실패', errorMessage(error, 'MEMBERSHIP_ISSUER_ROLE이 있는 지갑으로 서명해야 합니다.'));
     } finally {
       setMembershipBusy(null);
     }
@@ -178,7 +179,7 @@ export default function OrganizerEventDetailPage({ navigation, route }: any) {
     setMembershipStatus('팬클럽 선예매 정책 적용 요청을 준비하고 있습니다.');
     if (!canSetupMembership) {
       setMembershipStatus(membershipSetupHint);
-      Alert.alert('선예매 설정 불가', membershipSetupHint);
+      showDialog('선예매 설정 불가', membershipSetupHint);
       return;
     }
     try {
@@ -194,10 +195,10 @@ export default function OrganizerEventDetailPage({ navigation, route }: any) {
         false,
       );
       setMembershipStatus('팬클럽 선예매 정책이 온체인에 적용되었습니다.');
-      Alert.alert('선예매 설정 완료', `팬클럽 NFT 보유자만 현재 티켓 가격으로 구매할 수 있습니다.\n\n${hash}`);
+      showDialog('선예매 설정 완료', `팬클럽 NFT 보유자만 현재 티켓 가격으로 구매할 수 있습니다.\n\n${hash}`);
     } catch (error: any) {
       setMembershipStatus(errorMessage(error, '팬클럽 선예매 정책 적용에 실패했습니다.'));
-      Alert.alert('선예매 설정 실패', errorMessage(error, '이벤트 주최자 또는 관리자 권한이 있는 지갑으로 서명해야 합니다.'));
+      showDialog('선예매 설정 실패', errorMessage(error, '이벤트 주최자 또는 관리자 권한이 있는 지갑으로 서명해야 합니다.'));
     } finally {
       setMembershipBusy(null);
     }

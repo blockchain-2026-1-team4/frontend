@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import WalletRequiredView from '../components/WalletRequiredView';
 import { PosterThumb, TicketIcon, flowShadow } from '../components/TicketFlowKit';
+import { errorMessage } from '../lib/account';
 import { backendApi } from '../lib/backend';
 import { purchaseTicketOnChain } from '../lib/blockchain/client';
 import { resolveImageUrl } from '../lib/config';
@@ -104,7 +105,7 @@ export default function TicketPurchasePage({ route, navigation }: any) {
         const targetEventId = eventId ?? ticketData.eventId;
         if (targetEventId) setEvent(await backendApi.getEvent(String(targetEventId)));
       } catch (error: any) {
-        showDialog('오류', error.message || '티켓 정보를 불러오지 못했습니다.');
+        showDialog('오류', errorMessage(error, '티켓 정보를 불러오지 못했습니다.'));
       } finally {
         setLoading(false);
       }
@@ -127,7 +128,7 @@ export default function TicketPurchasePage({ route, navigation }: any) {
       const purchased = await backendApi.purchasePrimary(String(ticketId), transactionHash);
       navigation.replace('PurchaseComplete', { type: 'primary', ticketId: purchased.id ?? purchased.ticketId, eventId: purchased.eventId });
     } catch (error: any) {
-      showDialog('구매 실패', error.message || '티켓 구매에 실패했습니다.');
+      showDialog('구매 실패', errorMessage(error, '티켓 구매에 실패했습니다.'));
     } finally {
       setSubmitting(false);
     }
