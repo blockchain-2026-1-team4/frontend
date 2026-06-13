@@ -9,6 +9,7 @@ import {
   formatEventCategory,
   formatNextRoundLabel,
   getNextRoundTime,
+  isEventEnded,
   isEventListedNow,
   userSortRank,
   weiToEth,
@@ -82,6 +83,21 @@ function daysUntilEvent(event: EventSummary) {
 function isDeadlineEvent(event: EventSummary) {
   const days = daysUntilEvent(event);
   return days !== null && days >= 0 && days <= 5;
+}
+
+function isSoldOutEvent(event: EventSummary) {
+  const total = Number(event.totalTicketCount ?? 0);
+  const remaining = Number(event.remainingTicketCount ?? 0);
+  return Boolean(event.soldOut) || (total > 0 && remaining <= 0);
+}
+
+function isSearchVisibleEvent(event: EventSummary) {
+  return String(event.status ?? '').toUpperCase() === 'PUBLISHED' && !isEventEnded(event);
+}
+
+function eventStateLabel(event: EventSummary) {
+  if (isSoldOutEvent(event)) return '매진';
+  return isEventListedNow(event) ? '예매 가능' : '판매 예정';
 }
 
 function formatDdayLabel(days: number) {
@@ -237,11 +253,12 @@ function PosterArt({ event, index, compact = false }: { event: EventSummary; ind
   const colors = POSTER_GRADIENTS[index % POSTER_GRADIENTS.length];
   const title = eventName(event);
   const listed = isEventListedNow(event);
+  const soldOut = isSoldOutEvent(event);
   const ddayBadge = compact ? upcomingDdayBadgeLabel(event) : deadlineBadgeLabel(event);
-  const badge = ddayBadge ?? (listed ? '예매 가능' : '공식');
+  const badge = soldOut ? '매진' : ddayBadge ?? (listed ? '예매 가능' : '공식');
   const badgeStyle = compact
-    ? [styles.hotBadge, ddayBadge ? styles.hotBadgeDeadline : listed ? styles.hotBadgeSale : styles.hotBadgeDefault]
-    : [styles.posterBadge, ddayBadge ? styles.posterBadgeDeadline : listed ? styles.posterBadgeSale : styles.posterBadgeDefault];
+    ? [styles.hotBadge, soldOut ? styles.hotBadgeSoldOut : ddayBadge ? styles.hotBadgeDeadline : listed ? styles.hotBadgeSale : styles.hotBadgeDefault]
+    : [styles.posterBadge, soldOut ? styles.posterBadgeSoldOut : ddayBadge ? styles.posterBadgeDeadline : listed ? styles.posterBadgeSale : styles.posterBadgeDefault];
 
   return (
     <View style={compact ? styles.hotImage : styles.poster}>
@@ -287,12 +304,12 @@ export default function EventListPage({ navigation, route }: any) {
   }, [selectedCategory]);
 
   const visibleEvents = useMemo(() => {
-    let visible = events.filter((event) => isEventListedNow(event));
+    let visible = events.filter(isSearchVisibleEvent);
 
     if (selectedSmart === 'SALE') {
       visible = visible.filter((event) => isEventListedNow(event));
     } else if (selectedSmart === 'DEADLINE') {
-      visible = visible.filter(isDeadlineEvent);
+      visible = visible.filter((event) => !isSoldOutEvent(event) && isDeadlineEvent(event));
     } else if (selectedSmart === 'RESALE') {
       visible = visible.filter((event) => Boolean(event.resaleAllowed));
     }
@@ -317,8 +334,9 @@ export default function EventListPage({ navigation, route }: any) {
   }, [events, selectedSmart, selectedSort]);
 
   const hotEvents = useMemo(() => {
-    const deadlineEvents = visibleEvents.filter(isDeadlineEvent);
-    return (deadlineEvents.length ? deadlineEvents : visibleEvents).slice(0, 5);
+    const availableEvents = visibleEvents.filter((event) => !isSoldOutEvent(event));
+    const deadlineEvents = availableEvents.filter(isDeadlineEvent);
+    return (deadlineEvents.length ? deadlineEvents : availableEvents).slice(0, 5);
   }, [visibleEvents]);
 
   const goBack = () => {
@@ -505,7 +523,7 @@ export default function EventListPage({ navigation, route }: any) {
                     <View style={styles.eventInfo}>
                       <View style={styles.infoTop}>
                         <Text style={styles.label}>{formatEventCategory(event.category)}</Text>
-                        <Text style={styles.state}>예매 가능</Text>
+                        <Text style={[styles.state, isSoldOutEvent(event) && styles.stateSoldOut]}>{eventStateLabel(event)}</Text>
                       </View>
                       <Text style={styles.eventName} numberOfLines={2}>{eventName(event)}</Text>
                       <View style={styles.meta}>
@@ -702,6 +720,7 @@ const styles = StyleSheet.create({
   },
   hotBadgeDeadline: { backgroundColor: '#EF4444', color: '#FFFFFF', borderWidth: 1, borderColor: 'rgba(255,255,255,0.32)' },
   hotBadgeSale: { backgroundColor: '#DCFCE7', color: '#0F6E56', borderWidth: 1, borderColor: '#BBF7D0' },
+  hotBadgeSoldOut: { backgroundColor: '#111827', color: '#FFFFFF', borderWidth: 1, borderColor: 'rgba(255,255,255,0.26)' },
   hotBadgeDefault: { backgroundColor: 'rgba(15,23,42,0.72)', color: '#FFFFFF', borderWidth: 1, borderColor: 'rgba(255,255,255,0.18)' },
   hotBody: { padding: 10 },
   hotName: { fontSize: 13, fontWeight: '900', color: '#0F172A', lineHeight: 17, marginBottom: 4 },
@@ -725,12 +744,14 @@ const styles = StyleSheet.create({
   },
   posterBadgeDeadline: { backgroundColor: '#EF4444', color: '#FFFFFF' },
   posterBadgeSale: { backgroundColor: '#DCFCE7', color: '#0F6E56' },
+  posterBadgeSoldOut: { backgroundColor: '#111827', color: '#FFFFFF' },
   posterBadgeDefault: { backgroundColor: 'rgba(0,0,0,0.42)', color: '#FFFFFF' },
   posterTitle: { position: 'absolute', left: 10, right: 10, bottom: 10, zIndex: 2, color: '#FFFFFF', fontSize: 12, fontWeight: '900', lineHeight: 15 },
   eventInfo: { flex: 1, minWidth: 0, paddingVertical: 2 },
   infoTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 7 },
   label: { fontSize: 10, fontWeight: '900', color: '#534AB7', backgroundColor: '#EEEDFE', borderRadius: 999, paddingHorizontal: 8, paddingVertical: 4, overflow: 'hidden' },
   state: { fontSize: 10, fontWeight: '900', color: '#0F6E56', backgroundColor: '#E1F5EE', borderRadius: 999, paddingHorizontal: 8, paddingVertical: 4, overflow: 'hidden' },
+  stateSoldOut: { color: '#475569', backgroundColor: '#E2E8F0' },
   eventName: { fontSize: 16, fontWeight: '900', color: '#0F172A', lineHeight: 20, marginBottom: 9, letterSpacing: 0 },
   meta: { flexDirection: 'row', alignItems: 'flex-start', gap: 6, marginBottom: 4 },
   metaText: { flex: 1, color: '#64748B', fontSize: 11, lineHeight: 16, fontWeight: '700' },
