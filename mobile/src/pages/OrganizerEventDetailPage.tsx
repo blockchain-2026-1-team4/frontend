@@ -75,6 +75,7 @@ export default function OrganizerEventDetailPage({ navigation, route }: any) {
   const [refreshing, setRefreshing] = useState(false);
   const [membershipAddress, setMembershipAddress] = useState('');
   const [membershipBusy, setMembershipBusy] = useState<'issue' | 'policy' | null>(null);
+  const [membershipStatus, setMembershipStatus] = useState('');
 
   const load = useCallback(async () => {
     if (!eventId) {
@@ -137,15 +138,20 @@ export default function OrganizerEventDetailPage({ navigation, route }: any) {
 
   const issueMembership = async () => {
     const address = membershipAddress.trim();
+    setMembershipStatus('멤버십 NFT 발급 요청을 준비하고 있습니다.');
     if (!isValidAddress(address)) {
+      setMembershipStatus('지갑 주소 형식이 올바르지 않습니다.');
       Alert.alert('지갑 주소 확인', '멤버십을 발급할 지갑 주소를 정확히 입력해주세요.');
       return;
     }
     try {
       setMembershipBusy('issue');
+      setMembershipStatus('MetaMask에 FanClubMembership 발급 트랜잭션을 요청했습니다.');
       const hash = await issueFanClubMembershipOnChain(undefined, address);
+      setMembershipStatus('멤버십 NFT 발급 트랜잭션이 확정되었습니다.');
       Alert.alert('멤버십 발급 완료', `FanClubMembership NFT가 발급되었습니다.\n\n${hash}`);
     } catch (error: any) {
+      setMembershipStatus(errorMessage(error, '멤버십 NFT 발급에 실패했습니다.'));
       Alert.alert('멤버십 발급 실패', errorMessage(error, 'MEMBERSHIP_ISSUER_ROLE이 있는 지갑으로 서명해야 합니다.'));
     } finally {
       setMembershipBusy(null);
@@ -153,13 +159,16 @@ export default function OrganizerEventDetailPage({ navigation, route }: any) {
   };
 
   const enableMembershipPresale = async () => {
+    setMembershipStatus('팬클럽 선예매 정책 적용 요청을 준비하고 있습니다.');
     if (!canSetupMembership) {
+      setMembershipStatus(membershipSetupHint);
       Alert.alert('선예매 설정 불가', membershipSetupHint);
       return;
     }
     try {
       setMembershipBusy('policy');
       const now = Math.floor(Date.now() / 1000);
+      setMembershipStatus('MetaMask에 TrustTicket 선예매 정책 트랜잭션을 요청했습니다.');
       const hash = await setMembershipPolicyOnChain(
         undefined,
         contractEventId,
@@ -168,8 +177,10 @@ export default function OrganizerEventDetailPage({ navigation, route }: any) {
         now + 2 * 60 * 60,
         false,
       );
+      setMembershipStatus('팬클럽 선예매 정책이 온체인에 적용되었습니다.');
       Alert.alert('선예매 설정 완료', `팬클럽 NFT 보유자만 현재 티켓 가격으로 구매할 수 있습니다.\n\n${hash}`);
     } catch (error: any) {
+      setMembershipStatus(errorMessage(error, '팬클럽 선예매 정책 적용에 실패했습니다.'));
       Alert.alert('선예매 설정 실패', errorMessage(error, '이벤트 주최자 또는 관리자 권한이 있는 지갑으로 서명해야 합니다.'));
     } finally {
       setMembershipBusy(null);
@@ -258,20 +269,23 @@ export default function OrganizerEventDetailPage({ navigation, route }: any) {
             <TouchableOpacity
               style={[styles.membershipButton, membershipBusy && styles.disabledButton]}
               disabled={Boolean(membershipBusy)}
-              onPress={issueMembership}
+              onPress={() => { void issueMembership(); }}
+              accessibilityRole="button"
             >
               <Text style={styles.membershipButtonText}>{membershipBusy === 'issue' ? '발급 중...' : 'NFT 발급'}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.membershipButton, styles.membershipButtonPrimary, (!canSetupMembership || Boolean(membershipBusy)) && styles.disabledButton]}
               disabled={!canSetupMembership || Boolean(membershipBusy)}
-              onPress={enableMembershipPresale}
+              onPress={() => { void enableMembershipPresale(); }}
+              accessibilityRole="button"
             >
               <Text style={[styles.membershipButtonText, styles.membershipButtonPrimaryText]}>{membershipBusy === 'policy' ? '설정 중...' : '선예매 적용'}</Text>
             </TouchableOpacity>
           </View>
 
           <Text style={styles.membershipHint}>{membershipSetupHint}</Text>
+          {membershipStatus ? <Text style={styles.membershipStatus}>{membershipStatus}</Text> : null}
         </View>
       </View>
     </ScrollView>
@@ -339,4 +353,5 @@ const styles = StyleSheet.create({
   membershipButtonPrimaryText: { color: '#FFFFFF' },
   disabledButton: { opacity: 0.55 },
   membershipHint: { marginTop: 10, color: '#64748B', fontSize: 10, lineHeight: 14, fontWeight: '700' },
+  membershipStatus: { marginTop: 8, color: '#24745B', fontSize: 10, lineHeight: 14, fontWeight: '900' },
 });
