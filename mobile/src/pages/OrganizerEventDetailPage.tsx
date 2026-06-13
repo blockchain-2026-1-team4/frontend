@@ -67,6 +67,17 @@ function isValidAddress(value: string) {
   return /^0x[0-9a-fA-F]{40}$/.test(value.trim());
 }
 
+function isAlreadyMemberError(error: any) {
+  const text = [
+    error?.data,
+    error?.message,
+    error?.shortMessage,
+    error?.info?.error?.data,
+    error?.error?.data,
+  ].filter(Boolean).join(' ');
+  return text.includes('0x810074be') || /AlreadyMember/i.test(text);
+}
+
 export default function OrganizerEventDetailPage({ navigation, route }: any) {
   const eventId = route?.params?.eventId as string;
   const [event, setEvent] = useState<EventDetail | null>(null);
@@ -151,6 +162,11 @@ export default function OrganizerEventDetailPage({ navigation, route }: any) {
       setMembershipStatus('멤버십 NFT 발급 트랜잭션이 확정되었습니다.');
       Alert.alert('멤버십 발급 완료', `FanClubMembership NFT가 발급되었습니다.\n\n${hash}`);
     } catch (error: any) {
+      if (isAlreadyMemberError(error)) {
+        setMembershipStatus('이 지갑은 이미 FanClubMembership NFT를 보유하고 있습니다. 선예매 적용으로 진행하세요.');
+        Alert.alert('이미 멤버십 보유 중', '이 지갑은 이미 FanClubMembership NFT를 보유하고 있습니다. 선예매 적용으로 진행하세요.');
+        return;
+      }
       setMembershipStatus(errorMessage(error, '멤버십 NFT 발급에 실패했습니다.'));
       Alert.alert('멤버십 발급 실패', errorMessage(error, 'MEMBERSHIP_ISSUER_ROLE이 있는 지갑으로 서명해야 합니다.'));
     } finally {
