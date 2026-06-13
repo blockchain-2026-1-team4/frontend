@@ -10,6 +10,6 @@ describe("LandingPage", () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByText(/블록체인 기반 티켓 관리자 콘솔/i)).toBeInTheDocument();
+    expect(screen.getByText(/관리자 전용 웹 콘솔/i)).toBeInTheDocument();
   });
 });
