@@ -150,6 +150,8 @@ export type BlockchainTransactionRecord = {
   status?: string;
   action?: string;
   contractAddress?: string;
+  contractEventId?: string | number;
+  contractTokenId?: string | number;
   errorMessage?: string;
   createdAt?: string;
   updatedAt?: string;

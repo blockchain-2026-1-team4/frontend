@@ -18,12 +18,17 @@ const ACTION_LABEL: Record<string, string> = {
   addEventValidator: "이벤트 검증자 등록",
   createEvent: "이벤트 생성",
   setEventStatus: "이벤트 상태 변경",
+  cancelEvent: "이벤트 취소",
   mintTicket: "티켓 발행",
+  burnUnissuedTicket: "미판매 티켓 소각",
   purchaseTicket: "1차 티켓 구매",
   listTicket: "리셀 등록",
   purchaseResaleTicket: "리셀 구매",
   cancelListing: "리셀 등록 취소",
   useTicket: "체크인 처리",
+  refundTicket: "환불 처리",
+  withdrawEventRevenue: "이벤트 정산",
+  withdrawResaleRevenue: "리셀 정산",
 };
 
 function statusClass(status?: string) {
@@ -41,6 +46,18 @@ function getTransactionTimestamp(item: BlockchainTransactionRecord) {
 
   const date = new Date(timestamp);
   return Number.isNaN(date.getTime()) ? 0 : date.getTime();
+}
+
+function targetLabel(item: BlockchainTransactionRecord) {
+  const parts = [
+    item.contractEventId ? `Event #${item.contractEventId}` : "",
+    item.contractTokenId ? `Token #${item.contractTokenId}` : "",
+  ].filter(Boolean);
+
+  if (parts.length > 0) {
+    return parts.join(" · ");
+  }
+  return shortId(item.contractAddress, 14);
 }
 
 export function AdminBlockchainLogPage() {
@@ -84,7 +101,17 @@ export function AdminBlockchainLogPage() {
         if (!keyword) {
           return true;
         }
-        return [item.id, item.action, item.transactionHash, item.txHash, item.contractAddress, item.status, item.errorMessage]
+        return [
+          item.id,
+          item.action,
+          item.transactionHash,
+          item.txHash,
+          item.contractAddress,
+          item.contractEventId,
+          item.contractTokenId,
+          item.status,
+          item.errorMessage,
+        ]
           .filter(Boolean)
           .join(" ")
           .toLowerCase()
@@ -177,7 +204,7 @@ export function AdminBlockchainLogPage() {
               </button>
             ))}
             <form className="section-right" onSubmit={onSearch}>
-              <input className="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="작업, 해시, 컨트랙트 검색" />
+              <input className="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="작업, 해시, Event/Token 검색" />
               <button className="btn" type="submit">검색</button>
             </form>
           </div>
@@ -190,7 +217,7 @@ export function AdminBlockchainLogPage() {
                 <th>기록 번호</th>
                 <th>작업</th>
                 <th>트랜잭션 해시</th>
-                <th>컨트랙트</th>
+                <th>온체인 대상</th>
                 <th>상태</th>
                 <th>오류</th>
                 <th>생성일</th>
@@ -219,7 +246,7 @@ export function AdminBlockchainLogPage() {
                       <td className="mono">#{shortId(item.id)}</td>
                       <td className="name">{item.action ? ACTION_LABEL[item.action] ?? item.action : "-"}</td>
                       <td className="mono" title={txHash}>{shortId(txHash, 18)}</td>
-                      <td className="mono" title={item.contractAddress}>{shortId(item.contractAddress, 14)}</td>
+                      <td className="mono" title={item.contractAddress}>{targetLabel(item)}</td>
                       <td><span className={`chip ${statusClass(itemStatus)}`}>{STATUS_LABEL[itemStatus] ?? itemStatus}</span></td>
                       <td className="sub" title={item.errorMessage}>{item.errorMessage ?? "-"}</td>
                       <td>{formatDateTime(item.createdAt)}</td>
