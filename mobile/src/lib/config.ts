@@ -109,7 +109,7 @@ export const config = {
   chainRpcUrl: process.env.EXPO_PUBLIC_CHAIN_RPC_URL || "https://public-en-kairos.node.kaia.io",
   chainId: Number(process.env.EXPO_PUBLIC_CHAIN_ID || 1001),
   trustTicketContractAddress:
-    process.env.EXPO_PUBLIC_TRUST_TICKET_CONTRACT_ADDRESS || "0xce763CEefFA79695a2A2499a80ff40A27a4678f5",
+    process.env.EXPO_PUBLIC_TRUST_TICKET_CONTRACT_ADDRESS || "0x790aa2356BAb711998faA9c58dCDD47205e6683d",
   fanClubMembershipContractAddress:
-    process.env.EXPO_PUBLIC_FANCLUB_MEMBERSHIP_CONTRACT_ADDRESS || "0x0AB82F1545D83f46a5a97470215b5E8Ca6226507",
+    process.env.EXPO_PUBLIC_FANCLUB_MEMBERSHIP_CONTRACT_ADDRESS || "0xCA64026A80a9295aE1829DeDcb143dB23C3A3300",
 };
