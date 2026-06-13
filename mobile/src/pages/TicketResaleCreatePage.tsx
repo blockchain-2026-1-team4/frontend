@@ -134,7 +134,7 @@ export default function TicketResaleCreatePage({ route, navigation }: any) {
       return;
     }
     if (!priceValid) {
-      const message = '리셀 가격을 ETH 단위로 입력해주세요. 예: 0.05';
+      const message = '리셀 가격을 KAIA 단위로 입력해주세요. 예: 0.05';
       setFeedback(message);
       showDialog('입력 오류', message);
       return;
@@ -230,7 +230,7 @@ export default function TicketResaleCreatePage({ route, navigation }: any) {
                   placeholder="0.05"
                   keyboardType="decimal-pad"
                 />
-                <Text style={styles.suffix}>ETH</Text>
+                <Text style={styles.suffix}>KAIA</Text>
               </View>
             </View>
             <View style={[styles.alert, blockReason || feedback ? styles.alertRed : styles.alertGreen]}>

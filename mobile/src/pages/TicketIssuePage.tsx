@@ -786,7 +786,7 @@ export default function TicketIssuePage({ navigation, route }: any) {
     return `${roundIndex + 1}회차-${seatRange(policy, policyStartNumber(policy, roundIndex, policies))}`;
   };
 
-  const savedPolicyTitle = (policy: SectionPolicy) => `${sectionNameOf(policy)} · ${policy.quantity}장 · ${policy.priceEth} ETH`;
+  const savedPolicyTitle = (policy: SectionPolicy) => `${sectionNameOf(policy)} · ${policy.quantity}장 · ${policy.priceEth} KAIA`;
   const savedPolicySaleSummary = (policy: SectionPolicy) => {
     if (policy.useCustomSaleStart) {
       return `판매 시작 ${formatDateShort(policy.customSaleStartDate)} ${policy.customSaleStartTime} (구역별)`;
@@ -1296,7 +1296,7 @@ export default function TicketIssuePage({ navigation, route }: any) {
                         <View style={styles.seatKpiRow}>
                           <View style={styles.seatKpi}>
                             <Text style={styles.seatKpiLabel}>가격</Text>
-                            <Text style={styles.seatKpiValue}>{policy.priceEth} ETH</Text>
+                            <Text style={styles.seatKpiValue}>{policy.priceEth} KAIA</Text>
                           </View>
                           <View style={styles.seatKpi}>
                             <Text style={styles.seatKpiLabel}>수량</Text>
@@ -1421,7 +1421,7 @@ export default function TicketIssuePage({ navigation, route }: any) {
                         <View style={styles.policyCardBody}>
                           <View style={styles.unitInputWrap}>
                             <TextInput style={styles.unitInput} value={currentDraft.priceEth} onChangeText={(value) => updateDraft({ priceEth: value })} keyboardType="decimal-pad" inputMode="decimal" placeholder="예: 0.2" />
-                            <Text style={styles.unitText}>ETH</Text>
+                            <Text style={styles.unitText}>KAIA</Text>
                           </View>
                         </View>
                       </View>
@@ -1568,14 +1568,14 @@ export default function TicketIssuePage({ navigation, route }: any) {
                       <Text style={styles.reviewSeatName}>{sectionNameOf(section)}</Text>
                       <Text style={styles.reviewSeatMeta}>{section.quantity}장 · {section.resaleEnabled ? `리셀 ${resaleRateOf(section)}%` : '리셀 불가'}</Text>
                     </View>
-                    <Text style={styles.reviewSeatPrice}>{section.priceEth} ETH</Text>
+                    <Text style={styles.reviewSeatPrice}>{section.priceEth} KAIA</Text>
                   </View>
                 ))}
               </View>
             </View>
             <View style={styles.totalCard}>
               <Text style={styles.totalCardTitle}>예상 최대 매출</Text>
-              <Text style={styles.totalCardValue}>{expectedMaxRevenueEth.toFixed(2)} ETH</Text>
+              <Text style={styles.totalCardValue}>{expectedMaxRevenueEth.toFixed(2)} KAIA</Text>
               <Text style={styles.totalCardSub}>저장된 좌석 정책의 가격과 발행 수량 기준</Text>
             </View>
             <View style={styles.finalNotice}>

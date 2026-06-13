@@ -109,7 +109,7 @@ export function formatWei(value: unknown) {
       return `${String(value)} wei`;
     }
 
-    return `${eth.toLocaleString("ko-KR", { maximumFractionDigits: 4 })} ETH`;
+    return `${eth.toLocaleString("ko-KR", { maximumFractionDigits: 4 })} KAIA`;
   } catch {
     return String(value);
   }

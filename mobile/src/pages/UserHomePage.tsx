@@ -59,9 +59,9 @@ const CATEGORIES = [
 ] as const;
 
 const MOCK_FEATURED_EVENTS: MockFeaturedEvent[] = [
-  { title: '개그콘서트 스페셜', date: '6.28 · KBS 홀', price: '0.10 ETH~', badge: 'D-3', colors: ['#712B13', '#D85A30', '#EF9F27'] },
-  { title: '봄 인디 콘서트', date: '6.20 · 홍대 클럽 FF', price: '0.05 ETH~', badge: 'HOT', colors: ['#26215C', '#534AB7', '#1D9E75'] },
-  { title: 'KT vs 두산', date: '6.14 · 수원', price: '0.05 ETH~', badge: 'NEW', colors: ['#0C447C', '#185FA5', '#639922'] },
+  { title: '개그콘서트 스페셜', date: '6.28 · KBS 홀', price: '0.10 KAIA~', badge: 'D-3', colors: ['#712B13', '#D85A30', '#EF9F27'] },
+  { title: '봄 인디 콘서트', date: '6.20 · 홍대 클럽 FF', price: '0.05 KAIA~', badge: 'HOT', colors: ['#26215C', '#534AB7', '#1D9E75'] },
+  { title: 'KT vs 두산', date: '6.14 · 수원', price: '0.05 KAIA~', badge: 'NEW', colors: ['#0C447C', '#185FA5', '#639922'] },
 ];
 
 const MOCK_RECOMMENDED_EVENTS: MockRecommendedEvent[] = [
@@ -70,7 +70,7 @@ const MOCK_RECOMMENDED_EVENTS: MockRecommendedEvent[] = [
     status: '예매 가능',
     title: 'KT 위즈 vs 두산 베어스 · KBO 정규시즌',
     meta: '수원 케이티위즈파크\n2026.06.14 19:00',
-    price: '0.05 ETH~',
+    price: '0.05 KAIA~',
     posterTitle: 'KT vs 두산\nKBO',
     colors: ['#0C447C', '#185FA5', '#639922'],
   },
@@ -79,7 +79,7 @@ const MOCK_RECOMMENDED_EVENTS: MockRecommendedEvent[] = [
     status: '예매 가능',
     title: '2026 봄 인디 콘서트 · 2회차',
     meta: '홍대 클럽 FF\n2026.06.20 20:00',
-    price: '0.05 ETH~',
+    price: '0.05 KAIA~',
     posterTitle: '봄 인디\n콘서트',
     colors: ['#26215C', '#534AB7', '#1D9E75'],
   },

@@ -68,7 +68,7 @@ export function weiToEthLabel(value?: string | number | null) {
     const wei = BigInt(String(value));
     const whole = wei / 1_000_000_000_000_000_000n;
     const fraction = String(wei % 1_000_000_000_000_000_000n).padStart(18, '0').replace(/0+$/, '');
-    return fraction ? `${whole}.${fraction} ETH` : `${whole} ETH`;
+    return fraction ? `${whole}.${fraction} KAIA` : `${whole} KAIA`;
   } catch {
     return String(value);
   }

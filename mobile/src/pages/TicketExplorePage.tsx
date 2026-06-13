@@ -245,7 +245,7 @@ export default function TicketExplorePage({ navigation, route }: any) {
       String(ticket.status).toUpperCase(),
       weiToEth(ticket.originalPriceWei || ticket.priceWei),
     ].map(escapeCsv).join(','));
-    const csv = ['ticketId,contractTokenId,seat,section,status,priceEth', ...rows].join('\n');
+    const csv = ['ticketId,contractTokenId,seat,section,status,priceKaia', ...rows].join('\n');
 
     try {
       if (Platform.OS === 'web') {
@@ -441,7 +441,7 @@ export default function TicketExplorePage({ navigation, route }: any) {
             <View style={styles.tkt}>
               <View style={{ flex: 1 }}>
                 <Text style={styles.tktTitle}>{item.seatInfo || '-'}</Text>
-                <Text style={styles.tktMeta}>{sectionOf(item)} · {weiToEth(item.originalPriceWei || item.priceWei)} ETH{tktIdShort ? ` · 티켓 ID ${tktIdShort}` : ''}</Text>
+                <Text style={styles.tktMeta}>{sectionOf(item)} · {weiToEth(item.originalPriceWei || item.priceWei)}{tktIdShort ? ` · 티켓 ID ${tktIdShort}` : ''}</Text>
               </View>
               <View style={[styles.tktBadge, { backgroundColor: tone.bg }]}>
                 <Text style={[styles.tktBadgeText, { color: tone.text }]}>{status.label}</Text>
