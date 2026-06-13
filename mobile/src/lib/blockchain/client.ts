@@ -1,7 +1,7 @@
 import { BrowserProvider, Contract, getBytes } from 'ethers';
 import { Platform } from 'react-native';
 import { config } from '../config';
-import { trustTicketAbi } from './abi';
+import { fanClubMembershipAbi, trustTicketAbi } from './abi';
 
 export type EthereumProvider = {
   request: (args: { method: string; params?: unknown[] }, chainId?: string) => Promise<unknown>;
@@ -31,6 +31,13 @@ function requireContractAddress() {
     throw new Error('TrustTicket 컨트랙트 주소가 설정되지 않았습니다.');
   }
   return config.trustTicketContractAddress;
+}
+
+function requireFanClubMembershipAddress() {
+  if (!config.fanClubMembershipContractAddress) {
+    throw new Error('FanClubMembership 컨트랙트 주소가 설정되지 않았습니다.');
+  }
+  return config.fanClubMembershipContractAddress;
 }
 
 function chainHex() {
@@ -99,6 +106,11 @@ async function contractWithSigner(provider?: unknown) {
   return new Contract(requireContractAddress(), trustTicketAbi, signer);
 }
 
+async function fanClubContractWithSigner(provider?: unknown) {
+  const signer = await walletSigner(provider);
+  return new Contract(requireFanClubMembershipAddress(), fanClubMembershipAbi, signer);
+}
+
 async function waitForHash(tx: any) {
   const receipt = await tx.wait();
   const typedReceipt = receipt as TransactionReceiptLike | null;
@@ -129,6 +141,33 @@ export async function purchaseResaleTicketOnChain(provider: unknown, tokenId: st
 export async function cancelListingOnChain(provider: unknown, tokenId: string) {
   const contract = await contractWithSigner(provider);
   const tx = await contract.cancelListing(BigInt(tokenId));
+  return waitForHash(tx);
+}
+
+export async function issueFanClubMembershipOnChain(provider: unknown, memberAddress: string) {
+  const contract = await fanClubContractWithSigner(provider);
+  const tx = await contract.issueMembership(memberAddress);
+  return waitForHash(tx);
+}
+
+export async function setMembershipPolicyOnChain(
+  provider: unknown,
+  eventId: string,
+  memberPriceWei: string,
+  presaleStartEpochSeconds: number,
+  presaleEndEpochSeconds: number,
+  publicSaleDiscount = false,
+) {
+  const contract = await contractWithSigner(provider);
+  const tx = await contract.setMembershipPolicy(
+    BigInt(eventId),
+    true,
+    requireFanClubMembershipAddress(),
+    BigInt(memberPriceWei),
+    BigInt(presaleStartEpochSeconds),
+    BigInt(presaleEndEpochSeconds),
+    publicSaleDiscount,
+  );
   return waitForHash(tx);
 }
 

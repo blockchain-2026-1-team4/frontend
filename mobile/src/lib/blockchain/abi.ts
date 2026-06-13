@@ -6,6 +6,8 @@ export const trustTicketAbi = [
   'function refundTicket(uint256 tokenId)',
   'function withdrawEventRevenue(uint256 eventId)',
   'function withdrawResaleRevenue(uint256 tokenId)',
+  'function setMembershipPolicy(uint256 eventId,bool enabled,address membershipToken,uint256 memberPrice,uint256 memberPresaleStart,uint256 memberPresaleEnd,bool publicSaleDiscount)',
+  'function getMembershipPolicy(uint256 eventId) view returns ((bool enabled,address membershipToken,uint256 memberPrice,uint256 memberPresaleStart,uint256 memberPresaleEnd,bool publicSaleDiscount))',
   'function ownerOf(uint256 tokenId) view returns (address)',
   'function getTicketInfo(uint256 tokenId) view returns ((uint256 tokenId,uint256 eventId,string seatInfo,uint256 originalPrice,bool used,bool listed))',
   'function getEventEscrowBalance(uint256 eventId) view returns (uint256)',
@@ -20,4 +22,12 @@ export const trustTicketAbi = [
   'error TicketListedError()',
   'error ResaleClosed()',
   'error ResaleNotAllowed()',
+] as const;
+
+export const fanClubMembershipAbi = [
+  'function issueMembership(address member) returns (uint256)',
+  'function balanceOf(address owner) view returns (uint256)',
+  'function membershipOf(address member) view returns (uint256)',
+  'error AlreadyMember()',
+  'error InvalidAddress()',
 ] as const;

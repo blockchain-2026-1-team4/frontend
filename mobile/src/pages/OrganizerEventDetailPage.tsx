@@ -1,6 +1,6 @@
 import React, { useCallback, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
-import { ActivityIndicator, Alert, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, RefreshControl, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import {
   EventFlowHero,
   EventFlowMenuRow,
@@ -11,6 +11,7 @@ import {
 import { TicketIcon, flowShadow } from '../components/TicketFlowKit';
 import { errorMessage } from '../lib/account';
 import { backendApi } from '../lib/backend';
+import { issueFanClubMembershipOnChain, setMembershipPolicyOnChain } from '../lib/blockchain/client';
 import { resolveImageUrl } from '../lib/config';
 import { formatEventCategory, formatEventRange, getEventDisplayStatus } from '../lib/ticketDisplay';
 import type { EventDetail, TicketDetail } from '../types/api';
@@ -43,12 +44,37 @@ function statusTone(tone: string): 'green' | 'purple' | 'gray' | 'red' | 'yellow
   return 'gray';
 }
 
+function firstTicketPriceWei(event: EventDetail, tickets: TicketDetail[]) {
+  return tickets.find((ticket) => ticket.originalPriceWei || ticket.priceWei)?.originalPriceWei
+    ?? tickets.find((ticket) => ticket.originalPriceWei || ticket.priceWei)?.priceWei
+    ?? event.ticketPriceWei
+    ?? '';
+}
+
+function weiToKaiaLabel(value?: string | null) {
+  if (!value) return '-';
+  try {
+    const wei = BigInt(value);
+    const whole = wei / 1_000_000_000_000_000_000n;
+    const fraction = (wei % 1_000_000_000_000_000_000n).toString().padStart(18, '0').replace(/0+$/, '');
+    return `${fraction ? `${whole}.${fraction}` : whole.toString()} KAIA`;
+  } catch {
+    return `${value} wei`;
+  }
+}
+
+function isValidAddress(value: string) {
+  return /^0x[0-9a-fA-F]{40}$/.test(value.trim());
+}
+
 export default function OrganizerEventDetailPage({ navigation, route }: any) {
   const eventId = route?.params?.eventId as string;
   const [event, setEvent] = useState<EventDetail | null>(null);
   const [tickets, setTickets] = useState<TicketDetail[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [membershipAddress, setMembershipAddress] = useState('');
+  const [membershipBusy, setMembershipBusy] = useState<'issue' | 'policy' | null>(null);
 
   const load = useCallback(async () => {
     if (!eventId) {
@@ -97,6 +123,58 @@ export default function OrganizerEventDetailPage({ navigation, route }: any) {
   const soldPct = totalTickets > 0 ? Math.min(100, (soldTickets / totalTickets) * 100) : 0;
   const displayStatus = getEventDisplayStatus(event);
   const issuedMessage = issuedTickets > 0 ? '발행된 티켓이 있어 일정은 제한적으로 수정됩니다.' : '티켓 발행 전에는 회차 일정을 자유롭게 수정할 수 있습니다.';
+  const contractEventId = event.contractEventId ? String(event.contractEventId) : '';
+  const membershipPriceWei = firstTicketPriceWei(event, tickets);
+  const hasMintedTicket = tickets.some((ticket) => ticket.contractTokenId);
+  const canSetupMembership = Boolean(contractEventId && membershipPriceWei && hasMintedTicket);
+  const membershipSetupHint = !contractEventId
+    ? '티켓 발행 후 온체인 이벤트 ID가 생성되면 설정할 수 있습니다.'
+    : !hasMintedTicket
+      ? '티켓 민팅이 완료된 뒤 설정할 수 있습니다.'
+      : membershipPriceWei
+        ? `선예매 가격은 현재 티켓 가격과 같은 ${weiToKaiaLabel(membershipPriceWei)}로 설정됩니다.`
+        : '티켓 가격을 확인할 수 없습니다.';
+
+  const issueMembership = async () => {
+    const address = membershipAddress.trim();
+    if (!isValidAddress(address)) {
+      Alert.alert('지갑 주소 확인', '멤버십을 발급할 지갑 주소를 정확히 입력해주세요.');
+      return;
+    }
+    try {
+      setMembershipBusy('issue');
+      const hash = await issueFanClubMembershipOnChain(undefined, address);
+      Alert.alert('멤버십 발급 완료', `FanClubMembership NFT가 발급되었습니다.\n\n${hash}`);
+    } catch (error: any) {
+      Alert.alert('멤버십 발급 실패', errorMessage(error, 'MEMBERSHIP_ISSUER_ROLE이 있는 지갑으로 서명해야 합니다.'));
+    } finally {
+      setMembershipBusy(null);
+    }
+  };
+
+  const enableMembershipPresale = async () => {
+    if (!canSetupMembership) {
+      Alert.alert('선예매 설정 불가', membershipSetupHint);
+      return;
+    }
+    try {
+      setMembershipBusy('policy');
+      const now = Math.floor(Date.now() / 1000);
+      const hash = await setMembershipPolicyOnChain(
+        undefined,
+        contractEventId,
+        membershipPriceWei,
+        now - 300,
+        now + 2 * 60 * 60,
+        false,
+      );
+      Alert.alert('선예매 설정 완료', `팬클럽 NFT 보유자만 현재 티켓 가격으로 구매할 수 있습니다.\n\n${hash}`);
+    } catch (error: any) {
+      Alert.alert('선예매 설정 실패', errorMessage(error, '이벤트 주최자 또는 관리자 권한이 있는 지갑으로 서명해야 합니다.'));
+    } finally {
+      setMembershipBusy(null);
+    }
+  };
 
   return (
     <ScrollView
@@ -148,6 +226,54 @@ export default function OrganizerEventDetailPage({ navigation, route }: any) {
           </TouchableOpacity>
         </View>
       </View>
+
+      <View style={eventFlowStyles.section}>
+        <EventFlowSectionHead title="팬클럽 선예매" subtitle="Scenario B 데모 설정" />
+        <View style={[eventFlowStyles.card, styles.membershipCard]}>
+          <View style={styles.membershipHeader}>
+            <View style={styles.membershipIcon}><TicketIcon name="userCheck" color="#24745B" size={18} /></View>
+            <View style={styles.membershipHeaderText}>
+              <Text style={styles.membershipTitle}>멤버십 NFT 기반 구매 제한</Text>
+              <Text style={styles.membershipSubtitle}>FanClubMembership NFT 보유 지갑만 선예매 기간에 구매할 수 있게 설정합니다.</Text>
+            </View>
+          </View>
+
+          <View style={styles.membershipInfoGrid}>
+            <InfoCell label="온체인 이벤트" value={contractEventId ? `Event #${contractEventId}` : '티켓 발행 필요'} />
+            <InfoCell label="선예매 가격" value={weiToKaiaLabel(membershipPriceWei)} />
+          </View>
+
+          <Text style={styles.fieldLabel}>멤버십 발급 대상 지갑</Text>
+          <TextInput
+            value={membershipAddress}
+            onChangeText={setMembershipAddress}
+            placeholder="0x..."
+            autoCapitalize="none"
+            autoCorrect={false}
+            style={styles.addressInput}
+            placeholderTextColor="#94A3B8"
+          />
+
+          <View style={styles.membershipActions}>
+            <TouchableOpacity
+              style={[styles.membershipButton, membershipBusy && styles.disabledButton]}
+              disabled={Boolean(membershipBusy)}
+              onPress={issueMembership}
+            >
+              <Text style={styles.membershipButtonText}>{membershipBusy === 'issue' ? '발급 중...' : 'NFT 발급'}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.membershipButton, styles.membershipButtonPrimary, (!canSetupMembership || Boolean(membershipBusy)) && styles.disabledButton]}
+              disabled={!canSetupMembership || Boolean(membershipBusy)}
+              onPress={enableMembershipPresale}
+            >
+              <Text style={[styles.membershipButtonText, styles.membershipButtonPrimaryText]}>{membershipBusy === 'policy' ? '설정 중...' : '선예매 적용'}</Text>
+            </TouchableOpacity>
+          </View>
+
+          <Text style={styles.membershipHint}>{membershipSetupHint}</Text>
+        </View>
+      </View>
     </ScrollView>
   );
 }
@@ -158,6 +284,15 @@ function Stat({ icon, value, label }: { icon: 'ticket' | 'tag' | 'cart' | 'userC
       <View style={styles.statIcon}><TicketIcon name={icon} color="#534AB7" size={16} /></View>
       <Text style={styles.statValue}>{value.toLocaleString()}</Text>
       <Text style={styles.statLabel}>{label}</Text>
+    </View>
+  );
+}
+
+function InfoCell({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={styles.infoCell}>
+      <Text style={styles.infoLabel}>{label}</Text>
+      <Text style={styles.infoValue} numberOfLines={1}>{value}</Text>
     </View>
   );
 }
@@ -185,4 +320,23 @@ const styles = StyleSheet.create({
   progressText: { color: '#64748B', fontSize: 10, fontWeight: '900' },
   progressBg: { height: 7, borderRadius: 999, overflow: 'hidden', backgroundColor: '#EEF2F7' },
   progressFill: { height: '100%', borderRadius: 999, backgroundColor: '#534AB7' },
+  membershipCard: { padding: 16, ...flowShadow },
+  membershipHeader: { flexDirection: 'row', gap: 12, alignItems: 'center', marginBottom: 14 },
+  membershipIcon: { width: 38, height: 38, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: '#E6F5EE' },
+  membershipHeaderText: { flex: 1 },
+  membershipTitle: { color: '#0F172A', fontSize: 15, fontWeight: '900' },
+  membershipSubtitle: { marginTop: 3, color: '#64748B', fontSize: 11, lineHeight: 15, fontWeight: '700' },
+  membershipInfoGrid: { flexDirection: 'row', gap: 8, marginBottom: 14 },
+  infoCell: { flex: 1, minHeight: 62, borderRadius: 14, backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#E2E8F0', paddingHorizontal: 12, paddingVertical: 10, justifyContent: 'center' },
+  infoLabel: { color: '#64748B', fontSize: 10, fontWeight: '800', marginBottom: 5 },
+  infoValue: { color: '#0F172A', fontSize: 13, fontWeight: '900' },
+  fieldLabel: { color: '#334155', fontSize: 11, fontWeight: '900', marginBottom: 7 },
+  addressInput: { height: 46, borderRadius: 14, borderWidth: 1, borderColor: '#CBD5E1', backgroundColor: '#FFFFFF', paddingHorizontal: 12, color: '#0F172A', fontSize: 12, fontWeight: '800' },
+  membershipActions: { flexDirection: 'row', gap: 8, marginTop: 12 },
+  membershipButton: { flex: 1, height: 46, borderRadius: 15, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#CBD5E1', backgroundColor: '#FFFFFF' },
+  membershipButtonPrimary: { borderColor: '#24745B', backgroundColor: '#24745B' },
+  membershipButtonText: { color: '#334155', fontSize: 13, fontWeight: '900' },
+  membershipButtonPrimaryText: { color: '#FFFFFF' },
+  disabledButton: { opacity: 0.55 },
+  membershipHint: { marginTop: 10, color: '#64748B', fontSize: 10, lineHeight: 14, fontWeight: '700' },
 });
